@@ -40,7 +40,9 @@
     --error:#F3897D;
   }
 }
+:root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --bg:#111320; --paper:#191C29; --soft:#232736;
   --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
   --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
@@ -223,7 +225,22 @@ button.line.pick{border-color:var(--error)}
   .rules{gap:12px 18px}
   .rule .sch{font-size:13px}
 }
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
 </style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
 </head>
 
 <body>
@@ -231,6 +248,7 @@ button.line.pick{border-color:var(--error)}
   <div class="top">
     <span class="wordmark"><span>⊨</span> Semantic tableaux</span>
     <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
     <form id="entry">
       <div class="tf" role="group" aria-label="Sign for the root formula">
         <button type="button" data-sign="T" aria-pressed="false">T</button>
@@ -774,6 +792,26 @@ window.addEventListener("resize", function(){ if (S.tab) equalize($("#canvas"));
 
 build($("#formula").value);
 if (document.fonts) document.fonts.ready.then(function(){ if (S.tab) equalize($("#canvas")); });
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
 </script>
 </body>
 </html>

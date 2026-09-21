@@ -32,7 +32,9 @@
     --accent:#8F9BF7; --accent-soft:#262C4C;
   }
 }
+:root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --bg:#111320; --paper:#191C29; --soft:#232736;
   --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
   --accent:#8F9BF7; --accent-soft:#262C4C;
@@ -49,6 +51,7 @@ body{
 
 .page{max-width:680px; margin:0 auto; padding-inline:20px; padding-block:56px 64px}
 
+.hrow{display:flex; align-items:flex-start; justify-content:space-between; gap:18px}
 header h1{
   margin:0; font-family:var(--serif); font-weight:500; font-size:30px;
   letter-spacing:-.015em; text-wrap:balance;
@@ -105,13 +108,31 @@ header p{
   .tool{gap:12px; padding:14px}
   .tool .arrow{display:none}
 }
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
 </style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
 </head>
 
 <body>
 <div class="page">
   <header>
-    <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
+    <div class="hrow">
+      <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
+      <button class="theme" id="themeBtn" type="button">◐</button>
+    </div>
     <p>Three interactive tools for a propositional logic course. Each one takes a
        formula and works through a method step by step, checking every move rather
        than just handing over an answer.</p>
@@ -166,5 +187,28 @@ header p{
        buttons that insert the symbols for you.</p>
   </section>
 </div>
+
+<script>
+"use strict";
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
 </body>
 </html>

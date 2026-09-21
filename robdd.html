@@ -40,7 +40,9 @@
     --error:#F3897D; --error-soft:#3B1D1A;
   }
 }
+:root[data-theme="light"]{color-scheme:light}
 :root[data-theme="dark"]{
+  color-scheme:dark;
   --bg:#111320; --paper:#191C29; --soft:#232736;
   --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
   --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
@@ -232,7 +234,22 @@ svg{display:block; margin:0 auto; overflow:visible}
   .pad button{min-width:34px; padding:6px 7px; font-size:16px}
   .padhint{flex-basis:100%; margin:2px 0 0}
 }
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
 </style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
 </head>
 
 <body>
@@ -240,6 +257,7 @@ svg{display:block; margin:0 auto; overflow:visible}
   <div class="top">
     <span class="wordmark"><span>◆</span> ROBDD</span>
     <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
     <form id="entry">
       <input type="text" id="formula" spellcheck="false" autocomplete="off"
              aria-label="Formula" value="(p & q) | r">
@@ -1102,6 +1120,26 @@ document.addEventListener("keydown", function(e){
 });
 
 build($("#formula").value);
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
 </script>
 </body>
 </html>

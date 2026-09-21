@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Build signed T/F semantic tableaux for propositional formulas step by step: click a line, pick a rule, close the branches.">
-<title>Semantic Tableaux</title>
+<meta name="description" content="Three interactive tools for propositional logic: a semantic tableaux trainer, an ROBDD constructor, and an equivalence checker.">
+<title>Propositional Logic Solvers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
@@ -20,13 +20,7 @@
   --ink-3:#8A91A6;
   --line:#D3D7E4;
   --accent:#2E3FA8;
-  --accent-ink:#FFFFFF;
   --accent-soft:#E0E4FB;
-  --closed:#1F7A5C;
-  --closed-soft:#D8EEE5;
-  --open:#A46200;
-  --open-soft:#FAEBD4;
-  --error:#B3261E;
   --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
   --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
   --serif:"Newsreader", ui-serif, Georgia, serif;
@@ -35,746 +29,142 @@
   :root:not([data-theme="light"]){
     --bg:#111320; --paper:#191C29; --soft:#232736;
     --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
-    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
-    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#37280F;
-    --error:#F3897D;
+    --accent:#8F9BF7; --accent-soft:#262C4C;
   }
 }
 :root[data-theme="dark"]{
   --bg:#111320; --paper:#191C29; --soft:#232736;
   --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
-  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
-  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#37280F;
-  --error:#F3897D;
+  --accent:#8F9BF7; --accent-soft:#262C4C;
 }
 
-html,body{height:100%}
 body{
   margin:0; background:var(--bg); color:var(--ink);
   font-family:var(--sans); font-size:14px; line-height:1.5;
   -webkit-font-smoothing:antialiased;
 }
 *{box-sizing:border-box}
-button{font:inherit; color:inherit; cursor:pointer}
-:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
-@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+:focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:6px}
+@media (prefers-reduced-motion:reduce){ *{transition-duration:.01ms!important} }
 
-#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1300px; margin:0 auto}
+.page{max-width:680px; margin:0 auto; padding-inline:20px; padding-block:56px 64px}
 
-/* ── input row ─────────────────────────────────────────── */
-.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
-.wordmark{
-  font-family:var(--serif); font-size:17px; color:var(--ink-2);
-  white-space:nowrap; margin-right:2px;
+header h1{
+  margin:0; font-family:var(--serif); font-weight:500; font-size:30px;
+  letter-spacing:-.015em; text-wrap:balance;
 }
-.wordmark span{color:var(--accent)}
-.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
-.sibling:hover{color:var(--accent)}
-form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
-.tf{display:flex; border:1px solid var(--line); border-radius:7px; overflow:hidden; flex:none; background:var(--paper)}
-.tf button{
-  border:0; background:transparent; padding:7px 13px;
-  font-family:var(--mono); font-size:13px; color:var(--ink-3);
+header h1 .mark{color:var(--accent); margin-right:.15em}
+header p{
+  margin:10px 0 0; font-size:15px; color:var(--ink-2); max-width:54ch;
 }
-.tf button+button{border-left:1px solid var(--line)}
-.tf button[aria-pressed="true"]{background:var(--ink); color:var(--bg)}
-input[type=text]{
-  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
-  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
-  background:var(--paper); color:var(--ink);
-}
-input[type=text]:focus{outline:none; border-color:var(--accent)}
-.go{
-  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
-  border-radius:7px; padding:8px 16px; font-weight:500;
-}
-.go:hover{filter:brightness(1.08)}
-.link{
-  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
-  font-size:13px; text-decoration:underline; text-underline-offset:3px;
-}
-.link:hover{color:var(--ink)}
 
-/* ── connective pad ────────────────────────────────────── */
-.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
-.pad button{
-  font-family:var(--serif); font-size:17px; line-height:1;
-  min-width:36px; padding:6px 9px; border-radius:6px;
-  border:1px solid var(--line); background:var(--paper); color:var(--ink);
-  transition:background .1s, border-color .1s;
+.list{display:flex; flex-direction:column; gap:10px; margin-top:34px}
+.tool{
+  display:flex; align-items:flex-start; gap:16px;
+  padding:16px 18px; border:1px solid var(--line); border-radius:10px;
+  background:var(--paper); text-decoration:none; color:inherit;
+  transition:border-color .13s, background .13s, transform .13s;
 }
-.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
-.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
-.pad .gap{width:10px}
-.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
-.padhint code{font-family:var(--mono); font-size:11.5px}
+.tool:hover{border-color:var(--accent); background:var(--accent-soft); transform:translateY(-1px)}
+.tool .glyph{
+  font-family:var(--serif); font-size:26px; line-height:1; color:var(--accent);
+  flex:none; width:1.2em; text-align:center; padding-top:4px;
+}
+.tool .text{flex:1; min-width:0}
+.tool h2{
+  margin:0; font-family:var(--serif); font-weight:500; font-size:19px;
+  letter-spacing:-.01em;
+}
+.tool p{margin:5px 0 0; font-size:13.5px; color:var(--ink-2)}
+.tool .meta{
+  display:block; margin-top:8px;
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3);
+}
+.tool .arrow{
+  font-family:var(--serif); font-size:19px; color:var(--ink-3);
+  flex:none; align-self:center; transition:color .13s, transform .13s;
+}
+.tool:hover .arrow{color:var(--accent); transform:translateX(2px)}
 
-/* ── rule table ────────────────────────────────────────── */
-.rules{display:flex; flex-wrap:wrap; gap:16px 26px; padding-block:2px 14px; border-bottom:1px solid var(--line)}
-.rulegroup{display:flex; align-items:flex-start; gap:10px; flex-wrap:wrap}
-.glyph{
-  font-family:var(--serif); font-size:16px; color:var(--accent);
-  padding-top:3px; width:1em; flex:none;
+.notation{
+  margin-top:34px; padding-top:20px; border-top:1px solid var(--line);
+  font-size:13px; color:var(--ink-2);
 }
-.rulerow{display:flex; flex-wrap:wrap; gap:4px}
-.rule{
-  display:flex; align-items:baseline; gap:8px;
-  border:1px solid transparent; background:transparent; border-radius:6px;
-  padding:3px 8px; transition:background .1s, opacity .1s;
+.notation h3{
+  margin:0 0 9px; font-family:var(--mono); font-size:10px;
+  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:500;
 }
-.rule:hover{background:var(--soft)}
-.rule .code{font-family:var(--serif); font-size:14px; color:var(--accent); flex:none}
-.rule .sch{font-family:var(--serif); font-size:14px; white-space:nowrap}
-.rule .sch .ar{font-family:var(--sans); font-size:10px; color:var(--ink-3); margin:0 .4em}
-.rule .sch .bar{color:var(--line); margin:0 .3em}
-.rule.armed{background:var(--accent); border-color:var(--accent)}
-.rule.armed .code,.rule.armed .sch,.rule.armed .ar,.rule.armed .bar{color:var(--accent-ink)}
-.rule.dim{opacity:.3}
+.notation p{margin:0 0 7px}
+.notation .sym{font-family:var(--serif); font-size:15px; color:var(--ink)}
+.notation code{font-family:var(--mono); font-size:12px; color:var(--ink)}
 
-/* ── status ────────────────────────────────────────────── */
-.status{
-  display:flex; align-items:baseline; gap:10px;
-  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
-}
-.status .msg{flex:1}
-.status .f{white-space:normal}
-.status.ok{color:var(--closed)}
-.status.err{color:var(--error)}
-.status b{font-weight:500; color:var(--ink)}
-.status.ok b,.status.err b{color:inherit; font-weight:600}
-.status .acts{display:flex; gap:2px; flex:none}
-
-/* ── formulas ──────────────────────────────────────────── */
-.f{font-family:var(--serif); font-size:16.5px; line-height:1.3; white-space:nowrap}
-.f i{font-style:italic}
-.f .op{margin:0 .26em}
-.f .op.neg{margin:0 .04em 0 0}
-.f .pr{color:var(--ink-3)}
-.sg{
-  display:inline-block; min-width:1.35em; text-align:center; margin-right:.5em;
-  font-family:var(--mono); font-size:10.5px; line-height:1.55; border-radius:3px;
-  transform:translateY(-2px);
-}
-.sg.T{background:var(--ink); color:var(--bg)}
-.sg.F{background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--line)}
-
-/* ── tree ──────────────────────────────────────────────── */
-.canvas{
-  flex:1; min-height:0; overflow:auto;
-  padding:30px 20px 60px; background:var(--paper);
-  border:1px solid var(--line); border-radius:10px; margin-bottom:18px;
-}
-.tree{display:flex; justify-content:center; min-width:min-content}
-.seg{display:flex; flex-direction:column; align-items:center}
-.lines{display:flex; flex-direction:column; gap:1px}
-
-.line{
-  display:flex; align-items:baseline; gap:8px; white-space:nowrap;
-  padding:2px 8px 2px 4px; border-radius:5px;
-  border:1px solid transparent; background:transparent; text-align:left;
-}
-.line .num{
-  font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums;
-  color:var(--ink-3); width:2.2em; text-align:right; flex:none;
-}
-.line .tick{font-family:var(--mono); font-size:11px; width:1em; flex:none; color:var(--closed); opacity:0}
-.line.used .tick{opacity:1}
-.line .body{flex:1}
-.line .just{font-family:var(--mono); font-size:10px; color:var(--ink-3); padding-left:18px; flex:none}
-.line .just .rc{font-family:var(--serif); font-size:12.5px}
-.line.used .f{opacity:.6}
-button.line{transition:background .1s, border-color .1s}
-button.line:hover{background:var(--soft); border-color:var(--line)}
-button.line.sel{border-color:var(--accent); background:var(--accent-soft)}
-button.line.sel .num{color:var(--accent)}
-button.line.pick{border-color:var(--error)}
-.line.hi{animation:flash 1.2s ease-out}
-@keyframes flash{from{background:var(--accent-soft)} to{background:transparent}}
-
-.fork{position:relative; display:flex; align-items:flex-start; justify-content:center}
-.fork::before{content:""; position:absolute; top:0; left:50%; width:1px; height:15px; background:var(--line)}
-.fork::after{content:""; position:absolute; top:15px; left:25%; right:25%; height:1px; background:var(--line)}
-.branch-col{position:relative; padding:34px 20px 0; display:flex; justify-content:center; flex:none}
-.branch-col::before{content:""; position:absolute; top:15px; left:50%; width:1px; height:19px; background:var(--line)}
-
-.tip{position:relative; padding-top:20px; display:flex; flex-direction:column; align-items:center; gap:5px}
-.tip::before{content:""; position:absolute; top:2px; left:50%; width:1px; height:14px; background:var(--line)}
-.tip .mark{font-family:var(--serif); font-size:20px; line-height:1}
-.tip.closed .mark{color:var(--closed)}
-.tip.open .mark{color:var(--open)}
-.note{font-family:var(--mono); font-size:10px; padding:2px 7px; border-radius:20px; white-space:nowrap}
-.tip.closed .note{background:var(--closed-soft); color:var(--closed)}
-.tip.open .note{background:var(--open-soft); color:var(--open)}
-.tip .acts{display:flex; gap:4px}
-.tipbtn{
-  border:1px solid var(--line); background:var(--paper); border-radius:6px;
-  padding:3px 9px; font-size:11.5px; color:var(--ink-2);
-}
-.tipbtn.c:hover{border-color:var(--closed); color:var(--closed)}
-.tipbtn.o:hover{border-color:var(--open); color:var(--open)}
-.tip .prompt{font-family:var(--mono); font-size:10px; color:var(--error)}
-
-@media (max-width:760px){
-  #app{height:auto; min-height:100%; padding-inline:16px}
-  .canvas{min-height:460px}
-  .wordmark{display:none}
-  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
-  .padhint{flex-basis:100%; margin:2px 0 0}
-  .rules{gap:12px 18px}
-  .rule .sch{font-size:13px}
+@media (max-width:560px){
+  .page{padding-block:38px 48px}
+  header h1{font-size:25px}
+  .tool{gap:12px; padding:14px}
+  .tool .arrow{display:none}
 }
 </style>
 </head>
 
 <body>
-<div id="app">
-  <div class="top">
-    <span class="wordmark"><span>⊨</span> Semantic tableaux</span>
-    <a class="sibling" href="../robdd/">ROBDD →</a>
-    <a class="sibling" href="../equiv/">Equivalence →</a>
-    <form id="entry">
-      <div class="tf" role="group" aria-label="Sign for the root formula">
-        <button type="button" data-sign="T" aria-pressed="false">T</button>
-        <button type="button" data-sign="F" aria-pressed="true">F</button>
-      </div>
-      <input type="text" id="formula" spellcheck="false" autocomplete="off"
-             aria-label="Formula" value="(p -> q) -> (~q -> ~p)">
-      <button type="submit" class="go">Build tree</button>
-      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
-        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
-        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
-        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
-        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
-        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
-        <span class="gap"></span>
-        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
-        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
-        <span class="padhint">or type <code>~ &amp; | -&gt; &lt;-&gt;</code></span>
-      </div>
-    </form>
-  </div>
+<div class="page">
+  <header>
+    <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
+    <p>Three interactive tools for a propositional logic course. Each one takes a
+       formula and works through a method step by step, checking every move rather
+       than just handing over an answer.</p>
+  </header>
 
-  <div class="rules" id="rules"></div>
+  <nav class="list">
+    <a class="tool" href="tableaux.html">
+      <span class="glyph" aria-hidden="true">⊨</span>
+      <span class="text">
+        <h2>Semantic Tableaux</h2>
+        <p>Test a formula by hunting for a counterexample. Sign the root, click a line,
+           pick the rule its main connective calls for, and close the branches. Every
+           step is validated, and every misstep is explained.</p>
+        <span class="meta">signed T/F tableaux · α and β rules</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
 
-  <div class="status" id="status" role="status" aria-live="polite">
-    <span class="msg"></span>
-    <span class="acts">
-      <button class="link" id="undo">Undo</button>
-      <button class="link" id="reset">Restart</button>
-    </span>
-  </div>
+    <a class="tool" href="robdd.html">
+      <span class="glyph" aria-hidden="true">◆</span>
+      <span class="text">
+        <h2>ROBDD Constructor</h2>
+        <p>Pick a variable order, then reduce the full decision tree with C1, C2 and C3
+           until it is reduced. Drag nodes to untangle the diagram, and read the finished
+           ROBDD back out as a formula.</p>
+        <span class="meta">reduction rules · Shannon expansion</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
 
-  <div class="canvas" id="canvas"></div>
+    <a class="tool" href="equiv.html">
+      <span class="glyph" aria-hidden="true">≡</span>
+      <span class="text">
+        <h2>Equivalence Checker</h2>
+        <p>Decide whether two formulas denote the same Boolean function. When they do
+           not, it names a valuation where they disagree and marks the rows of the truth
+           table that split them.</p>
+        <span class="meta">truth tables · counterexamples</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+  </nav>
+
+  <section class="notation">
+    <h3>Notation</h3>
+    <p>All three read the same syntax:
+       <span class="sym">¬ ∧ ∨ ⊃ ≡</span>, with <span class="sym">⊃</span> for implication
+       and <span class="sym">≡</span> for the biconditional. Variables are letters.</p>
+    <p>If those characters are awkward to type, <code>~ &amp; | -&gt; &lt;-&gt;</code> work
+       just as well, as do <code>!</code>, <code>/\</code>, <code>\/</code>, <code>=&gt;</code>
+       and the arrows <code>→</code> and <code>↔</code>. Each page also has a row of
+       buttons that insert the symbols for you.</p>
+  </section>
 </div>
-
-<script>
-"use strict";
-
-/* ═════════════════════════════════════════════ formulas */
-var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
-
-function key(g){
-  if (g.k === "atom") return g.n;
-  if (g.k === "not") return "¬" + key(g.a);
-  return "(" + key(g.a) + OPCH[g.k] + key(g.b) + ")";
-}
-
-/* Parentheses are explicit rather than minimal: spotting a line's main
-   connective is the skill being practised, so only ∧/∨ chains stay flat. */
-function show(g, esc, wrap, neg, opw){
-  function needs(c, pk, left){
-    if (c.k === "atom" || c.k === "not") return false;
-    if (pk === "not") return true;
-    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
-    return true;
-  }
-  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
-  function body(h){
-    if (h.k === "atom") return esc(h.n);
-    if (h.k === "not") return neg() + go(h.a, "not", false);
-    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
-  }
-  return body(g);
-}
-function fmtHTML(g){
-  return show(g,
-    function(n){ return "<i>" + n + "</i>"; },
-    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
-    function(){ return '<span class="op neg">¬</span>'; },
-    function(o){ return '<span class="op">' + o + "</span>"; });
-}
-
-/* ═════════════════════════════════════════════ parser */
-var SYMS = [
-  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
-  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
-  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
-  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
-  ["¬","not"], ["~","not"], ["!","not"],
-  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
-];
-
-function tokenize(src){
-  var t = [], i = 0;
-  outer: while (i < src.length){
-    var c = src[i];
-    if (/\s/.test(c)){ i++; continue; }
-    if (/[A-Za-z]/.test(c)){
-      var j = i + 1;
-      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
-      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
-    }
-    for (var k = 0; k < SYMS.length; k++){
-      if (src.startsWith(SYMS[k][0], i)){
-        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
-      }
-    }
-    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
-  }
-  t.push({t:"end", v:"", i:src.length});
-  return t;
-}
-
-function parse(src){
-  var t = tokenize(src), p = 0;
-  function peek(){ return t[p].t; }
-  function eat(k){ return t[p].t === k ? t[p++] : null; }
-  function iff(){ var l = imp(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:imp()}; } return l; }
-  function imp(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:imp()}; } return l; }
-  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
-  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
-  function un(){
-    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
-    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
-    var a = eat("atom");
-    if (a) return {k:"atom", n:a.v};
-    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
-    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
-    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
-  }
-  var f = iff();
-  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
-  return f;
-}
-
-/* ═════════════════════════════════════════════ rules */
-function T(f){ return {s:"T", f:f}; }
-function F(f){ return {s:"F", f:f}; }
-
-function ruleFor(s, f){
-  if (f.k === "atom") return null;
-  if (f.k === "not") return {code: s === "T" ? "¬T" : "¬F", kind:"alpha", out:[[ s === "T" ? F(f.a) : T(f.a) ]]};
-  var a = f.a, b = f.b;
-  switch (f.k){
-    case "and": return s === "T" ? {code:"∧T", kind:"alpha", out:[[T(a), T(b)]]}
-                                 : {code:"∧F", kind:"beta",  out:[[F(a)], [F(b)]]};
-    case "or":  return s === "T" ? {code:"∨T", kind:"beta",  out:[[T(a)], [T(b)]]}
-                                 : {code:"∨F", kind:"alpha", out:[[F(a), F(b)]]};
-    case "imp": return s === "T" ? {code:"⊃T", kind:"beta",  out:[[F(a)], [T(b)]]}
-                                 : {code:"⊃F", kind:"alpha", out:[[T(a), F(b)]]};
-    case "iff": return s === "T" ? {code:"≡T", kind:"beta",  out:[[T(a), T(b)], [F(a), F(b)]]}
-                                 : {code:"≡F", kind:"beta",  out:[[T(a), F(b)], [F(a), T(b)]]};
-  }
-}
-
-var RULES = [
-  {code:"¬T", kind:"alpha", prem:"T ¬φ",      out:[["F φ"]]},
-  {code:"¬F", kind:"alpha", prem:"F ¬φ",      out:[["T φ"]]},
-  {code:"∧T", kind:"alpha", prem:"T (φ ∧ ψ)", out:[["T φ","T ψ"]]},
-  {code:"∨F", kind:"alpha", prem:"F (φ ∨ ψ)", out:[["F φ","F ψ"]]},
-  {code:"⊃F", kind:"alpha", prem:"F (φ ⊃ ψ)", out:[["T φ","F ψ"]]},
-  {code:"∧F", kind:"beta",  prem:"F (φ ∧ ψ)", out:[["F φ"],["F ψ"]]},
-  {code:"∨T", kind:"beta",  prem:"T (φ ∨ ψ)", out:[["T φ"],["T ψ"]]},
-  {code:"⊃T", kind:"beta",  prem:"T (φ ⊃ ψ)", out:[["F φ"],["T ψ"]]},
-  {code:"≡T", kind:"beta",  prem:"T (φ ≡ ψ)", out:[["T φ","T ψ"],["F φ","F ψ"]]},
-  {code:"≡F", kind:"beta",  prem:"F (φ ≡ ψ)", out:[["T φ","F ψ"],["F φ","T ψ"]]}
-];
-
-/* ═════════════════════════════════════════════ tableau */
-function newTab(){ return {lines:{}, segs:{}, root:null, nextLine:1, nextSeg:0}; }
-
-function addSeg(tab, parent){
-  var id = "s" + (tab.nextSeg++);
-  tab.segs[id] = {id:id, parent:parent, lines:[], kids:[], state:"active", closure:null};
-  if (parent) tab.segs[parent].kids.push(id);
-  return id;
-}
-function addLine(tab, seg, s, f, src, rule){
-  var id = tab.nextLine++;
-  tab.lines[id] = {id:id, s:s, f:f, src:src, rule:rule, seg:seg, used:false};
-  tab.segs[seg].lines.push(id);
-  return id;
-}
-function pathLines(tab, seg){
-  var out = [], chain = [];
-  for (var c = seg; c; c = tab.segs[c].parent) chain.unshift(c);
-  chain.forEach(function(s){ out = out.concat(tab.segs[s].lines); });
-  return out;
-}
-function leaves(tab, seg, only){
-  var sg = tab.segs[seg], out = [];
-  if (!sg.kids.length){ if (!only || sg.state === only) out.push(seg); return out; }
-  sg.kids.forEach(function(k){ out = out.concat(leaves(tab, k, only)); });
-  return out;
-}
-function clashOn(tab, seg){
-  var seen = {}, ids = pathLines(tab, seg);
-  for (var i = 0; i < ids.length; i++){
-    var L = tab.lines[ids[i]], k = key(L.f);
-    var opp = (L.s === "T" ? "F" : "T") + k;
-    if (seen[opp] !== undefined) return [seen[opp], L.id];
-    if (seen[L.s + k] === undefined) seen[L.s + k] = L.id;
-  }
-  return null;
-}
-function unusedOn(tab, seg){
-  return pathLines(tab, seg).filter(function(id){
-    var L = tab.lines[id]; return !L.used && L.f.k !== "atom";
-  });
-}
-function valuationOn(tab, seg){
-  var v = {};
-  pathLines(tab, seg).forEach(function(id){
-    var L = tab.lines[id];
-    if (L.f.k === "atom" && v[L.f.n] === undefined) v[L.f.n] = (L.s === "T");
-  });
-  return v;
-}
-/* A rule applies on every still-open branch running through its line. */
-function applyAt(tab, lineId){
-  var L = tab.lines[lineId], r = ruleFor(L.s, L.f);
-  var tgt = leaves(tab, L.seg, "active");
-  tgt.forEach(function(lf){
-    if (r.kind === "alpha"){
-      r.out[0].forEach(function(x){ addLine(tab, lf, x.s, x.f, lineId, r.code); });
-    } else {
-      r.out.forEach(function(br){
-        var c = addSeg(tab, lf);
-        br.forEach(function(x){ addLine(tab, c, x.s, x.f, lineId, r.code); });
-      });
-    }
-  });
-  L.used = true;
-  return tgt.length;
-}
-
-/* ═════════════════════════════════════════════ state */
-var S = {sign:"F", root:null, tab:null, sel:null, closing:null, undo:[], newLines:null};
-
-var $ = function(s){ return document.querySelector(s); };
-var sf = function(s, f){ return '<span class="f"><span class="sg ' + s + '">' + s + "</span>" + fmtHTML(f) + "</span>"; };
-var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
-
-function say(tone, html){
-  var el = $("#status");
-  el.className = "status " + (tone || "");
-  el.querySelector(".msg").innerHTML = html;
-}
-function snapshot(){
-  S.undo.push(JSON.stringify({tab:S.tab, sel:S.sel, closing:S.closing}));
-  if (S.undo.length > 80) S.undo.shift();
-}
-
-function build(src){
-  var f;
-  try { f = parse(src); }
-  catch (e){ say("err", e.message); return false; }
-  S.root = f;
-  S.tab = newTab();
-  S.tab.root = addSeg(S.tab, null);
-  addLine(S.tab, S.tab.root, S.sign, f, null, null);
-  S.sel = null; S.closing = null; S.undo = [];
-  say("", "Root set. Click a line, then pick the rule its main connective and sign call for.");
-  draw();
-  return true;
-}
-
-/* ═════════════════════════════════════════════ actions */
-function selectLine(id){
-  if (S.closing){ pickClosure(id); return; }
-  var L = S.tab.lines[id];
-  S.sel = (S.sel === id) ? null : id;
-  if (S.sel !== null){
-    if (L.f.k === "atom") say("", "Line " + id + " is the atom " + fh(L.f) + ". Atoms don’t break down — they are what closes a branch.");
-    else if (L.used) say("", "Line " + id + " is ticked: every open branch below it already carries its expansion.");
-    else say("", "Line " + id + " selected — now choose its rule above.");
-  }
-  draw();
-}
-
-function clickRule(code){
-  if (!S.tab) return;
-  if (S.sel === null){ say("", "Click a line in the tree first, then choose its rule."); return; }
-  var L = S.tab.lines[S.sel], r = ruleFor(L.s, L.f);
-  var want = RULES.filter(function(x){ return x.code === code; })[0];
-
-  if (!r){ say("err", "(" + code + ") needs a compound formula. Line " + S.sel + " is the atom " + fh(L.f) + " — there is nothing to break down."); return; }
-  if (L.used){ say("err", "Line " + S.sel + " is already used (✓). Applying its rule again adds nothing — pick another compound line."); return; }
-  if (r.code !== code){
-    say("err", "(" + code + ") applies to " + want.prem + ". Line " + S.sel + " is " + sf(L.s, L.f) +
-        " — main connective <b>" + (L.f.k === "not" ? "¬" : OPCH[L.f.k]) + "</b> under sign <b>" + L.s +
-        "</b>, so the rule is <b>(" + r.code + ")</b>.");
-    return;
-  }
-  if (!leaves(S.tab, L.seg, "active").length){
-    say("err", "Every branch through line " + S.sel + " is already closed — there is nothing left to expand.");
-    return;
-  }
-
-  snapshot();
-  var before = S.tab.nextLine;
-  var n = applyAt(S.tab, S.sel);
-  S.sel = null;
-  S.newLines = [];
-  for (var i = before; i < S.tab.nextLine; i++) S.newLines.push(i);
-  say("ok", "(" + r.code + ") applied" + (n > 1 ? " on all " + n + " open branches" : "") + " — " +
-      (r.kind === "beta" ? "a β-rule, so the branch splits in two." : "an α-rule, so the branch just grows."));
-  draw(true);
-  checkDone();
-}
-
-function startClosing(seg){
-  S.closing = {seg:seg, picks:[]};
-  S.sel = null;
-  say("", "Click the two lines on that branch that contradict — the same formula under <b>T</b> and under <b>F</b>.");
-  draw();
-}
-
-function pickClosure(id){
-  var c = S.closing, tab = S.tab;
-  if (pathLines(tab, c.seg).indexOf(id) < 0){
-    say("err", "Line " + id + " is not on that branch. A branch is the path from the root down to the tip you are closing.");
-    return;
-  }
-  if (c.picks.indexOf(id) >= 0){ c.picks = c.picks.filter(function(x){ return x !== id; }); draw(); return; }
-  c.picks.push(id);
-  if (c.picks.length < 2){ draw(); return; }
-
-  var A = tab.lines[c.picks[0]], B = tab.lines[c.picks[1]];
-  if (key(A.f) !== key(B.f)){
-    say("err", "Those are different formulas: " + sf(A.s, A.f) + " and " + sf(B.s, B.f) + ". A branch closes only on <b>the same formula</b> under opposite signs.");
-    c.picks = []; draw(); return;
-  }
-  if (A.s === B.s){
-    say("err", "Lines " + A.id + " and " + B.id + " are both signed <b>" + A.s + "</b>. You need one <b>T</b> and one <b>F</b>.");
-    c.picks = []; draw(); return;
-  }
-  snapshot();
-  tab.segs[c.seg].state = "closed";
-  tab.segs[c.seg].closure = [A.id, B.id];
-  S.closing = null;
-  say("ok", "Branch closed — lines " + A.id + " and " + B.id + " need " + fh(A.f) + " true and false at once.");
-  draw();
-  checkDone();
-}
-
-function markOpen(seg){
-  var tab = S.tab, c = clashOn(tab, seg);
-  if (c){
-    say("err", "That branch already carries " + sf(tab.lines[c[0]].s, tab.lines[c[0]].f) + " (line " + c[0] + ") and " +
-        sf(tab.lines[c[1]].s, tab.lines[c[1]].f) + " (line " + c[1] + "). It contradicts itself, so it closes.");
-    return;
-  }
-  var u = unusedOn(tab, seg);
-  if (u.length){
-    var L = tab.lines[u[0]];
-    say("err", "Not finished: line " + L.id + ", " + sf(L.s, L.f) + ", is still unticked on that branch. Every compound line must be used before a branch counts as open.");
-    return;
-  }
-  snapshot();
-  tab.segs[seg].state = "open";
-  say("ok", "Branch open — it reads off as " + valText(valuationOn(tab, seg)) + ".");
-  draw();
-  checkDone();
-}
-
-function valText(v){
-  var ks = Object.keys(v).sort();
-  if (!ks.length) return "any valuation at all";
-  return ks.map(function(k){ return '<span class="f"><i>' + k + "</i></span>&thinsp;=&thinsp;<b>" + (v[k] ? "T" : "F") + "</b>"; }).join(", ");
-}
-
-function checkDone(){
-  var tab = S.tab, lv = leaves(tab, tab.root);
-  if (lv.some(function(s){ return tab.segs[s].state === "active"; })) return;
-  var open = lv.filter(function(s){ return tab.segs[s].state === "open"; });
-  if (!open.length){
-    say("ok", "<b>Tableau closed.</b> All " + lv.length + " branch" + (lv.length === 1 ? "" : "es") + " died, so nothing makes " +
-        sf(S.sign, S.root) + " — " + (S.sign === "F" ? "the formula is <b>valid</b>." : "the formula is <b>unsatisfiable</b>."));
-  } else {
-    say("ok", "<b>Tableau open.</b> The branch marked ○ gives " + valText(valuationOn(tab, open[0])) + ", which makes " +
-        sf(S.sign, S.root) + " — " + (S.sign === "F" ? "a <b>counterexample</b>, so the formula is not valid." : "a <b>model</b>, so the formula is satisfiable."));
-  }
-}
-
-function undo(){
-  if (!S.undo.length){ say("", "Nothing to undo — you are back at the root."); return; }
-  var s = JSON.parse(S.undo.pop());
-  S.tab = s.tab; S.sel = s.sel; S.closing = s.closing;
-  say("", "Stepped back one move.");
-  draw();
-}
-
-/* ═════════════════════════════════════════════ drawing */
-function draw(flash){
-  drawRules();
-  var c = $("#canvas");
-  if (!S.tab){ c.innerHTML = ""; return; }
-  c.innerHTML = '<div class="tree">' + segHTML(S.tab, S.tab.root) + "</div>";
-  equalize(c);
-  if (flash && S.newLines){
-    S.newLines.forEach(function(id){
-      var el = c.querySelector('[data-line="' + id + '"]');
-      if (el) el.classList.add("hi");
-    });
-    S.newLines = null;
-  }
-}
-
-function segHTML(tab, seg){
-  var sg = tab.segs[seg], h = '<div class="seg"><div class="lines">';
-  h += sg.lines.map(function(id){ return lineHTML(tab, id); }).join("") + "</div>";
-  if (sg.kids.length){
-    h += '<div class="fork">' + sg.kids.map(function(k){
-      return '<div class="branch-col">' + segHTML(tab, k) + "</div>";
-    }).join("") + "</div>";
-  } else h += tipHTML(tab, seg);
-  return h + "</div>";
-}
-
-function lineHTML(tab, id){
-  var L = tab.lines[id], cls = ["line"];
-  if (L.used) cls.push("used");
-  if (S.sel === id) cls.push("sel");
-  if (S.closing && S.closing.picks.indexOf(id) >= 0) cls.push("pick");
-  return '<button type="button" class="' + cls.join(" ") + '" data-line="' + id + '">' +
-    '<span class="num">' + id + '</span><span class="tick">✓</span>' +
-    '<span class="body">' + sf(L.s, L.f) + "</span>" +
-    '<span class="just">' + (L.src ? L.src + ' <span class="rc">' + L.rule + "</span>" : "") + "</span></button>";
-}
-
-function tipHTML(tab, seg){
-  var sg = tab.segs[seg];
-  if (sg.state === "closed"){
-    return '<div class="tip closed"><span class="mark">×</span><span class="note">closed · ' +
-      sg.closure[0] + ", " + sg.closure[1] + "</span></div>";
-  }
-  if (sg.state === "open"){
-    var v = valuationOn(tab, seg), ks = Object.keys(v).sort();
-    return '<div class="tip open"><span class="mark">○</span><span class="note">' +
-      (ks.length ? ks.map(function(k){ return k + "=" + (v[k] ? "T" : "F"); }).join(" ") : "any valuation") + "</span></div>";
-  }
-  if (pathLines(tab, seg).length < 2) return "";
-  if (S.closing && S.closing.seg === seg){
-    var left = 2 - S.closing.picks.length;
-    return '<div class="tip"><span class="prompt">pick ' + left + " more line" + (left === 1 ? "" : "s") +
-      '</span><button class="tipbtn" data-act="cancel">cancel</button></div>';
-  }
-  return '<div class="tip"><div class="acts">' +
-    '<button class="tipbtn c" data-act="close" data-seg="' + seg + '">Close ×</button>' +
-    '<button class="tipbtn o" data-act="open" data-seg="' + seg + '">Open ○</button></div></div>';
-}
-
-/* equal-width sibling columns keep every T-connector symmetric */
-function equalize(root){
-  var forks = Array.prototype.slice.call(root.querySelectorAll(".fork")).reverse();
-  forks.forEach(function(fork){
-    var kids = Array.prototype.slice.call(fork.children).filter(function(n){
-      return n.classList && n.classList.contains("branch-col");
-    });
-    kids.forEach(function(k){ k.style.width = ""; });
-    var w = 0;
-    kids.forEach(function(k){ w = Math.max(w, k.getBoundingClientRect().width); });
-    kids.forEach(function(k){ k.style.width = w + "px"; });
-  });
-}
-
-function drawRules(){
-  var L = (S.tab && S.sel !== null) ? S.tab.lines[S.sel] : null;
-  var r = L ? ruleFor(L.s, L.f) : null;
-  var h = "";
-  [["alpha","α"], ["beta","β"]].forEach(function(g){
-    h += '<div class="rulegroup"><span class="glyph" title="' +
-      (g[0] === "alpha" ? "extends the branch" : "splits the branch") + '">' + g[1] + '</span><div class="rulerow">';
-    RULES.filter(function(x){ return x.kind === g[0]; }).forEach(function(R){
-      var cls = "rule" + (r ? (r.code === R.code ? " armed" : " dim") : "");
-      h += '<button type="button" class="' + cls + '" data-rule="' + R.code + '">' +
-        '<span class="code">' + R.code + '</span><span class="sch">' + R.prem + '<span class="ar">⇒</span>' +
-        R.out.map(function(b){ return b.join(", "); }).join('<span class="bar">|</span>') + "</span></button>";
-    });
-    h += "</div></div>";
-  });
-  $("#rules").innerHTML = h;
-}
-
-/* ═════════════════════════════════════════════ connective pad */
-/* The caret is remembered so a pad press inserts where the student was
-   typing, even on touch where the input loses focus first. */
-var caret = null;
-function rememberCaret(){
-  var el = $("#formula");
-  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
-}
-["input","click","keyup","select","blur"].forEach(function(ev){
-  $("#formula").addEventListener(ev, rememberCaret);
-});
-
-function insertSym(ch){
-  var el = $("#formula"), v = el.value, a, b;
-  if (document.activeElement === el && el.selectionStart !== null){
-    a = el.selectionStart; b = el.selectionEnd;
-  } else if (caret){ a = caret[0]; b = caret[1]; }
-  if (a === undefined || a === null){ a = b = v.length; }
-  el.value = v.slice(0, a) + ch + v.slice(b);
-  var pos = a + ch.length;
-  caret = [pos, pos];
-  el.focus();
-  try { el.setSelectionRange(pos, pos); } catch (e){}
-}
-
-/* keep the caret: don't let the button take focus away from the input */
-$("#pad").addEventListener("mousedown", function(e){
-  if (e.target.closest("[data-sym]")) e.preventDefault();
-});
-
-/* ═════════════════════════════════════════════ wiring */
-document.addEventListener("click", function(e){
-  var t = e.target.closest("[data-sym],[data-line],[data-rule],[data-act],[data-sign]");
-  if (!t) return;
-  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
-  if (t.hasAttribute("data-sign")){
-    S.sign = t.dataset.sign;
-    document.querySelectorAll("[data-sign]").forEach(function(b){
-      b.setAttribute("aria-pressed", String(b.dataset.sign === S.sign));
-    });
-    build($("#formula").value);
-    return;
-  }
-  if (t.hasAttribute("data-line")){ selectLine(+t.dataset.line); return; }
-  if (t.hasAttribute("data-rule")){ clickRule(t.dataset.rule); return; }
-  var a = t.dataset.act;
-  if (a === "close") startClosing(t.dataset.seg);
-  else if (a === "open") markOpen(t.dataset.seg);
-  else if (a === "cancel"){ S.closing = null; say("", "Closure cancelled."); draw(); }
-});
-
-$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
-$("#undo").addEventListener("click", undo);
-$("#reset").addEventListener("click", function(){ build($("#formula").value); });
-
-document.addEventListener("keydown", function(e){
-  if (e.key === "Escape"){
-    if (S.closing){ S.closing = null; draw(); }
-    else if (S.sel !== null){ S.sel = null; draw(); }
-  }
-  if (e.target.tagName === "INPUT") return;
-  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
-});
-
-window.addEventListener("resize", function(){ if (S.tab) equalize($("#canvas")); });
-
-build($("#formula").value);
-if (document.fonts) document.fonts.ready.then(function(){ if (S.tab) equalize($("#canvas")); });
-</script>
 </body>
 </html>

@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Check whether two propositional formulas are logically equivalent, with a truth table and a counterexample valuation when they differ.">
+<title>Equivalence Checker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --same:#1F7A5C;
+  --same-soft:#D8EEE5;
+  --diff:#A46200;
+  --diff-soft:#FAEBD4;
+  --error:#B3261E;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --same:#55C79C; --same-soft:#173529;
+    --diff:#E0A44F; --diff-soft:#37280F;
+    --error:#F3897D;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --same:#55C79C; --same-soft:#173529;
+  --diff:#E0A44F; --diff-soft:#37280F;
+  --error:#F3897D;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1000px; margin:0 auto}
+
+/* ── header and inputs ─────────────────────────────────── */
+.top{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; padding-block:18px 4px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+
+form{display:flex; flex-direction:column; gap:8px; padding-block:10px 14px}
+.row{display:flex; align-items:center; gap:10px}
+.tag{
+  font-family:var(--serif); font-style:italic; font-size:17px; color:var(--accent);
+  width:1.1em; flex:none; text-align:center;
+}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:9px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.actions{display:flex; align-items:center; gap:8px; flex-wrap:wrap; padding-left:calc(1.1em + 10px)}
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:9px 18px; font-weight:500; margin-left:auto;
+}
+.go:hover{filter:brightness(1.08)}
+.padhint{font-size:12px; color:var(--ink-3)}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── verdict ───────────────────────────────────────────── */
+.verdict{
+  display:flex; align-items:flex-start; gap:11px;
+  padding:13px 15px; border-radius:9px; border:1px solid var(--line);
+  background:var(--paper); font-size:14px; color:var(--ink-2);
+}
+.verdict .badge{
+  font-family:var(--mono); font-size:11px; font-weight:600; letter-spacing:.04em;
+  padding:3px 9px; border-radius:20px; flex:none; white-space:nowrap;
+  background:var(--soft); color:var(--ink-2); margin-top:1px;
+}
+.verdict .say{flex:1; min-width:0}
+.verdict b{font-weight:500; color:var(--ink)}
+.verdict.same{border-color:var(--same); background:var(--same-soft); color:var(--same)}
+.verdict.same .badge{background:var(--same); color:var(--paper)}
+.verdict.same b{color:inherit; font-weight:600}
+.verdict.diff{border-color:var(--diff); background:var(--diff-soft); color:var(--diff)}
+.verdict.diff .badge{background:var(--diff); color:var(--paper)}
+.verdict.diff b{color:inherit; font-weight:600}
+.verdict.bad{border-color:var(--error); color:var(--error)}
+.verdict.bad .badge{background:var(--error); color:var(--paper)}
+
+.f{font-family:var(--serif); font-size:16px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.val{font-family:var(--mono); font-size:12.5px; font-weight:500}
+
+/* ── reading of the two formulas ───────────────────────── */
+.reading{display:flex; flex-direction:column; gap:7px; padding:14px 15px 0}
+.reading .line{display:flex; align-items:baseline; gap:10px}
+.reading .tag{font-size:16px}
+
+/* ── truth table ───────────────────────────────────────── */
+.tablewrap{flex:1; min-height:0; overflow:auto; padding:14px 0 24px}
+table{border-collapse:collapse; margin:0 auto; font-variant-numeric:tabular-nums}
+caption{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); text-align:center; padding:0 0 8px; caption-side:top; white-space:nowrap;
+}
+th,td{
+  padding:5px 13px; text-align:center; font-family:var(--mono); font-size:13px;
+  border-bottom:1px solid var(--line);
+}
+thead th{
+  position:sticky; top:0; background:var(--bg);
+  font-weight:500; color:var(--ink-3); font-size:11px;
+  letter-spacing:.06em; border-bottom:1px solid var(--ink-3);
+}
+thead th.res{font-family:var(--serif); font-style:italic; font-size:16px; color:var(--accent); letter-spacing:0}
+thead th.eq{font-family:var(--serif); font-size:15px; color:var(--ink-2); letter-spacing:0}
+tbody td{color:var(--ink-3)}
+tbody td.res{color:var(--ink); font-weight:500}
+td.sep{border-left:1px solid var(--line)}
+th.sep{border-left:1px solid var(--line)}
+tbody tr.differs{background:var(--diff-soft)}
+tbody tr.differs td{color:var(--diff)}
+tbody tr.differs td.res{color:var(--diff); font-weight:600}
+td.mark{font-family:var(--sans); font-size:13px}
+tbody tr.differs td.mark{color:var(--diff)}
+tbody tr:not(.differs) td.mark{color:var(--same)}
+.note{
+  text-align:center; color:var(--ink-3); font-size:13px;
+  padding:26px 16px; max-width:52ch; margin:0 auto;
+}
+
+@media (max-width:640px){
+  #app{padding-inline:16px}
+  th,td{padding:5px 9px; font-size:12.5px}
+  .go{margin-left:0; width:100%}
+  .actions{padding-left:0}
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>≡</span> Equivalence</span>
+    <a class="sibling" href="../semantic_table/">Tableaux →</a>
+    <a class="sibling" href="../robdd/">ROBDD →</a>
+  </div>
+
+  <form id="entry">
+    <div class="row">
+      <span class="tag">A</span>
+      <input type="text" id="fa" spellcheck="false" autocomplete="off"
+             aria-label="First formula" value="p -> q">
+    </div>
+    <div class="row">
+      <span class="tag">B</span>
+      <input type="text" id="fb" spellcheck="false" autocomplete="off"
+             aria-label="Second formula" value="~p | q">
+    </div>
+    <div class="actions">
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+      </div>
+      <span class="padhint">or type <code>~ &amp; | -&gt; &lt;-&gt;</code></span>
+      <button type="submit" class="go">Check equivalence</button>
+    </div>
+  </form>
+
+  <div class="verdict" id="verdict" role="status" aria-live="polite">
+    <span class="badge"></span><span class="say"></span>
+  </div>
+
+  <div class="reading" id="reading"></div>
+  <div class="tablewrap" id="table"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ formulas */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+
+function show(g, esc, wrap, neg, opw){
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not") return false;
+    if (pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; });
+}
+
+function evalF(g, v){
+  switch (g.k){
+    case "atom": return !!v[g.n];
+    case "not":  return !evalF(g.a, v);
+    case "and":  return evalF(g.a, v) && evalF(g.b, v);
+    case "or":   return evalF(g.a, v) || evalF(g.b, v);
+    case "imp":  return !evalF(g.a, v) || evalF(g.b, v);
+    case "iff":  return evalF(g.a, v) === evalF(g.b, v);
+  }
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "not") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
+];
+
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+
+function parse(src){
+  if (!src.trim()) throw new Error("This one is empty — type a formula.");
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = imp(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:imp()}; } return l; }
+  function imp(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:imp()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ comparison */
+var MAXVARS = 16, MAXROWS = 64;
+
+/* Both formulas are read over the *union* of their variables, so a variable
+   occurring vacuously in one of them cannot make them count as different. */
+function compare(a, b){
+  var vars = atomsOf(a);
+  atomsOf(b, vars);
+  vars.sort();
+  var n = vars.length, total = Math.pow(2, n), rows = [], diff = [], i, m;
+  for (m = 0; m < total; m++){
+    var v = {};
+    /* row 0 is all-true, first variable changing slowest — textbook order */
+    for (i = 0; i < n; i++) v[vars[i]] = !((m >> (n - 1 - i)) & 1);
+    var va = evalF(a, v), vb = evalF(b, v);
+    rows.push({v:v, a:va, b:vb});
+    if (va !== vb) diff.push(m);
+  }
+  return {vars:vars, rows:rows, diff:diff, total:total};
+}
+
+function constantOf(rows, which){
+  var first = rows[0][which];
+  for (var i = 1; i < rows.length; i++) if (rows[i][which] !== first) return null;
+  return first;
+}
+
+/* ═════════════════════════════════════════════ view */
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var TF = function(b){ return b ? "T" : "F"; };
+
+function valText(vars, v){
+  return '<span class="val">' + vars.map(function(x){ return x + " = " + TF(v[x]); }).join(",&nbsp;") + "</span>";
+}
+
+function verdict(kind, badge, html){
+  var el = $("#verdict");
+  el.className = "verdict " + kind;
+  el.querySelector(".badge").textContent = badge;
+  el.querySelector(".say").innerHTML = html;
+}
+
+function check(){
+  var a, b;
+  try { a = parse($("#fa").value); }
+  catch (e){ fail("A", e.message); return; }
+  try { b = parse($("#fb").value); }
+  catch (e){ fail("B", e.message); return; }
+
+  var vars = atomsOf(a); atomsOf(b, vars);
+  if (vars.length > MAXVARS){
+    verdict("bad", "too big", "Between them these formulas use " + vars.length +
+      " variables, which is " + Math.pow(2, vars.length) + " valuations to check. " + MAXVARS + " is the limit here.");
+    $("#reading").innerHTML = ""; $("#table").innerHTML = "";
+    return;
+  }
+
+  var r = compare(a, b);
+  $("#reading").innerHTML =
+    '<div class="line"><span class="tag">A</span>' + fh(a) + "</div>" +
+    '<div class="line"><span class="tag">B</span>' + fh(b) + "</div>";
+
+  if (!r.diff.length){
+    var ca = constantOf(r.rows, "a"), extra = "";
+    if (ca === true) extra = " Both are tautologies — true on every valuation.";
+    else if (ca === false) extra = " Both are contradictions — false on every valuation.";
+    verdict("same", "equivalent",
+      "The two formulas agree on all <b>" + r.total + "</b> valuation" + (r.total === 1 ? "" : "s") +
+      " of " + r.vars.length + " variable" + (r.vars.length === 1 ? "" : "s") + "." + extra);
+  } else {
+    var first = r.rows[r.diff[0]];
+    verdict("diff", "not equivalent",
+      "They differ on <b>" + r.diff.length + "</b> of " + r.total + " valuations. " +
+      "Take " + valText(r.vars, first.v) + ": then <b>A</b> is <b>" + TF(first.a) +
+      "</b> while <b>B</b> is <b>" + TF(first.b) + "</b>.");
+  }
+  drawTable(r);
+}
+
+function fail(which, msg){
+  verdict("bad", "formula " + which, msg);
+  $("#reading").innerHTML = ""; $("#table").innerHTML = "";
+}
+
+function drawTable(r){
+  var el = $("#table");
+  if (r.total > MAXROWS){
+    el.innerHTML = '<p class="note">' + r.vars.length + " variables would make a " + r.total +
+      "-row table, too long to read. The verdict above is still checked against every one of those rows.</p>";
+    return;
+  }
+  var h = '<table><caption>' + r.total + " valuations · " +
+    (r.diff.length ? r.diff.length + " differ" : "all agree") + "</caption><thead><tr>";
+  r.vars.forEach(function(v){ h += "<th>" + v + "</th>"; });
+  h += '<th class="res sep">A</th><th class="res">B</th><th class="eq">≡</th></tr></thead><tbody>';
+  r.rows.forEach(function(row, i){
+    var bad = row.a !== row.b;
+    h += '<tr class="' + (bad ? "differs" : "") + '">';
+    r.vars.forEach(function(v){ h += "<td>" + TF(row.v[v]) + "</td>"; });
+    h += '<td class="res sep">' + TF(row.a) + '</td><td class="res">' + TF(row.b) + "</td>" +
+         '<td class="mark">' + (bad ? "✗" : "✓") + "</td></tr>";
+  });
+  return void (el.innerHTML = h + "</tbody></table>");
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null, lastField = "fa";
+["fa", "fb"].forEach(function(id){
+  var el = document.getElementById(id);
+  ["input","click","keyup","select","focus"].forEach(function(ev){
+    el.addEventListener(ev, function(){
+      lastField = id;
+      if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+    });
+  });
+});
+
+function insertSym(ch){
+  var el = document.getElementById(lastField), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ wiring */
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym]");
+  if (t) insertSym(t.dataset.sym);
+});
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); check(); });
+
+check();
+</script>
+</body>
+</html>

@@ -134,7 +134,13 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
   border-radius:7px; padding:6px 16px; font-weight:500;
 }
 .done:hover{background:var(--closed-soft)}
-.legend{display:flex; align-items:center; gap:14px; font-size:12px; color:var(--ink-3); margin-left:auto}
+.tof{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:7px; padding:6px 14px; font-weight:500;
+}
+.tof:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.tof:disabled{opacity:.4; cursor:not-allowed}
+.legend{display:flex; align-items:center; gap:14px; font-size:12px; color:var(--ink-3)}
 .legend i{display:inline-block; width:22px; height:0; vertical-align:middle; margin-right:5px}
 .legend .lo{border-top:1.5px dashed var(--ink-3)}
 .legend .hi{border-top:1.5px solid var(--ink-2)}
@@ -155,6 +161,30 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .f .op{margin:0 .26em}
 .f .op.neg{margin:0 .04em 0 0}
 .f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── read-back formula ─────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .orow{display:flex; align-items:baseline; gap:12px; padding-block:3px}
+.out .orow + .orow{border-top:1px solid var(--line); margin-top:6px; padding-top:9px}
+.out .lbl{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); flex:none; width:9.5em; padding-top:3px;
+}
+.out .body{flex:1; min-width:0}
+.out .f{line-height:1.6; word-break:break-word}
+.out .onote{
+  margin:10px 0 0; font-size:12.5px; color:var(--ink-3);
+  border-top:1px solid var(--line); padding-top:9px;
+}
+.out .onote code{font-family:var(--serif); font-size:14px; color:var(--ink-2)}
+@media (max-width:640px){
+  .out .orow{flex-direction:column; gap:3px}
+  .out .lbl{width:auto}
+}
 
 /* ── diagram ───────────────────────────────────────────── */
 .canvas{
@@ -236,6 +266,7 @@ svg{display:block; margin:0 auto; overflow:visible}
     </div>
     <div class="group" id="rules"></div>
     <button class="done" id="doneBtn">Done</button>
+    <button class="tof" id="tofBtn" disabled title="Finish the ROBDD first, then read it back as a formula">To formula</button>
     <div class="legend">
       <span><i class="lo"></i>0-edge (low)</span>
       <span><i class="hi"></i>1-edge (high)</span>
@@ -251,6 +282,7 @@ svg{display:block; margin:0 auto; overflow:visible}
     </span>
   </div>
 
+  <div class="out" id="out" hidden></div>
   <div class="canvas" id="canvas"></div>
 </div>
 
@@ -260,9 +292,10 @@ svg{display:block; margin:0 auto; overflow:visible}
 /* ═════════════════════════════════════════════ formulas */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 
-function show(g, esc, wrap, neg, opw){
+function show(g, esc, wrap, neg, opw, cst){
+  cst = cst || function(t){ return t; };
   function needs(c, pk, left){
-    if (c.k === "atom" || c.k === "not") return false;
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
     if (pk === "not") return true;
     if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
     return true;
@@ -270,6 +303,8 @@ function show(g, esc, wrap, neg, opw){
   function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
   function body(h){
     if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
     if (h.k === "not") return neg() + go(h.a, "not", false);
     return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
   }
@@ -280,12 +315,15 @@ function fmtHTML(g){
     function(n){ return "<i>" + n + "</i>"; },
     function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
     function(){ return '<span class="op neg">¬</span>'; },
-    function(o){ return '<span class="op">' + o + "</span>"; });
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; });
 }
 
 function evalF(g, v){
   switch (g.k){
     case "atom": return !!v[g.n];
+    case "top":  return true;
+    case "bot":  return false;
     case "not":  return !evalF(g.a, v);
     case "and":  return evalF(g.a, v) && evalF(g.b, v);
     case "or":   return evalF(g.a, v) || evalF(g.b, v);
@@ -296,6 +334,7 @@ function evalF(g, v){
 function atomsOf(g, out){
   out = out || [];
   if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* no variables */ }
   else if (g.k === "not") atomsOf(g.a, out);
   else { atomsOf(g.a, out); atomsOf(g.b, out); }
   return out;
@@ -308,6 +347,7 @@ var SYMS = [
   ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
   ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
   ["¬","not"], ["~","not"], ["!","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
   ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
 ];
 
@@ -342,6 +382,8 @@ function parse(src){
   function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
   function un(){
     if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
     if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
     var a = eat("atom");
     if (a) return {k:"atom", n:a.v};
@@ -498,6 +540,65 @@ function bestOrder(f, vars){
   return best;
 }
 
+/* ═════════════════════════════════════════════ diagram to formula */
+/* Every test node is read back through the Shannon identity
+      if v then A else B  ≡  (v ⊃ A) ∧ (¬v ⊃ B)
+   with the two terminals becoming ⊤ and ⊥. */
+function toFormula(G, id){
+  var n = G.nodes[id];
+  if (n.kind === "term") return n.val ? {k:"top"} : {k:"bot"};
+  var v = {k:"atom", n:n.v};
+  return {k:"and",
+          a:{k:"imp", a:v, b:toFormula(G, n.hi)},
+          b:{k:"imp", a:{k:"not", a:v}, b:toFormula(G, n.lo)}};
+}
+
+/* Constant laws only, plus ¬¬. Enough to clear away every ⊤ and ⊥ that the
+   terminals introduced, without rewriting the student's connectives. */
+function simplify(f){
+  if (f.k === "atom" || f.k === "top" || f.k === "bot") return f;
+  if (f.k === "not"){
+    var a = simplify(f.a);
+    if (a.k === "top") return {k:"bot"};
+    if (a.k === "bot") return {k:"top"};
+    if (a.k === "not") return a.a;
+    return {k:"not", a:a};
+  }
+  var x = simplify(f.a), y = simplify(f.b);
+  switch (f.k){
+    case "and":
+      if (x.k === "bot" || y.k === "bot") return {k:"bot"};
+      if (x.k === "top") return y;
+      if (y.k === "top") return x;
+      break;
+    case "or":
+      if (x.k === "top" || y.k === "top") return {k:"top"};
+      if (x.k === "bot") return y;
+      if (y.k === "bot") return x;
+      break;
+    case "imp":
+      if (x.k === "bot" || y.k === "top") return {k:"top"};
+      if (x.k === "top") return y;
+      if (y.k === "bot") return simplify({k:"not", a:x});
+      break;
+    case "iff":
+      if (x.k === "top") return y;
+      if (y.k === "top") return x;
+      if (x.k === "bot") return simplify({k:"not", a:y});
+      if (y.k === "bot") return simplify({k:"not", a:x});
+      break;
+  }
+  return {k:f.k, a:x, b:y};
+}
+
+function sameShape(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "atom") return a.n === b.n;
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not") return sameShape(a.a, b.a);
+  return sameShape(a.a, b.a) && sameShape(a.b, b.b);
+}
+
 /* ═════════════════════════════════════════════ state */
 var MAXVARS = 5;
 var S = {f:null, order:[], G:null, sel:[], undo:[], flag:[], phase:"build", pos:null,
@@ -535,6 +636,7 @@ function build(src, keepOrder){
       S.order.slice().sort().join() !== vars.join()) S.order = vars;
   S.G = fullTree(f, S.order);
   S.sel = []; S.undo = []; S.flag = []; S.phase = "build"; S.manual = {};
+  hideFormula();
   var n = reachable(S.G).length;
   say("", "Decision tree for " + orderText() + " — <b>" + n + " nodes</b>. " +
       "Click nodes to select them, then apply a reduction rule. Drag a node sideways to spread things out.");
@@ -666,15 +768,53 @@ function done(){
       '<span class="f">' + best.order.map(function(x){ return "<i>" + x + "</i>"; }).join(" &lt; ") + "</span>, would need only " +
       best.size + " — the ordering is what drives ROBDD size.";
   }
+  $("#tofBtn").disabled = false;
   say("ok", "<b>That’s the ROBDD</b> for " + orderText() + " — " + plural(size, "node") +
       ". ROBDDs are canonical for a fixed order, so this is the only one." + extra);
   draw();
+}
+
+function showFormula(){
+  if (S.phase !== "done" || !S.G) return;
+  var raw = toFormula(S.G, S.G.root);
+  var neat = simplify(raw);
+  var ids = reachable(S.G), par = {};
+  ids.forEach(function(id){
+    var n = S.G.nodes[id];
+    if (n.kind !== "var") return;
+    par[n.lo] = (par[n.lo] || 0) + 1;
+    par[n.hi] = (par[n.hi] || 0) + 1;
+  });
+  var shared = ids.filter(function(id){ return (par[id] || 0) > 1; }).length;
+
+  var h = '<div class="orow"><span class="lbl">from the diagram</span>' +
+          '<span class="body">' + fh(raw) + "</span></div>";
+  if (!sameShape(raw, neat)){
+    h += '<div class="orow"><span class="lbl">constants cleared</span>' +
+         '<span class="body">' + fh(neat) + "</span></div>";
+  }
+  h += '<p class="onote">Every test node was read back as <code>(v ⊃ then) ∧ (¬v ⊃ else)</code>, ' +
+       "with the terminals as <code>⊤</code> and <code>⊥</code>." +
+       (shared ? " " + shared + " node" + (shared === 1 ? " is" : "s are") +
+         " shared by more than one parent, so " + (shared === 1 ? "its" : "their") +
+         " subformula had to be written out more than once — the diagram is a DAG, a formula is a tree, " +
+         "and that gap is exactly where a BDD gets its compactness." : "") +
+       " Either line can be pasted straight back into the formula box.</p>";
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+}
+
+function hideFormula(){
+  $("#out").hidden = true;
+  $("#out").innerHTML = "";
+  $("#tofBtn").disabled = (S.phase !== "done");
 }
 
 function undo(){
   if (!S.undo.length){ say("", "Nothing to undo — you are back at the full decision tree."); return; }
   var s = JSON.parse(S.undo.pop());
   S.G = s.G; S.sel = s.sel; S.flag = []; S.phase = "build";
+  hideFormula();
   say("", "Stepped back one move.");
   draw();
 }
@@ -945,6 +1085,7 @@ document.addEventListener("click", function(e){
 
 $("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
 $("#doneBtn").addEventListener("click", done);
+$("#tofBtn").addEventListener("click", showFormula);
 $("#tidy").addEventListener("click", function(){
   if (!Object.keys(S.manual).length){ say("", "Nothing to tidy — every node is already where the layout put it."); return; }
   S.manual = {}; say("", "Layout reset."); draw();

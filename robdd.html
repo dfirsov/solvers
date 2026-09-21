@@ -1,0 +1,966 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Build an ROBDD by hand: enter a formula, pick a variable order, then reduce the decision tree with C1, C2 and C3 until it is reduced.">
+<title>ROBDD Constructor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1300px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── control strip ─────────────────────────────────────── */
+.strip{
+  display:flex; align-items:center; gap:10px 22px; flex-wrap:wrap;
+  padding-block:2px 13px; border-bottom:1px solid var(--line);
+}
+.group{display:flex; align-items:center; gap:8px}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap;
+}
+.vars{display:flex; gap:4px}
+.vars button{
+  font-family:var(--serif); font-style:italic; font-size:16px; line-height:1;
+  min-width:32px; padding:5px 8px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+}
+.vars button:hover:not(:disabled){background:var(--accent-soft); border-color:var(--accent)}
+.vars button:disabled{opacity:.45; cursor:default}
+.lt{font-family:var(--serif); font-size:14px; color:var(--ink-3); align-self:center}
+
+.rule{
+  display:flex; align-items:baseline; gap:8px;
+  border:1px solid transparent; background:transparent; border-radius:6px;
+  padding:4px 9px; transition:background .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft)}
+.rule .code{font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--accent); flex:none}
+.rule .what{font-size:13px; white-space:nowrap}
+.rule.armed{background:var(--accent); border-color:var(--accent)}
+.rule.armed .code,.rule.armed .what{color:var(--accent-ink)}
+.rule.dim{opacity:.35}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500;
+}
+.done:hover{background:var(--closed-soft)}
+.legend{display:flex; align-items:center; gap:14px; font-size:12px; color:var(--ink-3); margin-left:auto}
+.legend i{display:inline-block; width:22px; height:0; vertical-align:middle; margin-right:5px}
+.legend .lo{border-top:1.5px dashed var(--ink-3)}
+.legend .hi{border-top:1.5px solid var(--ink-2)}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+
+/* ── diagram ───────────────────────────────────────────── */
+.canvas{
+  flex:1; min-height:0; overflow:auto;
+  padding:26px 20px 40px; background:var(--paper);
+  border:1px solid var(--line); border-radius:10px; margin-bottom:18px;
+}
+svg{display:block; margin:0 auto; overflow:visible}
+.edge{fill:none; stroke:var(--ink-2); stroke-width:1.4}
+.edge.lo{stroke:var(--ink-3); stroke-dasharray:4 3.5}
+.node{cursor:grab; touch-action:none}
+.node:active{cursor:grabbing}
+.node .shape{
+  fill:var(--paper); stroke:var(--ink-2); stroke-width:1.4;
+  transition:fill .12s, stroke .12s;
+}
+.node .lbl{
+  font-family:var(--serif); font-style:italic; font-size:17px;
+  fill:var(--ink); text-anchor:middle; dominant-baseline:central;
+  pointer-events:none; user-select:none;
+}
+.node.term .lbl{font-style:normal; font-size:15px}
+.node.one .shape{fill:var(--ink); stroke:var(--ink)}
+.node.one .lbl{fill:var(--paper)}
+.node:hover .shape{stroke:var(--accent)}
+.node.sel .shape{fill:var(--accent-soft); stroke:var(--accent); stroke-width:2.4}
+.node.sel.one .shape{fill:var(--accent); stroke:var(--accent)}
+.node.sel.one .lbl{fill:var(--accent-ink)}
+.node.flag .shape{stroke:var(--error); stroke-width:2.4; fill:var(--error-soft)}
+.node.flag.one .shape{fill:var(--error); stroke:var(--error)}
+.nid{
+  font-family:var(--mono); font-size:8.5px; fill:var(--ink-3);
+  text-anchor:middle; pointer-events:none; user-select:none;
+}
+.rank{
+  font-family:var(--serif); font-style:italic; font-size:13px;
+  fill:var(--ink-3); text-anchor:end; pointer-events:none; user-select:none;
+}
+
+@media (max-width:820px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  .canvas{min-height:420px}
+  .wordmark{display:none}
+  .legend{margin-left:0; flex-basis:100%}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+}
+</style>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>◆</span> ROBDD</span>
+    <a class="sibling" href="../semantic_table/">Tableaux →</a>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Formula" value="(p & q) | r">
+      <button type="submit" class="go">Build tree</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint">or type <code>~ &amp; | -&gt; &lt;-&gt;</code></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip">
+    <div class="group">
+      <span class="glabel" title="Click a variable to move it one place earlier">Order</span>
+      <div class="vars" id="vars"></div>
+    </div>
+    <div class="group" id="rules"></div>
+    <button class="done" id="doneBtn">Done</button>
+    <div class="legend">
+      <span><i class="lo"></i>0-edge (low)</span>
+      <span><i class="hi"></i>1-edge (high)</span>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="tidy">Tidy</button>
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="canvas" id="canvas"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ formulas */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+
+function show(g, esc, wrap, neg, opw){
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not") return false;
+    if (pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; });
+}
+
+function evalF(g, v){
+  switch (g.k){
+    case "atom": return !!v[g.n];
+    case "not":  return !evalF(g.a, v);
+    case "and":  return evalF(g.a, v) && evalF(g.b, v);
+    case "or":   return evalF(g.a, v) || evalF(g.b, v);
+    case "imp":  return !evalF(g.a, v) || evalF(g.b, v);
+    case "iff":  return evalF(g.a, v) === evalF(g.b, v);
+  }
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "not") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
+];
+
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+
+function parse(src){
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = imp(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:imp()}; } return l; }
+  function imp(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:imp()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ decision diagrams */
+function newG(){ return {nodes:{}, root:null, next:1}; }
+
+function addTerm(G, val){
+  var id = G.next++;
+  G.nodes[id] = {id:id, kind:"term", val:val};
+  return id;
+}
+function addVar(G, v, lvl, lo, hi){
+  var id = G.next++;
+  G.nodes[id] = {id:id, kind:"var", v:v, lvl:lvl, lo:lo, hi:hi};
+  return id;
+}
+
+/* the complete 2^n-leaf decision tree — every node distinct */
+function fullTree(f, order){
+  var G = newG(), asg = {};
+  function go(i){
+    if (i === order.length) return addTerm(G, evalF(f, asg) ? 1 : 0);
+    var v = order[i];
+    asg[v] = false; var lo = go(i + 1);
+    asg[v] = true;  var hi = go(i + 1);
+    return addVar(G, v, i, lo, hi);
+  }
+  G.root = go(0);
+  return G;
+}
+
+function reachable(G){
+  var seen = {}, out = [];
+  (function walk(id){
+    if (seen[id]) return;
+    seen[id] = 1; out.push(id);
+    var n = G.nodes[id];
+    if (n.kind === "var"){ walk(n.lo); walk(n.hi); }
+  })(G.root);
+  return out;
+}
+function parentsOf(G, ids){
+  var par = {};
+  ids.forEach(function(id){
+    var n = G.nodes[id];
+    if (n.kind !== "var") return;
+    (par[n.lo] = par[n.lo] || []).push(id);
+    (par[n.hi] = par[n.hi] || []).push(id);
+  });
+  return par;
+}
+
+/* every edge into `from` is redirected to `to`, then `from` is dropped */
+function replaceNode(G, from, to){
+  Object.keys(G.nodes).forEach(function(k){
+    var n = G.nodes[k];
+    if (n.kind !== "var") return;
+    if (n.lo === from) n.lo = to;
+    if (n.hi === from) n.hi = to;
+  });
+  if (G.root === from) G.root = to;
+  delete G.nodes[from];
+}
+
+function evalBDD(G, id, asg){
+  var n = G.nodes[id];
+  while (n.kind === "var") n = G.nodes[asg[n.v] ? n.hi : n.lo];
+  return n.val;
+}
+
+/* the first reduction still available, in textbook order C1 → C2 → C3 */
+function violation(G){
+  var ids = reachable(G), i, j;
+  var zero = [], one = [];
+  for (i = 0; i < ids.length; i++){
+    var n = G.nodes[ids[i]];
+    if (n.kind === "term") (n.val ? one : zero).push(n.id);
+  }
+  if (zero.length > 1) return {rule:"C1", ids:zero, val:0};
+  if (one.length > 1)  return {rule:"C1", ids:one,  val:1};
+  for (i = 0; i < ids.length; i++){
+    var m = G.nodes[ids[i]];
+    if (m.kind === "var" && m.lo === m.hi) return {rule:"C2", ids:[m.id], child:m.lo};
+  }
+  var seen = {};
+  for (i = 0; i < ids.length; i++){
+    var q = G.nodes[ids[i]];
+    if (q.kind !== "var") continue;
+    var k = q.v + "|" + q.lo + "|" + q.hi;
+    if (seen[k] !== undefined) return {rule:"C3", ids:[seen[k], q.id]};
+    seen[k] = q.id;
+  }
+  return null;
+}
+
+/* ── the canonical ROBDD, built with a unique table (reference only) ── */
+function canonical(f, order){
+  var G = newG(), unique = {}, t0 = null, t1 = null, asg = {};
+  function term(v){
+    if (v){ if (t1 === null) t1 = addTerm(G, 1); return t1; }
+    if (t0 === null) t0 = addTerm(G, 0); return t0;
+  }
+  function mk(v, lvl, lo, hi){
+    if (lo === hi) return lo;
+    var k = v + "|" + lo + "|" + hi;
+    if (unique[k] !== undefined) return unique[k];
+    return unique[k] = addVar(G, v, lvl, lo, hi);
+  }
+  function go(i){
+    if (i === order.length) return term(evalF(f, asg));
+    var v = order[i];
+    asg[v] = false; var lo = go(i + 1);
+    asg[v] = true;  var hi = go(i + 1);
+    return mk(v, i, lo, hi);
+  }
+  G.root = go(0);
+  return G;
+}
+
+/* structural signature — two reduced OBDDs are isomorphic iff these match */
+function signature(G, id, memo){
+  memo = memo || {};
+  if (memo[id]) return memo[id];
+  var n = G.nodes[id];
+  var s = n.kind === "term" ? ("#" + n.val)
+        : "(" + n.v + " " + signature(G, n.lo, memo) + " " + signature(G, n.hi, memo) + ")";
+  return memo[id] = s;
+}
+
+function permutations(a){
+  if (a.length <= 1) return [a.slice()];
+  var out = [];
+  a.forEach(function(x, i){
+    var rest = a.slice(0, i).concat(a.slice(i + 1));
+    permutations(rest).forEach(function(p){ out.push([x].concat(p)); });
+  });
+  return out;
+}
+function bestOrder(f, vars){
+  var best = null;
+  permutations(vars).forEach(function(o){
+    var n = reachable(canonical(f, o)).length;
+    if (!best || n < best.size) best = {order:o, size:n};
+  });
+  return best;
+}
+
+/* ═════════════════════════════════════════════ state */
+var MAXVARS = 5;
+var S = {f:null, order:[], G:null, sel:[], undo:[], flag:[], phase:"build", pos:null,
+         manual:{}, toldDrag:false};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var vr = function(n){ return '<span class="f"><i>' + n + "</i></span>"; };
+var nd = function(id){ return "<b>" + id + "</b>"; };
+var plural = function(n, w){ return n + " " + w + (n === 1 ? "" : "s"); };
+
+function say(tone, html){
+  var el = $("#status");
+  el.className = "status " + (tone || "");
+  el.querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({G:S.G, sel:S.sel}));
+  if (S.undo.length > 80) S.undo.shift();
+}
+
+/* ═════════════════════════════════════════════ building */
+function build(src, keepOrder){
+  var f;
+  try { f = parse(src); }
+  catch (e){ say("err", e.message); return; }
+  var vars = atomsOf(f).sort();
+  if (vars.length > MAXVARS){
+    say("err", "That formula has " + plural(vars.length, "variable") + ", so the decision tree starts with " +
+        Math.pow(2, vars.length) + " leaves — too many to reduce by hand. Try " + MAXVARS + " variables or fewer.");
+    return;
+  }
+  S.f = f;
+  if (!keepOrder || S.order.length !== vars.length ||
+      S.order.slice().sort().join() !== vars.join()) S.order = vars;
+  S.G = fullTree(f, S.order);
+  S.sel = []; S.undo = []; S.flag = []; S.phase = "build"; S.manual = {};
+  var n = reachable(S.G).length;
+  say("", "Decision tree for " + orderText() + " — <b>" + n + " nodes</b>. " +
+      "Click nodes to select them, then apply a reduction rule. Drag a node sideways to spread things out.");
+  draw();
+}
+
+function orderText(){
+  return '<span class="f">' + S.order.map(function(v){ return "<i>" + v + "</i>"; }).join(" &lt; ") + "</span>";
+}
+
+function moveEarlier(i){
+  if (i === 0) return;
+  var o = S.order.slice();
+  var t = o[i - 1]; o[i - 1] = o[i]; o[i] = t;
+  S.order = o;
+  build($("#formula").value, true);
+  say("", "Order is now " + orderText() + ". The tree was rebuilt — a different order can give a very different ROBDD.");
+}
+
+/* ═════════════════════════════════════════════ rules */
+var RULES = [
+  {code:"C1", what:"merge duplicate terminals"},
+  {code:"C2", what:"remove redundant test"},
+  {code:"C3", what:"merge duplicate nodes"}
+];
+
+/* which rule, if any, the current selection legitimately supports */
+function armedRule(){
+  if (!S.G || !S.sel.length) return null;
+  if (check("C1") === null) return "C1";
+  if (check("C2") === null) return "C2";
+  if (check("C3") === null) return "C3";
+  return null;
+}
+
+/* null when the selection is a legal application, otherwise the reason why not */
+function check(code){
+  var G = S.G, sel = S.sel, ns = sel.map(function(i){ return G.nodes[i]; });
+  if (code === "C2"){
+    if (sel.length !== 1) return "C2 works on one node at a time — you have " + plural(sel.length, "node") + " selected.";
+    var n = ns[0];
+    if (n.kind === "term") return "C2 removes a test that decides nothing. Node " + nd(n.id) + " is a terminal — it tests no variable.";
+    if (n.lo !== n.hi) return "Node " + nd(n.id) + " tests " + vr(n.v) + ", but its 0-edge goes to node " + nd(n.lo) +
+        " and its 1-edge to node " + nd(n.hi) + ". C2 only removes a test whose two edges land on the <b>same</b> node.";
+    return null;
+  }
+  if (sel.length < 2) return "Select at least two nodes to merge — " + code + " joins nodes that are already identical.";
+  if (code === "C1"){
+    var bad = ns.filter(function(n){ return n.kind !== "term"; });
+    if (bad.length) return "C1 merges duplicate <b>terminals</b>. Node " + nd(bad[0].id) + " tests " + vr(bad[0].v) + " — merging test nodes is C3.";
+    var v0 = ns[0].val;
+    if (ns.some(function(n){ return n.val !== v0; })) return "Those terminals don’t all carry the same value. Only identical terminals merge — all the 0s together, all the 1s together.";
+    return null;
+  }
+  if (code === "C3"){
+    var t = ns.filter(function(n){ return n.kind === "term"; });
+    if (t.length) return "Node " + nd(t[0].id) + " is a terminal. Merging terminals is C1.";
+    var a = ns[0];
+    var dv = ns.filter(function(n){ return n.v !== a.v; })[0];
+    if (dv) return "Node " + nd(a.id) + " tests " + vr(a.v) + " and node " + nd(dv.id) + " tests " + vr(dv.v) +
+        ". C3 merges nodes testing the <b>same</b> variable.";
+    var dk = ns.filter(function(n){ return n.lo !== a.lo || n.hi !== a.hi; })[0];
+    if (dk){
+      var side = dk.lo !== a.lo ? ["0-edge", a.lo, dk.lo] : ["1-edge", a.hi, dk.hi];
+      return "Both test " + vr(a.v) + ", but node " + nd(a.id) + "’s " + side[0] + " goes to node " + nd(side[1]) +
+        " while node " + nd(dk.id) + "’s goes to node " + nd(side[2]) + ". C3 compares the actual nodes an edge points at, " +
+        "so merge those children first — reduce from the terminals upward.";
+    }
+    return null;
+  }
+}
+
+function applyRule(code){
+  if (!S.G) return;
+  if (S.phase === "done"){ say("", "This diagram is finished. Press Restart, or enter another formula."); return; }
+  if (!S.sel.length){ say("", "Select one or more nodes in the diagram first, then choose a rule."); return; }
+  var why = check(code);
+  if (why){ S.flag = S.sel.slice(); say("err", why); draw(); return; }
+
+  snapshot();
+  var before = reachable(S.G).length, msg;
+  if (code === "C2"){
+    var n = S.G.nodes[S.sel[0]];
+    var kid = n.lo;
+    replaceNode(S.G, n.id, kid);
+    msg = "Removed node " + nd(n.id) + " — both its edges went to node " + nd(kid) +
+      ", so testing " + vr(n.v) + " there changed nothing. Everything that pointed at it now points straight at node " + nd(kid) + ".";
+  } else {
+    var keep = S.sel.slice().sort(function(a, b){ return a - b; })[0];
+    S.sel.forEach(function(id){ if (id !== keep) replaceNode(S.G, id, keep); });
+    msg = code === "C1"
+      ? "Merged " + plural(S.sel.length, "terminal") + " into node " + nd(keep) + "."
+      : "Merged " + plural(S.sel.length, "node") + " testing " + vr(S.G.nodes[keep].v) + " into node " + nd(keep) + ".";
+  }
+  S.sel = []; S.flag = [];
+  var after = reachable(S.G).length;
+  say("ok", msg + " <b>" + after + "</b> nodes left" + (after < before ? " (was " + before + ")" : "") + ".");
+  draw();
+}
+
+function done(){
+  if (!S.G) return;
+  var v = violation(S.G);
+  if (v){
+    S.flag = v.ids.slice();
+    var m;
+    if (v.rule === "C1") m = "Not reduced yet — nodes " + v.ids.map(nd).join(", ") +
+        " are all the terminal " + v.val + ". <b>C1</b> merges them into one.";
+    else if (v.rule === "C2") m = "Not reduced yet — node " + nd(v.ids[0]) +
+        " sends both edges to node " + nd(v.child) + ", so it decides nothing. <b>C2</b> removes it.";
+    else m = "Not reduced yet — nodes " + nd(v.ids[0]) + " and " + nd(v.ids[1]) +
+        " test the same variable with the same two children. <b>C3</b> merges them.";
+    say("err", m);
+    draw();
+    return;
+  }
+  S.phase = "done";
+  S.sel = []; S.flag = [];
+  var size = reachable(S.G).length;
+  var root = S.G.nodes[S.G.root];
+  var extra = "";
+  if (root.kind === "term"){
+    extra = " The whole diagram collapsed to the terminal " + root.val + ", so " + fh(S.f) + " is a <b>" +
+      (root.val ? "tautology" : "contradiction") + "</b>.";
+  }
+  var best = bestOrder(S.f, S.order.slice().sort());
+  if (best.size < size){
+    extra += " A different order, " +
+      '<span class="f">' + best.order.map(function(x){ return "<i>" + x + "</i>"; }).join(" &lt; ") + "</span>, would need only " +
+      best.size + " — the ordering is what drives ROBDD size.";
+  }
+  say("ok", "<b>That’s the ROBDD</b> for " + orderText() + " — " + plural(size, "node") +
+      ". ROBDDs are canonical for a fixed order, so this is the only one." + extra);
+  draw();
+}
+
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo — you are back at the full decision tree."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.G = s.G; S.sel = s.sel; S.flag = []; S.phase = "build";
+  say("", "Stepped back one move.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ layout */
+var GAPX = 60, GAPY = 74, NODE_R = 18, BOW = 10;
+
+/* Layered layout. An edge that skips a level gets a chain of invisible dummy
+   nodes, one per level crossed, so it takes its own column and bends around
+   the nodes in between instead of passing behind them. */
+function layout(G){
+  var ids = reachable(G), n = S.order.length, i;
+  var lvl = {};
+  ids.forEach(function(id){ lvl[id] = G.nodes[id].kind === "term" ? n : G.nodes[id].lvl; });
+
+  var levels = []; for (i = 0; i <= n; i++) levels.push([]);
+  var edges = [], kids = {}, par = {}, dummy = {}, dlvl = {}, seen = {}, dn = 0;
+  function link(a, b){ (kids[a] = kids[a] || []).push(b); (par[b] = par[b] || []).push(a); }
+
+  (function walk(id){
+    if (seen[id]) return;
+    seen[id] = 1;
+    levels[lvl[id]].push(id);
+    var nn = G.nodes[id];
+    if (nn.kind !== "var") return;
+    [["lo", nn.lo], ["hi", nn.hi]].forEach(function(e){
+      var chain = [], prev = id;
+      for (var L = lvl[id] + 1; L < lvl[e[1]]; L++){
+        var k = "d" + (dn++);
+        dummy[k] = 1; dlvl[k] = L; levels[L].push(k); chain.push(k);
+        link(prev, k); prev = k;
+      }
+      link(prev, e[1]);
+      edges.push({a:id, b:e[1], kind:e[0], chain:chain});
+      walk(e[1]);
+    });
+  })(G.root);
+
+  var x = {};
+  levels.forEach(function(row){ row.forEach(function(k, j){ x[k] = j * GAPX; }); });
+
+  function spread(row){
+    if (row.length < 2) return;
+    var s = row.slice().sort(function(a, b){ return x[a] - x[b]; });
+    var m0 = 0; s.forEach(function(k){ m0 += x[k]; }); m0 /= s.length;
+    for (var j = 1; j < s.length; j++){
+      if (x[s[j]] < x[s[j - 1]] + GAPX) x[s[j]] = x[s[j - 1]] + GAPX;
+    }
+    var m1 = 0; s.forEach(function(k){ m1 += x[k]; }); m1 /= s.length;
+    var d = m0 - m1;
+    s.forEach(function(k){ x[k] += d; });
+  }
+  function mean(list){ var m = 0; list.forEach(function(k){ m += x[k]; }); return m / list.length; }
+
+  /* a dragged node holds its x; everything else relaxes around it */
+  function pin(){
+    Object.keys(S.manual).forEach(function(k){ if (x[k] !== undefined) x[k] = S.manual[k]; });
+  }
+
+  for (var it = 0; it < 10; it++){
+    pin();
+    for (var L = n - 1; L >= 0; L--){                 /* pull each node over its children */
+      levels[L].forEach(function(k){ if (kids[k]) x[k] = mean(kids[k]); });
+      spread(levels[L]);
+    }
+    for (L = 1; L <= n; L++){                          /* pull dummies and shared nodes under their parents */
+      levels[L].forEach(function(k){
+        var ps = par[k];
+        if (!ps) return;
+        if (dummy[k] || ps.length > 1) x[k] = mean(ps);
+      });
+      spread(levels[L]);
+    }
+  }
+
+  pin();
+
+  var pos = {}, minx = Infinity, maxx = -Infinity;
+  Object.keys(x).forEach(function(k){
+    pos[k] = {x: x[k], y: (dummy[k] ? dlvl[k] : lvl[k]) * GAPY + 26};
+    minx = Math.min(minx, x[k]); maxx = Math.max(maxx, x[k]);
+  });
+  return {pos:pos, ids:ids, edges:edges,
+          x0:minx - 44, w:(maxx - minx) + 88, h:n * GAPY + 26 + 42};
+}
+
+/* ═════════════════════════════════════════════ drawing */
+function draw(){
+  drawVars();
+  drawRules();
+  var c = $("#canvas");
+  if (!S.G){ c.innerHTML = ""; return; }
+  var L = layout(S.G);
+  S.pos = L.pos;
+  var G = S.G, svg = "";
+
+  /* edges first so nodes sit on top */
+  L.edges.forEach(function(e){
+    var pts = [L.pos[e.a]].concat(e.chain.map(function(k){ return L.pos[k]; })).concat([L.pos[e.b]]);
+    var trim = function(from, to, r){
+      var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy) || 1;
+      return {x: from.x + dx / len * r, y: from.y + dy / len * r};
+    };
+
+    /* Both edges of a redundant test land on the same node, so drawn straight
+       they coincide and the 1-edge hides the 0-edge. Bow them apart into a
+       lens — that shape is the visual signature of a C2. Edges routed through
+       dummies are already pulled into separate columns, so they need no bow. */
+    var src = G.nodes[e.a];
+    if (pts.length === 2 && src.kind === "var" && src.lo === src.hi){
+      var a0 = pts[0], b0 = pts[1];
+      var dx = b0.x - a0.x, dy = b0.y - a0.y, len = Math.hypot(dx, dy) || 1;
+      var side = (e.kind === "lo" ? -1 : 1);
+      var cx = (a0.x + b0.x) / 2 + (-dy / len) * side * BOW * 2;
+      var cy = (a0.y + b0.y) / 2 + (dx / len) * side * BOW * 2;
+      var ctrl = {x:cx, y:cy};
+      var s0 = trim(a0, ctrl, NODE_R), s1 = trim(b0, ctrl, NODE_R + 2);
+      svg += '<path class="edge ' + e.kind + '" d="M' + s0.x.toFixed(1) + " " + s0.y.toFixed(1) +
+             "Q" + cx.toFixed(1) + " " + cy.toFixed(1) + " " + s1.x.toFixed(1) + " " + s1.y.toFixed(1) + '"/>';
+      return;
+    }
+
+    pts[0] = trim(pts[0], pts[1], NODE_R);
+    pts[pts.length - 1] = trim(pts[pts.length - 1], pts[pts.length - 2], NODE_R + 2);
+    var d = "M" + pts[0].x.toFixed(1) + " " + pts[0].y.toFixed(1);
+    if (pts.length === 2){
+      d += "L" + pts[1].x.toFixed(1) + " " + pts[1].y.toFixed(1);
+    } else {
+      /* round the bends so a routed edge reads as one continuous line */
+      for (var i = 1; i < pts.length - 1; i++){
+        var prev = pts[i - 1], cur = pts[i], nxt = pts[i + 1];
+        var inx = (prev.x + cur.x) / 2, iny = (prev.y + cur.y) / 2;
+        var outx = (cur.x + nxt.x) / 2, outy = (cur.y + nxt.y) / 2;
+        d += "L" + inx.toFixed(1) + " " + iny.toFixed(1) +
+             "Q" + cur.x.toFixed(1) + " " + cur.y.toFixed(1) + " " + outx.toFixed(1) + " " + outy.toFixed(1);
+      }
+      d += "L" + pts[pts.length - 1].x.toFixed(1) + " " + pts[pts.length - 1].y.toFixed(1);
+    }
+    svg += '<path class="edge ' + e.kind + '" d="' + d + '"/>';
+  });
+
+  /* variable rank labels down the left margin */
+  S.order.forEach(function(v, i){
+    svg += '<text class="rank" x="' + (L.x0 + 20) + '" y="' + (i * GAPY + 29) + '">' + v + "</text>";
+  });
+
+  L.ids.forEach(function(id){
+    var n = G.nodes[id], p = L.pos[id];
+    var cls = ["node"];
+    if (n.kind === "term"){ cls.push("term"); if (n.val) cls.push("one"); }
+    if (S.sel.indexOf(id) >= 0) cls.push("sel");
+    if (S.flag.indexOf(id) >= 0) cls.push("flag");
+    var shape = n.kind === "term"
+      ? '<rect class="shape" x="' + (p.x - 15) + '" y="' + (p.y - 15) + '" width="30" height="30" rx="5"/>'
+      : '<circle class="shape" cx="' + p.x + '" cy="' + p.y + '" r="' + NODE_R + '"/>';
+    svg += '<g class="' + cls.join(" ") + '" data-id="' + id + '" role="button" tabindex="0">' +
+      shape +
+      '<text class="lbl" x="' + p.x + '" y="' + (p.y + 1) + '">' + (n.kind === "term" ? n.val : n.v) + "</text>" +
+      '<text class="nid" x="' + (p.x + NODE_R + 7) + '" y="' + (p.y - NODE_R + 5) + '">' + id + "</text>" +
+      "</g>";
+  });
+
+  var W = Math.max(L.w, 260);
+  c.innerHTML = '<svg width="' + W + '" height="' + L.h +
+    '" viewBox="' + L.x0.toFixed(1) + " 0 " + W + " " + L.h +
+    '" role="img" aria-label="Binary decision diagram">' + svg + "</svg>";
+}
+
+function drawVars(){
+  $("#vars").innerHTML = S.order.map(function(v, i){
+    return (i ? '<span class="lt">&lt;</span>' : "") +
+      '<button type="button" data-mv="' + i + '"' + (i === 0 ? " disabled" : "") +
+      ' title="' + (i === 0 ? v + " is already first" : "Move " + v + " one place earlier") + '">' + v + "</button>";
+  }).join("");
+}
+
+function drawRules(){
+  var armed = armedRule();
+  $("#rules").innerHTML = RULES.map(function(r){
+    var cls = "rule" + (S.sel.length ? (armed === r.code ? " armed" : " dim") : "");
+    return '<button type="button" class="' + cls + '" data-rule="' + r.code + '">' +
+      '<span class="code">' + r.code + '</span><span class="what">' + r.what + "</span></button>";
+  }).join("");
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ dragging */
+/* y stays locked to the variable's row — a node's level is what makes the
+   diagram an *ordered* BDD, so only x is the student's to move. */
+var drag = null, raf = 0;
+
+$("#canvas").addEventListener("pointerdown", function(e){
+  var g = e.target.closest(".node");
+  if (!g || e.button) return;
+  var id = +g.dataset.id;
+  if (!S.pos || !S.pos[id]) return;
+  drag = {id:id, x0:S.pos[id].x, cx:e.clientX, moved:false};
+  e.preventDefault();
+});
+
+window.addEventListener("pointermove", function(e){
+  if (!drag) return;
+  var dx = e.clientX - drag.cx;
+  if (!drag.moved && Math.abs(dx) < 4) return;
+  drag.moved = true;
+  S.manual[drag.id] = drag.x0 + dx;
+  if (!raf) raf = requestAnimationFrame(function(){ raf = 0; draw(); });
+});
+
+function endDrag(){
+  if (!drag) return;
+  var d = drag; drag = null;
+  if (raf){ cancelAnimationFrame(raf); raf = 0; }
+  if (!d.moved){ toggle(d.id); return; }
+  draw();
+  if (!S.toldDrag){
+    S.toldDrag = true;
+    say("", "Node " + nd(d.id) + " moved. Edges re-route around it — <b>Tidy</b> hands every node back to the layout.");
+  }
+}
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
+
+/* ═════════════════════════════════════════════ wiring */
+function toggle(id){
+  if (S.phase === "done"){ say("", "This diagram is finished. Press Restart to try another order, or enter a new formula."); return; }
+  var i = S.sel.indexOf(id);
+  if (i >= 0) S.sel.splice(i, 1); else S.sel.push(id);
+  S.flag = [];
+  if (S.sel.length){
+    var armed = armedRule();
+    say("", plural(S.sel.length, "node") + " selected" +
+      (armed ? " — this is a legal <b>" + armed + "</b>." : ". Pick the rule you think applies."));
+  } else say("", "Nothing selected.");
+  draw();
+}
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-rule],[data-mv]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
+  if (t.hasAttribute("data-mv")){ moveEarlier(+t.dataset.mv); return; }
+});
+
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#doneBtn").addEventListener("click", done);
+$("#tidy").addEventListener("click", function(){
+  if (!Object.keys(S.manual).length){ say("", "Nothing to tidy — every node is already where the layout put it."); return; }
+  S.manual = {}; say("", "Layout reset."); draw();
+});
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){ build($("#formula").value, true); });
+
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape" && S.sel.length){ S.sel = []; S.flag = []; draw(); }
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+  if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-id")){
+    e.preventDefault(); toggle(+e.target.dataset.id);
+  }
+});
+
+build($("#formula").value);
+</script>
+</body>
+</html>

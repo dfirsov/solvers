@@ -950,8 +950,9 @@ function done(){
   h += '<p class="onote">' + note +
     " Checked against " + fh(S.f) + " on all " + N + " valuation" + (N === 1 ? "" : "s") + ", of which " +
     plural(models, "model") + " satisf" + (models === 1 ? "ies" : "y") + " it. Substituting <code>½</code> for every " +
-    "variable in the normal form gives exactly <code>" + frac + "</code>, the fraction of valuations that do — which " +
-    "is why the <code>x·x = x</code> steps have to come first: <code>½·½</code> is not <code>½</code>." +
+    "variable in the normal form gives exactly <code>" + frac + "</code>, the fraction of valuations that do. That " +
+    "reading needs the normal form and nothing short of it: every <code>x·x</code> has to go first, because " +
+    "<code>½·½</code> is not <code>½</code>." +
     "</p>";
 
   $("#out").innerHTML = h;

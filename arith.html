@@ -1,0 +1,1107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Encode a propositional formula as an ordinary arithmetic expression over 0 and 1, then simplify it by hand with the ring laws and x·x = x until it is as simple as you want.">
+<title>Arithmetic Encoding</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1300px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strip ────────────────────────────────────────── */
+.strip{
+  display:flex; align-items:center; gap:10px 16px; flex-wrap:wrap;
+  padding-block:2px 13px; border-bottom:1px solid var(--line);
+}
+.group{display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.rule{
+  display:flex; align-items:baseline; gap:7px;
+  border:1px solid transparent; background:transparent; border-radius:6px;
+  padding:4px 9px; transition:background .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft)}
+.rule .code{font-family:var(--mono); font-size:11px; font-weight:500; color:var(--accent); flex:none}
+.rule .what{font-size:13px; white-space:nowrap}
+.rule.armed{background:var(--accent); border-color:var(--accent)}
+.rule.armed .code,.rule.armed .what{color:var(--accent-ink)}
+.rule.dim{opacity:.35}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the encoding key ──────────────────────────────────── */
+.key{
+  display:flex; flex-wrap:wrap; gap:4px 20px; align-items:baseline;
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:10px 14px; margin-bottom:14px;
+}
+.key .klabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); flex:none; align-self:center;
+}
+.key .kit{font-family:var(--serif); font-size:14.5px; white-space:nowrap; color:var(--ink-2)}
+.key .kit i{font-style:italic}
+.key .kit .to{color:var(--ink-3); margin:0 .35em}
+.key .kit b{font-weight:400; color:var(--ink)}
+
+/* ── derivation ────────────────────────────────────────── */
+.work{
+  flex:1; min-height:0; overflow:auto;
+  padding:6px 4px 18px; margin-bottom:18px;
+}
+.line{
+  display:flex; align-items:baseline; gap:14px;
+  padding:7px 12px; border-radius:8px;
+}
+.line + .line{border-top:1px solid var(--line)}
+.line .tag{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); flex:none; width:5.5em; padding-top:5px; text-align:right;
+}
+.line .body{flex:1; min-width:0; word-break:break-word}
+.line.head .body{font-family:var(--serif); font-size:16px}
+.line.live{background:var(--paper); border:1px solid var(--line); border-top:1px solid var(--line)}
+.line.live .tag{color:var(--accent)}
+.line.stale .body{color:var(--ink-3)}
+.line .n{
+  font-family:var(--mono); font-size:9.5px; color:var(--ink-3);
+  flex:none; align-self:center;
+}
+
+/* ── the expression itself ─────────────────────────────── */
+.ex{font-family:var(--serif); font-size:17px; line-height:1.9}
+.ex i{font-style:italic}
+.nd{border-radius:4px; padding:1px 0}
+.ex.pick .nd{cursor:pointer}
+.ex.pick .nd:hover{background:var(--soft)}
+.ex.pick .nd:has(.nd:hover){background:transparent}
+.ex .nd.sel{background:var(--accent-soft); box-shadow:0 0 0 1px var(--accent)}
+.ex.pick .nd.sel:hover{background:var(--accent-soft)}
+.aop{color:var(--ink-2); margin:0 .3em}
+.aop.dot{margin:0 .12em; color:var(--ink-3)}
+.aop.lead{margin:0 .06em 0 0}
+.br{color:var(--ink-3)}
+.num{font-style:normal}
+
+/* ── the verdict panel ─────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .orow{display:flex; align-items:baseline; gap:12px; padding-block:3px}
+.out .orow + .orow{border-top:1px solid var(--line); margin-top:6px; padding-top:9px}
+.out .lbl{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); flex:none; width:9.5em; padding-top:3px;
+}
+.out .body{flex:1; min-width:0}
+.out .onote{
+  margin:10px 0 0; font-size:12.5px; color:var(--ink-3);
+  border-top:1px solid var(--line); padding-top:9px;
+}
+.out .onote code{font-family:var(--serif); font-size:14px; color:var(--ink-2)}
+@media (max-width:640px){
+  .out .orow{flex-direction:column; gap:3px}
+  .out .lbl{width:auto}
+}
+
+@media (max-width:820px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  .wordmark{display:none}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+  .line{padding:7px 4px}
+  .ex{font-size:16px}
+}
+/* at phone width the tag sits above, so the expression gets the full line */
+@media (max-width:560px){
+  .line{flex-direction:column; align-items:stretch; gap:2px}
+  .line .tag{width:auto; text-align:left; padding-top:0}
+  .line .n{align-self:flex-end}
+}
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>∑</span> ARITH</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Formula" value="~(p | q) <-> (~p &amp; ~q)">
+      <button type="submit" class="go">Translate</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint">or type <code>~ &amp; | -&gt; &lt;-&gt;</code></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip">
+    <div class="group" id="rules"></div>
+    <button class="done" id="doneBtn" disabled>Done</button>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="key" id="key"></div>
+  <div class="out" id="out" hidden></div>
+  <div class="work" id="work"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ formulas */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+
+function show(g, esc, wrap, neg, opw, cst){
+  cst = cst || function(t){ return t; };
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
+    if (pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; });
+}
+
+function evalF(g, v){
+  switch (g.k){
+    case "atom": return !!v[g.n];
+    case "top":  return true;
+    case "bot":  return false;
+    case "not":  return !evalF(g.a, v);
+    case "and":  return evalF(g.a, v) && evalF(g.b, v);
+    case "or":   return evalF(g.a, v) || evalF(g.b, v);
+    case "imp":  return !evalF(g.a, v) || evalF(g.b, v);
+    case "iff":  return evalF(g.a, v) === evalF(g.b, v);
+  }
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* no variables */ }
+  else if (g.k === "not") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
+];
+
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+
+function parse(src){
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = imp(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:imp()}; } return l; }
+  function imp(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:imp()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ arithmetic terms */
+/* An expression is one of
+      num  a whole number ≥ 0
+      var  a propositional variable, standing for 0 or 1
+      sum  an n-ary sum whose terms each carry a sign, so subtraction never
+           needs a −1 factor and the signs stay where a reader expects them
+      prod an n-ary product
+   Nothing is flattened or reordered on construction: (a·b)·c and a·(b+c) are
+   left exactly as built, because taking those brackets off is a step the
+   student is meant to make. */
+function num(v){ return {k:"num", v:v}; }
+function vbl(n){ return {k:"var", n:n}; }
+function sum(xs){ return {k:"sum", xs:xs}; }
+function prod(xs){ return {k:"prod", xs:xs}; }
+
+function cl(e){
+  if (e.k === "num") return num(e.v);
+  if (e.k === "var") return vbl(e.n);
+  if (e.k === "sum") return sum(e.xs.map(function(t){ return {s:t.s, e:cl(t.e)}; }));
+  return prod(e.xs.map(cl));
+}
+function eqT(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "num") return a.v === b.v;
+  if (a.k === "var") return a.n === b.n;
+  if (a.k === "sum") return a.xs.length === b.xs.length && a.xs.every(function(t, i){
+    return t.s === b.xs[i].s && eqT(t.e, b.xs[i].e);
+  });
+  return a.xs.length === b.xs.length && a.xs.every(function(x, i){ return eqT(x, b.xs[i]); });
+}
+function sizeOf(e){
+  if (e.k === "num" || e.k === "var") return 1;
+  if (e.k === "sum") return 1 + e.xs.reduce(function(a, t){ return a + sizeOf(t.e); }, 0);
+  return 1 + e.xs.reduce(function(a, x){ return a + sizeOf(x); }, 0);
+}
+/* works for 0/1 valuations and for real ones, which is what the ½ trick needs */
+function evalT(e, v){
+  if (e.k === "num") return e.v;
+  if (e.k === "var") return v[e.n];
+  if (e.k === "sum") return e.xs.reduce(function(a, t){ return a + t.s * evalT(t.e, v); }, 0);
+  return e.xs.reduce(function(a, x){ return a * evalT(x, v); }, 1);
+}
+
+/* ── the encoding ──────────────────────────────────────── */
+var ENC = [
+  ["¬<i>A</i>", "1 − <i>A</i>"],
+  ["<i>A</i> ∧ <i>B</i>", "<i>A</i>·<i>B</i>"],
+  ["<i>A</i> ∨ <i>B</i>", "<i>A</i> + <i>B</i> − <i>A</i>·<i>B</i>"],
+  ["<i>A</i> ⊃ <i>B</i>", "1 − <i>A</i> + <i>A</i>·<i>B</i>"],
+  ["<i>A</i> ≡ <i>B</i>", "1 − <i>A</i> − <i>B</i> + 2·<i>A</i>·<i>B</i>"]
+];
+
+function encode(f){
+  var a, b;
+  switch (f.k){
+    case "atom": return vbl(f.n);
+    case "top":  return num(1);
+    case "bot":  return num(0);
+    case "not":  return sum([{s:1, e:num(1)}, {s:-1, e:encode(f.a)}]);
+    case "and":  return prod([encode(f.a), encode(f.b)]);
+    case "or":
+      a = encode(f.a); b = encode(f.b);
+      return sum([{s:1, e:a}, {s:1, e:cl(b)}, {s:-1, e:prod([cl(a), b])}]);
+    case "imp":
+      a = encode(f.a); b = encode(f.b);
+      return sum([{s:1, e:num(1)}, {s:-1, e:a}, {s:1, e:prod([cl(a), b])}]);
+    case "iff":
+      a = encode(f.a); b = encode(f.b);
+      return sum([{s:1, e:num(1)}, {s:-1, e:a}, {s:-1, e:b},
+                  {s:1, e:prod([num(2), cl(a), cl(b)])}]);
+  }
+}
+
+/* ── monomials ─────────────────────────────────────────── */
+/* A term is a monomial when it is a number, a variable, or a product of
+   nothing but numbers and variables. Anything with a sum inside is not. */
+function mono(e){
+  if (e.k === "num") return {c:e.v, vs:[]};
+  if (e.k === "var") return {c:1, vs:[e.n]};
+  if (e.k !== "prod") return null;
+  var c = 1, vs = [];
+  for (var i = 0; i < e.xs.length; i++){
+    var x = e.xs[i];
+    if (x.k === "num") c *= x.v;
+    else if (x.k === "var") vs.push(x.n);
+    else return null;
+  }
+  return {c:c, vs:vs};
+}
+function monoKey(vs){ return vs.slice().sort().join("*"); }
+function monoExpr(c, vs){
+  if (!vs.length) return num(c);
+  var fs = (c === 1 ? [] : [num(c)]).concat(vs.map(vbl));
+  return fs.length === 1 ? fs[0] : prod(fs);
+}
+function gcd(a, b){ while (b){ var t = a % b; a = b; b = t; } return a; }
+
+/* ═════════════════════════════════════════════ the rules */
+/* Each takes one node and returns its rewrite, or null when it does not
+   apply there. All six are sound on 0/1 valuations — x·x = x only there. */
+
+function rBrackets(e){
+  if (e.k === "sum"){
+    var hit = false, xs = [];
+    e.xs.forEach(function(t){
+      if (t.e.k === "sum"){
+        hit = true;
+        t.e.xs.forEach(function(u){ xs.push({s: t.s * u.s, e: u.e}); });
+      } else xs.push(t);
+    });
+    return hit ? (xs.length ? sum(xs) : num(0)) : null;
+  }
+  if (e.k === "prod"){
+    var hit2 = false, ys = [];
+    e.xs.forEach(function(x){
+      if (x.k === "prod"){ hit2 = true; x.xs.forEach(function(y){ ys.push(y); }); }
+      else ys.push(x);
+    });
+    if (!hit2) return null;
+    return ys.length === 0 ? num(1) : ys.length === 1 ? ys[0] : prod(ys);
+  }
+  return null;
+}
+
+function rExpand(e){
+  if (e.k !== "prod") return null;
+  var i = -1;
+  for (var j = 0; j < e.xs.length; j++) if (e.xs[j].k === "sum"){ i = j; break; }
+  if (i < 0) return null;
+  var S0 = e.xs[i];
+  var terms = S0.xs.map(function(t){
+    var fs = e.xs.slice(0, i).concat([t.e]).concat(e.xs.slice(i + 1));
+    return {s: t.s, e: fs.length === 1 ? fs[0] : prod(fs.map(cl))};
+  });
+  return terms.length ? sum(terms) : num(0);
+}
+
+function rCollect(e){
+  if (e.k !== "sum") return null;
+  var groups = [], byKey = {}, merged = false;
+  e.xs.forEach(function(t){
+    var m = mono(t.e);
+    if (!m){ groups.push({key:null, t:t}); return; }
+    var k = monoKey(m.vs);
+    if (byKey[k] !== undefined){
+      groups[byKey[k]].c += t.s * m.c;
+      merged = true;
+    } else {
+      byKey[k] = groups.length;
+      groups.push({key:k, c: t.s * m.c, vs: m.vs.slice()});
+    }
+  });
+  if (!merged) return null;
+  var xs = [];
+  groups.forEach(function(g){
+    if (g.key === null){ xs.push(g.t); return; }
+    if (g.c === 0) return;
+    xs.push({s: g.c < 0 ? -1 : 1, e: monoExpr(Math.abs(g.c), g.vs)});
+  });
+  if (!xs.length) return num(0);
+  return xs.length === 1 && xs[0].s === 1 ? xs[0].e : sum(xs);
+}
+
+/* x·x = x holds for anything that only ever takes the values 0 and 1 — every
+   variable does, and so does any subexpression we can check. 2·p does not:
+   (2p)² is 4p, not 2p, which is why this is checked rather than assumed. */
+function boolValued(e){
+  if (e.k === "var") return true;
+  var N = 1 << S.vars.length;
+  for (var i = 0; i < N; i++){
+    var x = evalT(e, valuation(i));
+    if (x !== 0 && x !== 1) return false;
+  }
+  return true;
+}
+function rSquare(e){
+  if (e.k !== "prod") return null;
+  var ys = [], hit = false;
+  e.xs.forEach(function(x){
+    var dup = ys.some(function(y){ return eqT(y, x); });
+    if (dup && boolValued(x)){ hit = true; return; }
+    ys.push(x);
+  });
+  if (!hit) return null;
+  return ys.length === 1 ? ys[0] : prod(ys);
+}
+
+function rNumbers(e){
+  var i, out;
+  if (e.k === "prod"){
+    for (i = 0; i < e.xs.length; i++) if (e.xs[i].k === "num" && e.xs[i].v === 0) return num(0);
+    var c = 1, first = -1, rest = [];
+    for (i = 0; i < e.xs.length; i++){
+      if (e.xs[i].k === "num"){ c *= e.xs[i].v; if (first < 0) first = i; }
+    }
+    var ys = [];
+    for (i = 0; i < e.xs.length; i++){
+      if (e.xs[i].k === "num"){
+        if (i === first && (c !== 1 || e.xs.length === 1)) ys.push(num(c));
+        continue;
+      }
+      ys.push(e.xs[i]);
+    }
+    if (!ys.length) return num(c);
+    out = ys.length === 1 ? ys[0] : prod(ys);
+    return eqT(out, e) ? null : out;
+  }
+  if (e.k === "sum"){
+    var k = 0, fst = -1;
+    for (i = 0; i < e.xs.length; i++){
+      if (e.xs[i].e.k === "num"){ k += e.xs[i].s * e.xs[i].e.v; if (fst < 0) fst = i; }
+    }
+    var xs = [];
+    for (i = 0; i < e.xs.length; i++){
+      var t = e.xs[i];
+      if (t.e.k === "num"){
+        if (i === fst && k !== 0) xs.push({s: k < 0 ? -1 : 1, e: num(Math.abs(k))});
+        continue;
+      }
+      xs.push(t);
+    }
+    if (!xs.length) return eqT(num(0), e) ? null : num(0);
+    out = xs.length === 1 && xs[0].s === 1 ? xs[0].e : sum(xs);
+    return eqT(out, e) ? null : out;
+  }
+  return null;
+}
+
+function rFactor(e){
+  if (e.k !== "sum" || e.xs.length < 2) return null;
+  var ms = e.xs.map(function(t){ return mono(t.e); });
+  if (ms.some(function(m){ return !m; })) return null;
+  var pick = null, i;
+  for (i = 0; i < ms[0].vs.length && !pick; i++){
+    var v = ms[0].vs[i];
+    if (ms.every(function(m){ return m.vs.indexOf(v) >= 0; })) pick = v;
+  }
+  if (pick){
+    var ts = e.xs.map(function(t, j){
+      var vs = ms[j].vs.slice();
+      vs.splice(vs.indexOf(pick), 1);
+      return {s: t.s, e: monoExpr(ms[j].c, vs)};
+    });
+    return prod([vbl(pick), sum(ts)]);
+  }
+  var g = 0;
+  ms.forEach(function(m){ g = gcd(g, Math.abs(m.c)); });
+  if (g > 1){
+    var ts2 = e.xs.map(function(t, j){ return {s: t.s, e: monoExpr(ms[j].c / g, ms[j].vs)}; });
+    return prod([num(g), sum(ts2)]);
+  }
+  return null;
+}
+
+var RULES = [
+  {code:"BRK", fn:rBrackets, what:"drop brackets",        law:"a·(b·c) = a·b·c, and a − (b − c) = a − b + c"},
+  {code:"EXP", fn:rExpand,   what:"multiply out",         law:"a·(b + c) = a·b + a·c"},
+  {code:"COL", fn:rCollect,  what:"gather like terms",    law:"3·p·q − p·q = 2·p·q, and p − p drops out"},
+  {code:"SQ",  fn:rSquare,   what:"x·x = x",              law:"sound because every variable is 0 or 1"},
+  {code:"NUM", fn:rNumbers,  what:"do the arithmetic",    law:"1·x = x, x + 0 = x, 0·x = 0, 2·3 = 6"},
+  {code:"FAC", fn:rFactor,   what:"take out a factor",    law:"a·b + a·c = a·(b + c)"}
+];
+function ruleOf(code){ return RULES.filter(function(r){ return r.code === code; })[0]; }
+
+/* ═════════════════════════════════════════════ positions */
+function getAt(e, path){
+  if (!path.length) return e;
+  var i = path[0];
+  var kid = e.k === "sum" ? e.xs[i].e : e.xs[i];
+  return getAt(kid, path.slice(1));
+}
+function replaceAt(e, path, ne){
+  if (!path.length) return ne;
+  var i = path[0], rest = path.slice(1);
+  if (e.k === "sum"){
+    return sum(e.xs.map(function(t, j){
+      return j === i ? {s:t.s, e:replaceAt(t.e, rest, ne)} : t;
+    }));
+  }
+  return prod(e.xs.map(function(x, j){ return j === i ? replaceAt(x, rest, ne) : x; }));
+}
+function pathOf(str){ return str === "" ? [] : str.split(".").map(Number); }
+
+/* one pass, children before parents, at every position the rule matches */
+function applyAll(e, fn){
+  var n = 0;
+  function go(x){
+    var y;
+    if (x.k === "sum") y = sum(x.xs.map(function(t){ return {s:t.s, e:go(t.e)}; }));
+    else if (x.k === "prod") y = prod(x.xs.map(go));
+    else y = x;
+    var r = fn(y);
+    if (r){ n++; return r; }
+    return y;
+  }
+  var out = go(e);
+  return n ? {e:out, n:n} : null;
+}
+function countAll(e, fn){
+  var r = applyAll(e, fn);
+  return r ? r.n : 0;
+}
+
+/* ═════════════════════════════════════════════ normal form */
+/* The multilinear polynomial of a Boolean function is unique, so there is a
+   definite finish line even though the student may stop anywhere. */
+function popcount(x){ var n = 0; while (x){ n += x & 1; x >>= 1; } return n; }
+
+function valuation(i){
+  var v = {};
+  S.vars.forEach(function(x, j){ v[x] = (i >> j) & 1; });
+  return v;
+}
+function truth(i){ return evalF(S.f, valuation(i)) ? 1 : 0; }
+
+function canonExpr(){
+  var n = S.vars.length, N = 1 << n, T, U;
+  var terms = [];
+  for (T = 0; T < N; T++){
+    var c = 0;
+    for (U = 0; U < N; U++){
+      if ((U & T) !== U) continue;
+      c += ((popcount(T) - popcount(U)) % 2 ? -1 : 1) * truth(U);
+    }
+    if (!c) continue;
+    var vs = [];
+    for (var j = 0; j < n; j++) if (T & (1 << j)) vs.push(S.vars[j]);
+    terms.push({s: c < 0 ? -1 : 1, e: monoExpr(Math.abs(c), vs), d: vs.length, T: T});
+  }
+  if (!terms.length) return num(0);
+  terms.sort(function(a, b){ return a.d - b.d || a.T - b.T; });
+  if (terms.length === 1 && terms[0].s === 1) return terms[0].e;
+  return sum(terms.map(function(t){ return {s:t.s, e:t.e}; }));
+}
+
+/* In normal form iff rebuilding every term canonically gives back the very
+   same tree: that rejects 1·p, single-factor products, a stray + 0, an
+   uncollected repeat, and any surviving x·x, all in one test. */
+function isNormal(e){
+  if (e.k === "num") return true;
+  var ts = e.k === "sum" ? e.xs : [{s:1, e:e}];
+  var keys = {}, rebuilt = [];
+  for (var i = 0; i < ts.length; i++){
+    var m = mono(ts[i].e);
+    if (!m) return false;
+    var vs = m.vs.slice().sort();
+    for (var j = 1; j < vs.length; j++) if (vs[j] === vs[j - 1]) return false;
+    var k = vs.join("*");
+    if (keys[k]) return false;
+    keys[k] = 1;
+    var c = ts[i].s * m.c;
+    if (c === 0) return false;
+    rebuilt.push({s: c < 0 ? -1 : 1, e: monoExpr(Math.abs(c), m.vs)});
+  }
+  var target = rebuilt.length === 1 && rebuilt[0].s === 1 ? rebuilt[0].e : sum(rebuilt);
+  return eqT(e, target);
+}
+
+/* ═════════════════════════════════════════════ printing */
+function renderEx(e, path, sel, b){
+  var p = path.join("."), inner;
+  if (e.k === "num") inner = '<span class="num">' + e.v + "</span>";
+  else if (e.k === "var") inner = "<i>" + e.n + "</i>";
+  else if (e.k === "sum"){
+    inner = e.xs.map(function(t, i){
+      var op = i === 0
+        ? (t.s < 0 ? '<span class="aop lead">−</span>' : "")
+        : '<span class="aop">' + (t.s < 0 ? "−" : "+") + "</span>";
+      return op + renderEx(t.e, path.concat(i), sel, brk(t.e, e));
+    }).join("");
+  } else {
+    inner = e.xs.map(function(x, i){
+      return (i ? '<span class="aop dot">·</span>' : "") +
+             renderEx(x, path.concat(i), sel, brk(x, e));
+    }).join("");
+  }
+  var body = b ? '<span class="br">(</span>' + inner + '<span class="br">)</span>' : inner;
+  return '<span class="nd' + (sel === p ? " sel" : "") + '" data-p="' + p + '">' + body + "</span>";
+}
+/* a product needs no brackets inside a sum; everything else nested does */
+function brk(child, parent){
+  if (child.k !== "sum" && child.k !== "prod") return false;
+  return !(child.k === "prod" && parent.k === "sum");
+}
+function exHTML(e, sel, pick){
+  return '<span class="ex' + (pick ? " pick" : "") + '">' + renderEx(e, [], sel) + "</span>";
+}
+/* plain text, for tooltips and messages that must stay short */
+function exText(e, b){
+  var s;
+  if (e.k === "num") s = String(e.v);
+  else if (e.k === "var") s = e.n;
+  else if (e.k === "sum"){
+    s = e.xs.map(function(t, i){
+      return (i === 0 ? (t.s < 0 ? "−" : "") : (t.s < 0 ? " − " : " + ")) + exText(t.e, brk(t.e, e));
+    }).join("");
+  } else {
+    s = e.xs.map(function(x){ return exText(x, brk(x, e)); }).join("·");
+  }
+  return b ? "(" + s + ")" : s;
+}
+
+/* ═════════════════════════════════════════════ state */
+var MAXVARS = 5, MAXSIZE = 900;
+var S = {f:null, vars:[], steps:[], sel:null, phase:"empty"};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var ex = function(e){ return '<span class="ex" style="font-size:15.5px">' + renderEx(e, [], null) + "</span>"; };
+var plural = function(n, w){ return n + " " + w + (n === 1 ? "" : "s"); };
+
+function say(tone, html){
+  var el = $("#status");
+  el.className = "status " + (tone || "");
+  el.querySelector(".msg").innerHTML = html;
+}
+function cur(){ return S.steps.length ? S.steps[S.steps.length - 1].e : null; }
+
+/* ═════════════════════════════════════════════ building */
+function build(src){
+  var f;
+  try { f = parse(src); }
+  catch (e){ say("err", e.message); return; }
+  var vars = atomsOf(f).sort();
+  if (vars.length > MAXVARS){
+    say("err", "That formula has " + plural(vars.length, "variable") +
+        ". The polynomial can run to 2^" + vars.length + " terms, which is more than this page reads well — try " +
+        MAXVARS + " or fewer.");
+    return;
+  }
+  S.f = f; S.vars = vars; S.sel = null; S.phase = "work";
+  S.steps = [{e:encode(f), rule:null}];
+  hideOut();
+  var e0 = cur();
+  say("", "Encoded, connective for connective, straight off the table above — nothing tidied. " +
+      "<b>" + plural(countTerms(e0), "term") + "</b> to work on. Pick a rule to apply it everywhere it fits, " +
+      "or click a piece of the expression first to aim it.");
+  draw();
+}
+function countTerms(e){ return e.k === "sum" ? e.xs.length : 1; }
+
+/* ═════════════════════════════════════════════ steps */
+function refuse(why){ say("err", why); draw(); }
+
+function why(code){
+  var r = ruleOf(code), e = cur();
+  if (!e) return "Enter a formula and press Translate first.";
+  if (S.sel !== null){
+    var at = getAt(e, pathOf(S.sel));
+    return "<b>" + code + "</b> does not apply to " + ex(at) + " — " + r.law + ".";
+  }
+  return "No place left in the expression where <b>" + code + "</b> applies — " + r.law + ".";
+}
+
+function applyRule(code){
+  var e = cur();
+  if (!e){ say("", "Enter a formula and press Translate first."); return; }
+  if (S.phase === "done"){ say("", "This derivation is finished. Press Restart, or enter another formula."); return; }
+  var r = ruleOf(code), out, n;
+
+  if (S.sel !== null){
+    var path = pathOf(S.sel), at = getAt(e, path), rw = r.fn(at);
+    if (!rw){ refuse(why(code)); return; }
+    out = replaceAt(e, path, rw); n = 1;
+  } else {
+    var all = applyAll(e, r.fn);
+    if (!all){ refuse(why(code)); return; }
+    out = all.e; n = all.n;
+  }
+
+  if (sizeOf(out) > MAXSIZE){
+    refuse("That step would blow the expression up past " + MAXSIZE + " symbols, which is more than this page " +
+      "can show. Try <b>SQ</b> and <b>COL</b> on what you already have first — multiplying out last keeps it smaller.");
+    return;
+  }
+  if (!agrees(out)){
+    refuse("Refusing that step: the result disagrees with " + fh(S.f) + " somewhere, so it would be unsound. " +
+      "This is a bug in the tool, not in your reasoning — please report it.");
+    return;
+  }
+
+  S.steps.push({e:out, rule:code});
+  S.sel = null; chase = true;
+  var was = countTerms(e), now = countTerms(out);
+  var where = n === 1 ? "" : " at " + n + " places";
+  say("ok", "<b>" + code + "</b> — " + r.what + where + ". " +
+      (now === was ? plural(now, "term") + ", as before."
+                   : plural(now, "term") + (now < was ? " (was " + was + ")" : " (was " + was + ", it gets worse before it gets better)")) +
+      (isNormal(out) ? " That is the normal form — press <b>Done</b>." : ""));
+  draw();
+}
+
+/* every rule is sound only on 0/1, so that is exactly where it is checked */
+function agrees(e){
+  var N = 1 << S.vars.length;
+  for (var i = 0; i < N; i++){
+    if (evalT(e, valuation(i)) !== truth(i)) return false;
+  }
+  return true;
+}
+
+function undo(){
+  if (S.steps.length < 2){ say("", "Nothing to undo — you are back at the bare encoding."); return; }
+  S.steps.pop();
+  S.sel = null; S.phase = "work";
+  hideOut();
+  say("", "Stepped back one rule.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ finishing */
+function done(){
+  var e = cur();
+  if (!e) return;
+  S.phase = "done"; S.sel = null;
+
+  var N = 1 << S.vars.length, models = 0, i;
+  for (i = 0; i < N; i++) models += truth(i);
+  var canon = canonExpr(), normal = isNormal(e);
+
+  var h = '<div class="orow"><span class="lbl">your expression</span><span class="body">' +
+          exHTML(e, null, false) + "</span></div>";
+  if (!normal){
+    h += '<div class="orow"><span class="lbl">normal form</span><span class="body">' +
+         exHTML(canon, null, false) + "</span></div>";
+  }
+
+  var note;
+  if (e.k === "num" && (e.v === 0 || e.v === 1)){
+    note = "It came down to the constant " + e.v + ", so " + fh(S.f) + " is a <b>" +
+      (e.v ? "tautology" : "contradiction") + "</b> — true on every valuation, or on none.";
+  } else if (normal){
+    note = "That is the normal form: the multilinear polynomial of a Boolean function is unique, so no other " +
+      "way of simplifying could have landed anywhere else.";
+  } else {
+    var left = ["BRK", "EXP", "COL", "SQ", "NUM"].filter(function(c){
+      return countAll(e, ruleOf(c).fn) > 0;
+    });
+    note = "Not the normal form — <b>" + left.join("</b>, <b>") + "</b> still " +
+      (left.length === 1 ? "applies" : "apply") + ". That is not a mistake: a factored expression can be the " +
+      "simpler one to read, it is just not the canonical one.";
+  }
+
+  var frac = models + "/" + N;
+  h += '<p class="onote">' + note +
+    " Checked against " + fh(S.f) + " on all " + N + " valuation" + (N === 1 ? "" : "s") + ", of which " +
+    plural(models, "model") + " satisf" + (models === 1 ? "ies" : "y") + " it. Substituting <code>½</code> for every " +
+    "variable in the normal form gives exactly <code>" + frac + "</code>, the fraction of valuations that do — which " +
+    "is why the <code>x·x = x</code> steps have to come first: <code>½·½</code> is not <code>½</code>." +
+    "</p>";
+
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+  say("ok", "<b>Done</b> after " + plural(S.steps.length - 1, "rule") + " — " +
+      (normal ? "and that is the unique normal form." : "stopped short of the normal form, which is fine."));
+  draw();
+}
+function hideOut(){ $("#out").hidden = true; $("#out").innerHTML = ""; }
+
+/* ═════════════════════════════════════════════ drawing */
+var chase = false;   /* set only when a rule has just added a line */
+
+function draw(){
+  drawKey();
+  drawRules();
+  $("#doneBtn").disabled = !cur();
+
+  var w = $("#work");
+  if (!S.steps.length){ w.innerHTML = ""; return; }
+  var h = '<div class="line head"><span class="tag">formula</span><span class="body">' +
+          fh(S.f) + "</span></div>";
+  S.steps.forEach(function(st, i) {
+    var live = (i === S.steps.length - 1);
+    h += '<div class="line' + (live ? " live" : " stale") + '">' +
+      '<span class="tag">' + (st.rule || "encode") + "</span>" +
+      '<span class="body">' + exHTML(st.e, live && S.phase !== "done" ? S.sel : null, live && S.phase !== "done") + "</span>" +
+      '<span class="n">' + countTerms(st.e) + (countTerms(st.e) === 1 ? " term" : " terms") + "</span>" +
+      "</div>";
+  });
+  w.innerHTML = h;
+  /* the newest line is always the last one, and scrolling the box itself
+     avoids scrollIntoView dragging the whole page along with it */
+  if (chase){ chase = false; w.scrollTop = w.scrollHeight; }
+}
+
+function drawKey(){
+  $("#key").innerHTML = '<span class="klabel">Encoding</span>' +
+    ENC.map(function(p){
+      return '<span class="kit">' + p[0] + '<span class="to">↦</span><b>' + p[1] + "</b></span>";
+    }).join("") +
+    '<span class="kit">⊤<span class="to">↦</span><b>1</b></span>' +
+    '<span class="kit">⊥<span class="to">↦</span><b>0</b></span>';
+}
+
+function drawRules(){
+  var e = cur();
+  $("#rules").innerHTML = RULES.map(function(r){
+    var cls = "rule";
+    if (e){
+      var live;
+      if (S.sel !== null) live = !!r.fn(getAt(e, pathOf(S.sel)));
+      else live = !!applyAll(e, r.fn);
+      cls += live ? " armed" : " dim";
+    }
+    return '<button type="button" class="' + cls + '" data-rule="' + r.code + '" title="' + r.law + '">' +
+      '<span class="code">' + r.code + '</span><span class="what">' + r.what + "</span></button>";
+  }).join("");
+}
+
+/* ═════════════════════════════════════════════ selecting */
+function selMsg(){
+  var e = cur();
+  if (S.sel === null){
+    return "Nothing aimed — a rule will fire everywhere it fits. Click a piece of the expression to narrow that.";
+  }
+  var at = getAt(e, pathOf(S.sel));
+  var live = RULES.filter(function(r){ return !!r.fn(at); }).map(function(r){ return "<b>" + r.code + "</b>"; });
+  return "Aimed at " + ex(at) + " — " +
+    (live.length ? live.join(", ") + (live.length === 1 ? " applies" : " apply") + " here."
+                 : "nothing applies here; it is already as simple as a piece can get.") +
+    " Click it again, or press Escape, to go back to the whole expression.";
+}
+
+$("#work").addEventListener("click", function(e){
+  if (S.phase === "done") return;
+  var live = e.target.closest(".line.live");
+  if (!live) return;
+  var nd = e.target.closest(".nd");
+  if (!nd) return;
+  var p = nd.dataset.p;
+  S.sel = (S.sel === p) ? null : p;
+  say("", selMsg());
+  draw();
+});
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ wiring */
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-rule]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
+});
+
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#doneBtn").addEventListener("click", done);
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){ build($("#formula").value); });
+
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape" && S.sel !== null){ S.sel = null; say("", selMsg()); draw(); return; }
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+});
+
+build($("#formula").value);
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

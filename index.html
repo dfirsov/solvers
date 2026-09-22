@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Four interactive tools for propositional logic: a semantic tableaux trainer, a BDD builder, an ROBDD constructor, and an equivalence checker.">
+<meta name="description" content="Five interactive tools for propositional logic: a semantic tableaux trainer, a BDD builder, an ROBDD constructor, an arithmetic encoder, and an equivalence checker.">
 <title>Propositional Logic Solvers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -133,7 +133,7 @@ header p{
       <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
       <button class="theme" id="themeBtn" type="button">◐</button>
     </div>
-    <p>Four interactive tools for a propositional logic course. Each one takes a
+    <p>Five interactive tools for a propositional logic course. Each one takes a
        formula and works through a method step by step, checking every move rather
        than just handing over an answer.</p>
   </header>
@@ -176,6 +176,19 @@ header p{
       <span class="arrow" aria-hidden="true">→</span>
     </a>
 
+    <a class="tool" href="arith.html">
+      <span class="glyph" aria-hidden="true">∑</span>
+      <span class="text">
+        <h2>Arithmetic Encoding</h2>
+        <p>Turn a formula into ordinary arithmetic over 0 and 1 &mdash; negation becomes
+           1 &minus; <i>p</i>, conjunction becomes multiplication &mdash; then simplify it
+           yourself with the ring laws and <i>x</i>&middot;<i>x</i> = <i>x</i>. Every step is
+           checked, and a tautology ends up as the number 1.</p>
+        <span class="meta">Boolean polynomials · unique normal form</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+
     <a class="tool" href="equiv.html">
       <span class="glyph" aria-hidden="true">≡</span>
       <span class="text">
@@ -191,7 +204,7 @@ header p{
 
   <section class="notation">
     <h3>Notation</h3>
-    <p>All four read the same syntax:
+    <p>All five read the same syntax:
        <span class="sym">¬ ∧ ∨ ⊃ ≡</span>, with <span class="sym">⊃</span> for implication
        and <span class="sym">≡</span> for the biconditional. Variables are letters.</p>
     <p>If those characters are awkward to type, <code>~ &amp; | -&gt; &lt;-&gt;</code> work

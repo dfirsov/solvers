@@ -1,0 +1,1627 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Build a binary decision diagram by hand: expand any slot on any variable, close a constant slot as a terminal, share a subgraph, then reduce with C1, C2 and C3. No variable order is imposed.">
+<title>BDD Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1300px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── control strips ────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:10px 22px; flex-wrap:wrap}
+.strip.grow{padding-block:2px 8px}
+.strip.cut{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.group{display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap;
+}
+.vars{display:flex; gap:4px}
+.vars button{
+  font-family:var(--serif); font-style:italic; font-size:16px; line-height:1;
+  min-width:32px; padding:5px 8px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.vars button:hover{background:var(--soft); border-color:var(--ink-3)}
+.vars button.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.vars button.dim{opacity:.35}
+#terms button{font-family:var(--mono); font-style:normal; font-size:14px; min-width:34px}
+.novars{font-size:13px; color:var(--ink-3); font-style:italic}
+
+.rule{
+  display:flex; align-items:baseline; gap:8px;
+  border:1px solid transparent; background:transparent; border-radius:6px;
+  padding:4px 9px; transition:background .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft)}
+.rule .code{font-family:var(--mono); font-size:11.5px; font-weight:500; color:var(--accent); flex:none}
+.rule .what{font-size:13px; white-space:nowrap}
+.rule.armed{background:var(--accent); border-color:var(--accent)}
+.rule.armed .code,.rule.armed .what{color:var(--accent-ink)}
+.rule.dim{opacity:.35}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500;
+}
+.done:hover{background:var(--closed-soft)}
+.tof{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:7px; padding:6px 14px; font-weight:500;
+}
+.tof:hover:not(:disabled){border-color:var(--accent); color:var(--accent)}
+.tof:disabled{opacity:.4; cursor:not-allowed}
+.peek{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:7px; padding:5px 12px; font-size:13px;
+}
+.peek:hover{border-color:var(--accent); color:var(--accent)}
+.peek[aria-pressed="true"]{border-color:var(--open); color:var(--open)}
+.legend{display:flex; align-items:center; gap:14px; font-size:12px; color:var(--ink-3)}
+.legend i{display:inline-block; width:22px; height:0; vertical-align:middle; margin-right:5px}
+.legend .lo{border-top:1.5px dashed var(--ink-3)}
+.legend .hi{border-top:1.5px solid var(--ink-2)}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── read-back formula ─────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .orow{display:flex; align-items:baseline; gap:12px; padding-block:3px}
+.out .orow + .orow{border-top:1px solid var(--line); margin-top:6px; padding-top:9px}
+.out .lbl{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); flex:none; width:9.5em; padding-top:3px;
+}
+.out .body{flex:1; min-width:0}
+.out .f{line-height:1.6; word-break:break-word}
+.out .onote{
+  margin:10px 0 0; font-size:12.5px; color:var(--ink-3);
+  border-top:1px solid var(--line); padding-top:9px;
+}
+.out .onote code{font-family:var(--serif); font-size:14px; color:var(--ink-2)}
+@media (max-width:640px){
+  .out .orow{flex-direction:column; gap:3px}
+  .out .lbl{width:auto}
+}
+
+/* ── diagram ───────────────────────────────────────────── */
+.canvas{
+  flex:1; min-height:0; overflow:auto;
+  padding:26px 20px 40px; background:var(--paper);
+  border:1px solid var(--line); border-radius:10px; margin-bottom:18px;
+}
+svg{display:block; margin:0 auto; overflow:visible}
+.edge{fill:none; stroke:var(--ink-2); stroke-width:1.4}
+.edge.lo{stroke:var(--ink-3); stroke-dasharray:4 3.5}
+.node{cursor:grab; touch-action:none}
+.node:active{cursor:grabbing}
+.node .shape{
+  fill:var(--paper); stroke:var(--ink-2); stroke-width:1.4;
+  transition:fill .12s, stroke .12s;
+}
+.node .lbl{
+  font-family:var(--serif); font-style:italic; font-size:17px;
+  fill:var(--ink); text-anchor:middle; dominant-baseline:central;
+  pointer-events:none; user-select:none;
+}
+.node.term .lbl{font-style:normal; font-size:15px}
+.node.one .shape{fill:var(--ink); stroke:var(--ink)}
+.node.one .lbl{fill:var(--paper)}
+.node.pend .shape{fill:var(--soft); stroke:var(--open); stroke-dasharray:4 3}
+.node.pend .lbl{font-style:normal; font-size:16px; fill:var(--open)}
+.node.pend .cap{fill:var(--open)}
+.node:hover .shape{stroke:var(--accent)}
+.node.sel .shape{fill:var(--accent-soft); stroke:var(--accent); stroke-width:2.4}
+.node.sel.one .shape{fill:var(--accent); stroke:var(--accent)}
+.node.sel.one .lbl{fill:var(--accent-ink)}
+.node.sel.pend .lbl{fill:var(--accent)}
+.node.flag .shape{stroke:var(--error); stroke-width:2.4; fill:var(--error-soft)}
+.node.flag.one .shape{fill:var(--error); stroke:var(--error)}
+.node.flag.pend .lbl{fill:var(--error)}
+.nid{
+  font-family:var(--mono); font-size:8.5px; fill:var(--ink-3);
+  text-anchor:middle; pointer-events:none; user-select:none;
+}
+.cap{
+  font-family:var(--serif); font-size:11.5px; fill:var(--ink-3);
+  text-anchor:middle; pointer-events:none; user-select:none;
+  paint-order:stroke; stroke:var(--paper); stroke-width:3.5px; stroke-linejoin:round;
+}
+
+@media (max-width:820px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  .canvas{min-height:420px}
+  .wordmark{display:none}
+  .legend{margin-left:0; flex-basis:100%}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+}
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>◇</span> BDD</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Formula" value="(p &amp; q) | (~p &amp; r)">
+      <button type="submit" class="go">Start</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint">or type <code>~ &amp; | -&gt; &lt;-&gt;</code></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip grow">
+    <div class="group">
+      <span class="glabel" title="Split the selected slot on this variable">Test on</span>
+      <div class="vars" id="vars"></div>
+    </div>
+    <div class="group">
+      <span class="glabel" title="Turn the selected slot into a terminal">Close as</span>
+      <div class="vars" id="terms"></div>
+    </div>
+    <button type="button" class="rule" id="linkBtn" data-act="LINK">
+      <span class="code">↦</span><span class="what">share a finished node</span>
+    </button>
+    <button type="button" class="peek" id="peekBtn" aria-pressed="false"
+            title="Label every node with the function it computes">show residuals</button>
+  </div>
+
+  <div class="strip cut">
+    <div class="group" id="rules"></div>
+    <button class="done" id="doneBtn">Done</button>
+    <button class="tof" id="tofBtn" disabled title="Finish the BDD first, then read it back as a formula">To formula</button>
+    <div class="legend">
+      <span><i class="lo"></i>0-edge (low)</span>
+      <span><i class="hi"></i>1-edge (high)</span>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="tidy">Tidy</button>
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="out" id="out" hidden></div>
+  <div class="canvas" id="canvas"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ formulas */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+
+function show(g, esc, wrap, neg, opw, cst){
+  cst = cst || function(t){ return t; };
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
+    if (pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; });
+}
+/* plain text, for SVG captions and tooltips */
+function fmtText(g){
+  return show(g,
+    function(n){ return n; },
+    function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; },
+    function(o){ return o; },
+    function(t){ return t; });
+}
+
+function evalF(g, v){
+  switch (g.k){
+    case "atom": return !!v[g.n];
+    case "top":  return true;
+    case "bot":  return false;
+    case "not":  return !evalF(g.a, v);
+    case "and":  return evalF(g.a, v) && evalF(g.b, v);
+    case "or":   return evalF(g.a, v) || evalF(g.b, v);
+    case "imp":  return !evalF(g.a, v) || evalF(g.b, v);
+    case "iff":  return evalF(g.a, v) === evalF(g.b, v);
+  }
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* no variables */ }
+  else if (g.k === "not") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+/* substitute the path's fixed variables, leaving the rest alone */
+function restrictF(g, asg){
+  if (g.k === "atom") return (g.n in asg) ? {k: asg[g.n] ? "top" : "bot"} : g;
+  if (g.k === "top" || g.k === "bot") return g;
+  if (g.k === "not") return {k:"not", a:restrictF(g.a, asg)};
+  return {k:g.k, a:restrictF(g.a, asg), b:restrictF(g.b, asg)};
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
+];
+
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+
+function parse(src){
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = imp(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:imp()}; } return l; }
+  function imp(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:imp()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ diagrams */
+/* A BDD here is a rooted DAG. Three kinds of node:
+     pend — an open slot, not yet decided; carries the path assignment that
+            reached it, which is exactly what fixes the function it must compute
+     var  — a test on a variable, with a 0-edge (lo) and a 1-edge (hi)
+     term — the terminal 0 or 1
+   Nothing constrains which variable a test uses, so a variable may be skipped,
+   repeated, or tested in a different position down different branches. */
+function newG(){ return {nodes:{}, root:null, next:1}; }
+
+function addPend(G, asg){
+  var id = G.next++;
+  G.nodes[id] = {id:id, kind:"pend", asg:asg};
+  return id;
+}
+function addTerm(G, val){
+  var id = G.next++;
+  G.nodes[id] = {id:id, kind:"term", val:val};
+  return id;
+}
+function addVar(G, v, lo, hi){
+  var id = G.next++;
+  G.nodes[id] = {id:id, kind:"var", v:v, lo:lo, hi:hi};
+  return id;
+}
+
+function reachable(G){
+  var seen = {}, out = [];
+  (function walk(id){
+    if (seen[id]) return;
+    seen[id] = 1; out.push(id);
+    var n = G.nodes[id];
+    if (n.kind === "var"){ walk(n.lo); walk(n.hi); }
+  })(G.root);
+  return out;
+}
+
+/* every edge into `from` is redirected to `to`, then `from` is dropped */
+function replaceNode(G, from, to){
+  Object.keys(G.nodes).forEach(function(k){
+    var n = G.nodes[k];
+    if (n.kind !== "var") return;
+    if (n.lo === from) n.lo = to;
+    if (n.hi === from) n.hi = to;
+  });
+  if (G.root === from) G.root = to;
+  delete G.nodes[from];
+}
+
+function evalBDD(G, id, asg){
+  var n = G.nodes[id];
+  while (n.kind === "var") n = G.nodes[asg[n.v] ? n.hi : n.lo];
+  return n.val;
+}
+function hasPending(G, id){
+  var seen = {}, bad = false;
+  (function w(x){
+    if (bad || seen[x]) return;
+    seen[x] = 1;
+    var n = G.nodes[x];
+    if (n.kind === "pend"){ bad = true; return; }
+    if (n.kind === "var"){ w(n.lo); w(n.hi); }
+  })(id);
+  return bad;
+}
+function treeSize(G, id, memo){
+  memo = memo || {};
+  if (memo[id] !== undefined) return memo[id];
+  var n = G.nodes[id];
+  return memo[id] = (n.kind === "var" ? 1 + treeSize(G, n.lo, memo) + treeSize(G, n.hi, memo) : 1);
+}
+
+/* the first thing still to do, in the order a textbook would raise it */
+function violation(G){
+  var ids = reachable(G), i;
+  var open = ids.filter(function(id){ return G.nodes[id].kind === "pend"; });
+  if (open.length) return {rule:"OPEN", ids:open};
+  var zero = [], one = [];
+  for (i = 0; i < ids.length; i++){
+    var n = G.nodes[ids[i]];
+    if (n.kind === "term") (n.val ? one : zero).push(n.id);
+  }
+  if (zero.length > 1) return {rule:"C1", ids:zero, val:0};
+  if (one.length > 1)  return {rule:"C1", ids:one,  val:1};
+  for (i = 0; i < ids.length; i++){
+    var m = G.nodes[ids[i]];
+    if (m.kind === "var" && m.lo === m.hi) return {rule:"C2", ids:[m.id], child:m.lo};
+  }
+  var seen = {};
+  for (i = 0; i < ids.length; i++){
+    var q = G.nodes[ids[i]];
+    if (q.kind !== "var") continue;
+    var k = q.v + "|" + q.lo + "|" + q.hi;
+    if (seen[k] !== undefined) return {rule:"C3", ids:[seen[k], q.id]};
+    seen[k] = q.id;
+  }
+  return null;
+}
+
+/* ── the canonical ROBDD for a given order, for comparison only ── */
+function canonical(f, order){
+  var G = newG(), unique = {}, t0 = null, t1 = null, asg = {};
+  function term(v){
+    if (v){ if (t1 === null) t1 = addTerm(G, 1); return t1; }
+    if (t0 === null) t0 = addTerm(G, 0); return t0;
+  }
+  function mk(v, lo, hi){
+    if (lo === hi) return lo;
+    var k = v + "|" + lo + "|" + hi;
+    if (unique[k] !== undefined) return unique[k];
+    return unique[k] = addVar(G, v, lo, hi);
+  }
+  function go(i){
+    if (i === order.length) return term(evalF(f, asg));
+    var v = order[i];
+    asg[v] = false; var lo = go(i + 1);
+    asg[v] = true;  var hi = go(i + 1);
+    return mk(v, lo, hi);
+  }
+  G.root = go(0);
+  return G;
+}
+
+/* structural signature — two BDDs are isomorphic iff these match */
+function signature(G, id, memo){
+  memo = memo || {};
+  if (memo[id]) return memo[id];
+  var n = G.nodes[id];
+  var s = n.kind === "term" ? ("#" + n.val)
+        : n.kind === "pend" ? "?"
+        : "(" + n.v + " " + signature(G, n.lo, memo) + " " + signature(G, n.hi, memo) + ")";
+  return memo[id] = s;
+}
+
+function permutations(a){
+  if (a.length <= 1) return [a.slice()];
+  var out = [];
+  a.forEach(function(x, i){
+    var rest = a.slice(0, i).concat(a.slice(i + 1));
+    permutations(rest).forEach(function(p){ out.push([x].concat(p)); });
+  });
+  return out;
+}
+function orderStats(f, vars){
+  var lo = Infinity, hi = 0, best = null, ps = permutations(vars);
+  ps.forEach(function(o){
+    var n = reachable(canonical(f, o)).length;
+    if (n < lo){ lo = n; best = o; }
+    if (n > hi) hi = n;
+  });
+  return {lo:lo, hi:hi, best:best, count:ps.length};
+}
+
+/* ═══════════════════════════════════ is this diagram ordered at all? */
+/* Collect “x is tested directly above y” from the edges. A variable order
+   compatible with the diagram exists exactly when that relation is acyclic —
+   a cycle is two branches disagreeing about which variable comes first, or a
+   variable tested twice on one path. */
+function precedence(G){
+  var out = [];
+  reachable(G).forEach(function(id){
+    var n = G.nodes[id];
+    if (n.kind !== "var") return;
+    [n.lo, n.hi].forEach(function(c){
+      var m = G.nodes[c];
+      if (m.kind === "var") out.push({from:n.v, to:m.v, a:id, b:c});
+    });
+  });
+  return out;
+}
+function findCycle(vars, edges){
+  var adj = {}, state = {}, stack = [], cyc = null;
+  vars.forEach(function(v){ adj[v] = []; });
+  edges.forEach(function(e){ if (adj[e.from].indexOf(e.to) < 0) adj[e.from].push(e.to); });
+  function dfs(v){
+    state[v] = 1; stack.push(v);
+    for (var i = 0; i < adj[v].length && !cyc; i++){
+      var w = adj[v][i];
+      if (state[w] === 1){ cyc = stack.slice(stack.indexOf(w)).concat([w]); return; }
+      if (!state[w]) dfs(w);
+    }
+    stack.pop(); state[v] = 2;
+  }
+  for (var i = 0; i < vars.length && !cyc; i++) if (!state[vars[i]]) dfs(vars[i]);
+  return cyc;
+}
+function topoOrder(vars, edges){
+  var adj = {}, indeg = {}, seen = {};
+  vars.forEach(function(v){ adj[v] = []; indeg[v] = 0; });
+  edges.forEach(function(e){
+    var k = e.from + ">" + e.to;
+    if (seen[k]) return;
+    seen[k] = 1;
+    adj[e.from].push(e.to); indeg[e.to]++;
+  });
+  var q = vars.filter(function(v){ return !indeg[v]; }).sort(), out = [];
+  while (q.length){
+    var v = q.shift(); out.push(v);
+    adj[v].forEach(function(w){ if (--indeg[w] === 0) q.push(w); });
+    q.sort();
+  }
+  return out.length === vars.length ? out : null;
+}
+
+/* ═════════════════════════════════════════════ diagram to formula */
+/* Every test node is read back through the Shannon identity
+      if v then A else B  ≡  (v ⊃ A) ∧ (¬v ⊃ B)
+   with the two terminals becoming ⊤ and ⊥. */
+function toFormula(G, id){
+  var n = G.nodes[id];
+  if (n.kind === "term") return n.val ? {k:"top"} : {k:"bot"};
+  var v = {k:"atom", n:n.v};
+  return {k:"and",
+          a:{k:"imp", a:v, b:toFormula(G, n.hi)},
+          b:{k:"imp", a:{k:"not", a:v}, b:toFormula(G, n.lo)}};
+}
+
+/* Constant laws only, plus ¬¬. Enough to clear away every ⊤ and ⊥ that a
+   restriction or a terminal introduced, without rewriting real connectives. */
+function simplify(f){
+  if (f.k === "atom" || f.k === "top" || f.k === "bot") return f;
+  if (f.k === "not"){
+    var a = simplify(f.a);
+    if (a.k === "top") return {k:"bot"};
+    if (a.k === "bot") return {k:"top"};
+    if (a.k === "not") return a.a;
+    return {k:"not", a:a};
+  }
+  var x = simplify(f.a), y = simplify(f.b);
+  switch (f.k){
+    case "and":
+      if (x.k === "bot" || y.k === "bot") return {k:"bot"};
+      if (x.k === "top") return y;
+      if (y.k === "top") return x;
+      break;
+    case "or":
+      if (x.k === "top" || y.k === "top") return {k:"top"};
+      if (x.k === "bot") return y;
+      if (y.k === "bot") return x;
+      break;
+    case "imp":
+      if (x.k === "bot" || y.k === "top") return {k:"top"};
+      if (x.k === "top") return y;
+      if (y.k === "bot") return simplify({k:"not", a:x});
+      break;
+    case "iff":
+      if (x.k === "top") return y;
+      if (y.k === "top") return x;
+      if (x.k === "bot") return simplify({k:"not", a:y});
+      if (y.k === "bot") return simplify({k:"not", a:x});
+      break;
+  }
+  return {k:f.k, a:x, b:y};
+}
+
+function sameShape(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "atom") return a.n === b.n;
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not") return sameShape(a.a, b.a);
+  return sameShape(a.a, b.a) && sameShape(a.b, b.b);
+}
+
+/* ═════════════════════════════════════════════ state */
+var MAXVARS = 6;
+var S = {f:null, vars:[], G:null, sel:[], undo:[], flag:[], phase:"build", pos:null,
+         manual:{}, toldDrag:false, peek:true};
+try { S.peek = localStorage.getItem("logic.bdd.peek") !== "0"; } catch (e){}
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var vr = function(n){ return '<span class="f"><i>' + n + "</i></span>"; };
+var nd = function(id){ return "<b>" + id + "</b>"; };
+var plural = function(n, w){ return n + " " + w + (n === 1 ? "" : "s"); };
+var ndList = function(ids){
+  var a = ids.map(nd);
+  return a.length < 2 ? a[0] : a.slice(0, -1).join(", ") + " and " + a[a.length - 1];
+};
+
+function say(tone, html){
+  var el = $("#status");
+  el.className = "status " + (tone || "");
+  el.querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({G:S.G, sel:S.sel}));
+  if (S.undo.length > 80) S.undo.shift();
+}
+
+/* ── the function an open slot has to compute ── */
+function residualOf(asg){ return simplify(restrictF(S.f, asg)); }
+/* Working out f under the path is the exercise, so the answer is only spelled
+   out when “show residuals” is on. */
+function peekF(asg){ return S.peek ? fh(residualOf(asg)) : ""; }
+function extend(asg, v, val){
+  var a = {};
+  Object.keys(asg).forEach(function(k){ a[k] = asg[k]; });
+  /* a variable the path already fixed stays fixed — restricting twice does
+     nothing, which is exactly why re-testing it decides nothing */
+  if (!(v in a)) a[v] = val;
+  return a;
+}
+function decode(i){
+  var v = {};
+  S.vars.forEach(function(x, j){ v[x] = !!(i & (1 << j)); });
+  return v;
+}
+function withAsg(v, asg){
+  Object.keys(asg).forEach(function(k){ v[k] = asg[k]; });
+  return v;
+}
+/* f restricted by `asg`, as a truth table over every variable — two slots need
+   the same function exactly when these strings match */
+function maskAt(asg){
+  var N = 1 << S.vars.length, s = "";
+  for (var i = 0; i < N; i++) s += evalF(S.f, withAsg(decode(i), asg)) ? "1" : "0";
+  return s;
+}
+/* an assignment consistent with `asg` on which f is not `val`, or null */
+function counterAt(asg, val){
+  var N = 1 << S.vars.length;
+  for (var i = 0; i < N; i++){
+    var v = withAsg(decode(i), asg);
+    if ((evalF(S.f, v) ? 1 : 0) !== val) return v;
+  }
+  return null;
+}
+/* an assignment reaching the slot on which the target subgraph is wrong */
+function linkMismatch(G, tid, asg){
+  var N = 1 << S.vars.length, i, j;
+  for (i = 0; i < N; i++){
+    var v = decode(i), ok = true;
+    for (j = 0; j < S.vars.length; j++){
+      var x = S.vars[j];
+      if ((x in asg) && v[x] !== asg[x]){ ok = false; break; }
+    }
+    if (!ok) continue;
+    var got = evalBDD(G, tid, v), want = evalF(S.f, v) ? 1 : 0;
+    if (got !== want) return {v:v, got:got, want:want};
+  }
+  return null;
+}
+function agrees(G){
+  var N = 1 << S.vars.length;
+  for (var i = 0; i < N; i++){
+    var v = decode(i);
+    if (evalBDD(G, G.root, v) !== (evalF(S.f, v) ? 1 : 0)) return false;
+  }
+  return true;
+}
+
+function asgList(v, only){
+  var ks = (only || S.vars).filter(function(x){ return x in v; });
+  if (!ks.length) return "";
+  return '<span class="f">' + ks.map(function(x){
+    return "<i>" + x + "</i> = " + (v[x] ? 1 : 0);
+  }).join(", ") + "</span>";
+}
+function varList(vs){
+  return '<span class="f">' + vs.map(function(x){ return "<i>" + x + "</i>"; }).join(", ") + "</span>";
+}
+function pathText(asg){
+  var t = asgList(asg, S.vars.filter(function(x){ return x in asg; }));
+  return t ? " (reached with " + t + ")" : "";
+}
+
+/* ═════════════════════════════════════════════ building */
+function build(src){
+  var f;
+  try { f = parse(src); }
+  catch (e){ say("err", e.message); return; }
+  var vars = atomsOf(f).sort();
+  if (vars.length > MAXVARS){
+    say("err", "That formula has " + plural(vars.length, "variable") +
+        " — more than this page draws comfortably. Try " + MAXVARS + " or fewer.");
+    return;
+  }
+  S.f = f; S.vars = vars;
+  S.G = newG();
+  S.G.root = addPend(S.G, {});
+  S.sel = []; S.undo = []; S.flag = []; S.phase = "build"; S.manual = {}; S.toldDrag = false;
+  hideFormula();
+  say("", "One open slot, standing for the whole of " + fh(simplify(f)) +
+      ". Select it, then test whatever variable you like — nothing here fixes an order, " +
+      "and each slot may be split on a different variable." +
+      (S.peek ? " Every node is labelled with the function it computes; <b>hide residuals</b> strips " +
+                "those off if you would rather work them out yourself."
+              : " Working out what each new slot has to compute is yours to do; " +
+                "<b>show residuals</b> spells it out if you want the help."));
+  draw();
+}
+
+/* ═════════════════════════════════════════════ moves */
+var RULES = [
+  {code:"C1", what:"merge duplicate terminals"},
+  {code:"C2", what:"remove redundant test"},
+  {code:"C3", what:"merge duplicate nodes"}
+];
+var NAMES = {C1:"C1", C2:"C2", C3:"C3", LINK:"share"};
+
+/* null when the selection makes the move legal, otherwise the reason why not */
+/* a merged-away node can still be sitting in the selection; drop it */
+function pruneSel(){
+  if (!S.G) return;
+  S.sel = S.sel.filter(function(i){ return S.G.nodes[i]; });
+  S.flag = S.flag.filter(function(i){ return S.G.nodes[i]; });
+}
+
+function check(code){
+  var G = S.G;
+  if (!G) return "Enter a formula first.";
+  pruneSel();
+  var sel = S.sel, ns = sel.map(function(i){ return G.nodes[i]; });
+
+  if (code === "TEST" || code === "T0" || code === "T1"){
+    if (sel.length !== 1) return "Growing works on one slot at a time — you have " +
+      (sel.length ? plural(sel.length, "node") + " selected" : "nothing selected") + ".";
+    var s = ns[0];
+    if (s.kind === "term") return "Node " + nd(s.id) + " is already the terminal " + s.val +
+      ". Only an open slot can be grown.";
+    if (s.kind === "var") return "Node " + nd(s.id) + " already tests " + vr(s.v) +
+      ". Only an open slot can be grown — pick one of the dashed nodes.";
+    if (code === "TEST") return null;
+    var want = code === "T1" ? 1 : 0;
+    var bad = counterAt(s.asg, want);
+    if (bad) return "Node " + nd(s.id) + " is not constantly " + want + " — take " + asgList(bad) +
+      " and the formula comes out " + (want ? 0 : 1) +
+      (S.peek ? "; what it has to compute is " + fh(residualOf(s.asg)) : "") +
+      ". A slot only closes once its residual has stopped depending on anything.";
+    return null;
+  }
+
+  if (code === "LINK"){
+    if (sel.length !== 2) return "Sharing joins exactly two nodes: the open slot, and the finished node you want it to point at. You have " +
+      plural(sel.length, "node") + " selected.";
+    var open = ns.filter(function(n){ return n.kind === "pend"; });
+    var fin  = ns.filter(function(n){ return n.kind !== "pend"; });
+    if (open.length === 0) return "Neither of those is an open slot. Sharing redirects a slot at a node that already computes what the slot needs.";
+    if (open.length === 2) return "Both of those are open slots. One of the two has to be finished — a slot cannot point at another slot.";
+    var pn = open[0], tn = fin[0];
+    if (hasPending(G, tn.id)) return "Node " + nd(tn.id) + " still has an open slot below it, so it does not compute anything yet. Finish that subgraph first.";
+    var mm = linkMismatch(G, tn.id, pn.asg);
+    if (mm) return "That slot and node " + nd(tn.id) + " do not compute the same thing: the subgraph gives " +
+      mm.got + " where the slot needs " + mm.want + " — take " + asgList(mm.v) +
+      (S.peek ? ". The slot has to compute " + fh(residualOf(pn.asg)) : "") + ".";
+    return null;
+  }
+
+  var pend = ns.filter(function(n){ return n.kind === "pend"; })[0];
+  if (pend) return "Node " + nd(pend.id) + " is still an open slot, so it has no structure to reduce yet. Grow it first.";
+
+  if (code === "C2"){
+    if (sel.length !== 1) return "C2 works on one node at a time — you have " + plural(sel.length, "node") + " selected.";
+    var n = ns[0];
+    if (n.kind === "term") return "C2 removes a test that decides nothing. Node " + nd(n.id) + " is a terminal — it tests no variable.";
+    if (n.lo !== n.hi) return "Node " + nd(n.id) + " tests " + vr(n.v) + ", but its 0-edge goes to node " + nd(n.lo) +
+      " and its 1-edge to node " + nd(n.hi) + ". C2 only removes a test whose two edges land on the <b>same</b> node.";
+    return null;
+  }
+  if (sel.length < 2) return "Select at least two nodes to merge — " + code + " joins nodes that are already identical.";
+  if (code === "C1"){
+    var notT = ns.filter(function(n){ return n.kind !== "term"; });
+    if (notT.length) return "C1 merges duplicate <b>terminals</b>. Node " + nd(notT[0].id) + " tests " + vr(notT[0].v) +
+      " — merging test nodes is C3.";
+    var v0 = ns[0].val;
+    if (ns.some(function(n){ return n.val !== v0; })) return "Those terminals don’t all carry the same value. Only identical terminals merge — all the 0s together, all the 1s together.";
+    return null;
+  }
+  if (code === "C3"){
+    var t = ns.filter(function(n){ return n.kind === "term"; });
+    if (t.length) return "Node " + nd(t[0].id) + " is a terminal. Merging terminals is C1.";
+    var a = ns[0];
+    var dv = ns.filter(function(n){ return n.v !== a.v; })[0];
+    if (dv) return "Node " + nd(a.id) + " tests " + vr(a.v) + " and node " + nd(dv.id) + " tests " + vr(dv.v) +
+      ". C3 merges nodes testing the <b>same</b> variable.";
+    var dk = ns.filter(function(n){ return n.lo !== a.lo || n.hi !== a.hi; })[0];
+    if (dk){
+      var side = dk.lo !== a.lo ? ["0-edge", a.lo, dk.lo] : ["1-edge", a.hi, dk.hi];
+      return "Both test " + vr(a.v) + ", but node " + nd(a.id) + "’s " + side[0] + " goes to node " + nd(side[1]) +
+        " while node " + nd(dk.id) + "’s goes to node " + nd(side[2]) + ". C3 compares the actual nodes an edge points at, " +
+        "so merge or share those children first — reduce from the terminals upward.";
+    }
+    return null;
+  }
+  return "Unknown move.";
+}
+
+function refuse(why){ S.flag = S.sel.slice(); say("err", why); draw(); }
+
+function guard(){
+  if (!S.G) return false;
+  if (S.phase === "done"){ say("", "This diagram is finished. Press Restart, or enter another formula."); return false; }
+  return true;
+}
+
+function expand(v){
+  if (!guard()) return;
+  var why = check("TEST");
+  if (why){ refuse(why); return; }
+  snapshot();
+  var slot = S.G.nodes[S.sel[0]], id = slot.id, asg = slot.asg;
+  var repeat = (v in asg);
+  var a0 = extend(asg, v, false), a1 = extend(asg, v, true);
+  var lo = addPend(S.G, a0), hi = addPend(S.G, a1);
+  /* the node keeps the path that created it: merging and sharing only ever join
+     nodes computing the same function, so this stays a true description of it */
+  S.G.nodes[id] = {id:id, kind:"var", v:v, lo:lo, hi:hi, asg:asg};
+  S.sel = []; S.flag = [];
+
+  var msg = S.peek
+    ? "Node " + nd(id) + " now tests " + vr(v) + ". Shannon expansion splits " + fh(residualOf(asg)) +
+      " into " + fh(residualOf(a1)) + " on the 1-edge and " + fh(residualOf(a0)) + " on the 0-edge."
+    : "Node " + nd(id) + " now tests " + vr(v) + ". Shannon expansion hands the 1-edge slot the formula " +
+      "with " + vr(v) + " set to 1 and the 0-edge slot the formula with " + vr(v) +
+      " set to 0 — work out what each of those comes to.";
+  if (repeat){
+    msg += " But " + vr(v) + " was already fixed to " + (asg[v] ? 1 : 0) + " further up, so restricting by it " +
+      "again changes nothing and both branches got the same residual. A variable tested twice on one path " +
+      "decides nothing the second time, and <b>C2</b> will take it back out.";
+  } else if (maskAt(a0) === maskAt(a1)){
+    msg += " Both branches came out the same function, so the residual here never depended on " + vr(v) +
+      " — this test decides nothing, and <b>C2</b> will take it back out.";
+  }
+  say("ok", msg);
+  draw();
+}
+
+function closeAs(val){
+  if (!guard()) return;
+  var code = "T" + val, why = check(code);
+  if (why){ refuse(why); return; }
+  snapshot();
+  var slot = S.G.nodes[S.sel[0]], id = slot.id, asg = slot.asg;
+  S.G.nodes[id] = {id:id, kind:"term", val:val};
+  S.sel = []; S.flag = [];
+  var fixed = S.vars.filter(function(x){ return x in asg; });
+  var rest = S.vars.filter(function(x){ return !(x in asg); });
+  var msg = "Node " + nd(id) + " closed as the terminal " + val + ". ";
+  if (!fixed.length){
+    msg += "That was the root, with nothing fixed above it, so " + fh(S.f) + " is a <b>" +
+      (val ? "tautology" : "contradiction") + "</b>.";
+  } else {
+    msg += "With " + asgList(asg, fixed) + " the formula is " + (val ? "true" : "false") +
+      (rest.length ? " however " + varList(rest) + (rest.length === 1 ? " falls" : " fall") : "") +
+      ", so there is nothing left to test — that early stop is what keeps a BDD smaller than a truth table.";
+  }
+  say("ok", msg);
+  draw();
+}
+
+function shareNode(){
+  if (!guard()) return;
+  var why = check("LINK");
+  if (why){ refuse(why); return; }
+  snapshot();
+  var ns = S.sel.map(function(i){ return S.G.nodes[i]; });
+  var pn = ns.filter(function(n){ return n.kind === "pend"; })[0];
+  var tn = ns.filter(function(n){ return n.kind !== "pend"; })[0];
+  var need = residualOf(pn.asg);
+  replaceNode(S.G, pn.id, tn.id);
+  S.sel = []; S.flag = [];
+  say("ok", "That slot needed " + fh(need) + ", and node " + nd(tn.id) +
+    " already computes it — the edge now points straight there. Two parents, one subgraph: " +
+    "that is the step where the diagram stops being a tree and becomes a DAG. <b>" +
+    reachable(S.G).length + "</b> nodes.");
+  draw();
+}
+
+function applyRule(code){
+  if (!guard()) return;
+  if (!S.sel.length){ say("", "Select one or more nodes in the diagram first, then choose a rule."); return; }
+  var why = check(code);
+  if (why){ refuse(why); return; }
+
+  snapshot();
+  var before = reachable(S.G).length, msg;
+  if (code === "C2"){
+    var n = S.G.nodes[S.sel[0]];
+    var kid = n.lo;
+    replaceNode(S.G, n.id, kid);
+    msg = "Removed node " + nd(n.id) + " — both its edges went to node " + nd(kid) +
+      ", so testing " + vr(n.v) + " there changed nothing. Everything that pointed at it now points straight at node " + nd(kid) + ".";
+  } else {
+    var keep = S.sel.slice().sort(function(a, b){ return a - b; })[0];
+    S.sel.forEach(function(id){ if (id !== keep) replaceNode(S.G, id, keep); });
+    msg = code === "C1"
+      ? "Merged " + plural(S.sel.length, "terminal") + " into node " + nd(keep) + "."
+      : "Merged " + plural(S.sel.length, "node") + " testing " + vr(S.G.nodes[keep].v) + " into node " + nd(keep) + ".";
+  }
+  S.sel = []; S.flag = [];
+  var after = reachable(S.G).length;
+  say("ok", msg + " <b>" + after + "</b> nodes left" + (after < before ? " (was " + before + ")" : "") + ".");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ finishing */
+function orderReport(){
+  var used = {};
+  reachable(S.G).forEach(function(id){
+    var n = S.G.nodes[id];
+    if (n.kind === "var") used[n.v] = 1;
+  });
+  var tested = S.vars.filter(function(v){ return v in used; });
+  if (!tested.length) return "";
+
+  var edges = precedence(S.G);
+  var cyc = findCycle(S.vars, edges);
+  if (!cyc){
+    var full = topoOrder(S.vars, edges) || S.vars.slice();
+    var C = canonical(S.f, full);
+    var same = signature(S.G, S.G.root) === signature(C, C.root);
+    if (tested.length < 2){
+      return " Only " + vr(tested[0]) + " is ever tested, so it is trivially <b>ordered</b>" +
+        (same ? ", and being reduced as well it is canonical — every order gives this same diagram." : ".");
+    }
+    var h = " Every branch tests its variables in the order " +
+      ordText(full.filter(function(v){ return v in used; })) + ", so this one is <b>ordered</b> too.";
+    if (same) h += " Reduced <i>and</i> ordered means canonical — it is <i>the</i> ROBDD for that order, " +
+      "and the ROBDD constructor would hand you exactly this diagram.";
+    return h;
+  }
+  var parts = [];
+  for (var i = 0; i + 1 < cyc.length; i++){
+    var e = edges.filter(function(x){ return x.from === cyc[i] && x.to === cyc[i + 1]; })[0];
+    parts.push("node " + nd(e.a) + " tests " + vr(cyc[i]) + " directly above " + vr(cyc[i + 1]));
+  }
+  var tail = cyc.length === 2
+    ? " — the same variable twice on one path, which no order allows."
+    : " — the “above” relation loops back on itself, so no single order fits.";
+  return " No variable order fits it: " + parts.join(", and ") + tail +
+    " This is a BDD but <b>not</b> an OBDD, so nothing here is canonical.";
+}
+function ordText(o){
+  return '<span class="f">' + o.map(function(v){ return "<i>" + v + "</i>"; }).join(" &lt; ") + "</span>";
+}
+
+function done(){
+  if (!S.G) return;
+  var v = violation(S.G);
+  if (v){
+    S.flag = v.ids.slice();
+    var m;
+    if (v.rule === "OPEN"){
+      m = "Not finished — " + (v.ids.length === 1
+        ? "node " + nd(v.ids[0]) + " is still an open slot."
+        : "nodes " + ndList(v.ids) + " are still open slots.") +
+        " Every slot has to become a test, a terminal, or a share.";
+    } else {
+      var pre = "The diagram already computes " + fh(S.f) + " correctly — but it is not reduced. ";
+      if (v.rule === "C1") m = pre + "Nodes " + ndList(v.ids) + " are " +
+        (v.ids.length === 2 ? "both" : "all") + " the terminal " + v.val + "; <b>C1</b> merges them into one.";
+      else if (v.rule === "C2") m = pre + "Node " + nd(v.ids[0]) +
+        " sends both edges to node " + nd(v.child) + ", so it decides nothing; <b>C2</b> removes it.";
+      else m = pre + "Nodes " + nd(v.ids[0]) + " and " + nd(v.ids[1]) +
+        " test the same variable with the same two children; <b>C3</b> merges them.";
+    }
+    say("err", m);
+    draw();
+    return;
+  }
+
+  S.phase = "done";
+  S.sel = []; S.flag = [];
+  var size = reachable(S.G).length;
+  var N = 1 << S.vars.length;
+  var ok = agrees(S.G);
+  var root = S.G.nodes[S.G.root];
+
+  var msg = "<b>That is a reduced BDD</b> for " + fh(S.f) + " — " + plural(size, "node") +
+    (!ok ? ", but it disagrees with the formula somewhere."
+         : N === 1 ? ", and with no variables to branch on there is nothing left to check."
+         : ", checked against all " + N + " assignments.");
+  if (root.kind === "term"){
+    msg += " The whole diagram is the single terminal " + root.val + ", so the formula is a <b>" +
+      (root.val ? "tautology" : "contradiction") + "</b>.";
+  }
+  msg += orderReport();
+
+  var st = orderStats(S.f, S.vars);
+  if (S.vars.length >= 2){
+    msg += st.lo === st.hi
+      ? " For comparison, every one of the " + st.count + " variable orders gives an ROBDD of " +
+        plural(st.lo, "node") + ". "
+      : " For comparison, the ROBDDs over the " + st.count + " variable orders run from " +
+        plural(st.lo, "node") + " (" + ordText(st.best) + ") to " + st.hi + ". ";
+    msg += size < st.lo
+      ? "Yours is smaller than every one of them — that is what dropping the order can buy."
+      : size === st.lo
+        ? "Yours matches the smallest of them."
+        : "Reduced still does not mean smallest, and it does not mean unique either: fix an order and the reduced diagram is pinned to one shape, drop it and the same formula has many.";
+  }
+  $("#tofBtn").disabled = false;
+  say("ok", msg);
+  draw();
+}
+
+function showFormula(){
+  if (S.phase !== "done" || !S.G) return;
+  if (treeSize(S.G, S.G.root) > 4000){
+    say("err", "Unfolding this DAG into a formula would run to thousands of symbols — too much to read. Reduce it further, or try a smaller formula.");
+    return;
+  }
+  var raw = toFormula(S.G, S.G.root);
+  var neat = simplify(raw);
+  var ids = reachable(S.G), par = {};
+  ids.forEach(function(id){
+    var n = S.G.nodes[id];
+    if (n.kind !== "var") return;
+    par[n.lo] = (par[n.lo] || 0) + 1;
+    par[n.hi] = (par[n.hi] || 0) + 1;
+  });
+  var shared = ids.filter(function(id){ return (par[id] || 0) > 1; }).length;
+
+  var h = '<div class="orow"><span class="lbl">from the diagram</span>' +
+          '<span class="body">' + fh(raw) + "</span></div>";
+  if (!sameShape(raw, neat)){
+    h += '<div class="orow"><span class="lbl">constants cleared</span>' +
+         '<span class="body">' + fh(neat) + "</span></div>";
+  }
+  h += '<p class="onote">Every test node was read back as <code>(v ⊃ then) ∧ (¬v ⊃ else)</code>, ' +
+       "with the terminals as <code>⊤</code> and <code>⊥</code>." +
+       (shared ? " " + shared + " node" + (shared === 1 ? " is" : "s are") +
+         " shared by more than one parent, so " + (shared === 1 ? "its" : "their") +
+         " subformula had to be written out more than once — the diagram is a DAG, a formula is a tree, " +
+         "and that gap is exactly where a BDD gets its compactness." : "") +
+       " Either line can be pasted straight back into the formula box.</p>";
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+}
+
+function hideFormula(){
+  $("#out").hidden = true;
+  $("#out").innerHTML = "";
+  $("#tofBtn").disabled = (S.phase !== "done");
+}
+
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo — you are back at the bare root slot."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.G = s.G; S.sel = s.sel; S.flag = []; S.phase = "build";
+  hideFormula();
+  say("", "Stepped back one move.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ layout */
+var GAPX = 64, GAPX_WIDE = 88, GAPY = 78, NODE_R = 18, BOW = 10;
+
+/* A BDD has no variable levels to lay out by, so a row is the longest path
+   from the root. Terminals are pushed to the bottom row, the way they are
+   always drawn. An edge that skips a row gets a chain of invisible dummy
+   nodes, one per row crossed, so it takes its own column and bends around
+   the nodes in between instead of passing behind them. */
+function rows(G){
+  var ids = reachable(G), indeg = {}, adj = {}, d = {};
+  ids.forEach(function(id){ indeg[id] = 0; adj[id] = []; d[id] = 0; });
+  ids.forEach(function(id){
+    var n = G.nodes[id];
+    if (n.kind !== "var") return;
+    adj[id].push(n.lo); indeg[n.lo]++;
+    adj[id].push(n.hi); indeg[n.hi]++;
+  });
+  var q = ids.filter(function(id){ return !indeg[id]; }), order = [];
+  while (q.length){
+    var id = q.shift(); order.push(id);
+    adj[id].forEach(function(c){ if (--indeg[c] === 0) q.push(c); });
+  }
+  order.forEach(function(x){
+    adj[x].forEach(function(c){ if (d[c] < d[x] + 1) d[c] = d[x] + 1; });
+  });
+  var nonT = ids.filter(function(x){ return G.nodes[x].kind !== "term"; });
+  var hasT = nonT.length < ids.length;
+  var dv = 0;
+  nonT.forEach(function(x){ if (d[x] > dv) dv = d[x]; });
+  var R = !nonT.length ? 0 : (hasT ? dv + 1 : dv);
+  var lvl = {};
+  ids.forEach(function(x){ lvl[x] = G.nodes[x].kind === "term" ? R : d[x]; });
+  return {lvl:lvl, rows:R};
+}
+
+function layout(G){
+  var R = rows(G), lvl = R.lvl, n = R.rows, i;
+  var ids = reachable(G);
+  var GX = S.peek ? GAPX_WIDE : GAPX;   /* captions need wider columns */
+  var Y0 = S.peek ? 46 : 26;            /* headroom for the root's caption */
+
+  var levels = []; for (i = 0; i <= n; i++) levels.push([]);
+  var edges = [], kids = {}, par = {}, dummy = {}, dlvl = {}, seen = {}, dn = 0;
+  function link(a, b){ (kids[a] = kids[a] || []).push(b); (par[b] = par[b] || []).push(a); }
+
+  (function walk(id){
+    if (seen[id]) return;
+    seen[id] = 1;
+    levels[lvl[id]].push(id);
+    var nn = G.nodes[id];
+    if (nn.kind !== "var") return;
+    [["lo", nn.lo], ["hi", nn.hi]].forEach(function(e){
+      var chain = [], prev = id;
+      for (var L = lvl[id] + 1; L < lvl[e[1]]; L++){
+        var k = "d" + (dn++);
+        dummy[k] = 1; dlvl[k] = L; levels[L].push(k); chain.push(k);
+        link(prev, k); prev = k;
+      }
+      link(prev, e[1]);
+      edges.push({a:id, b:e[1], kind:e[0], chain:chain});
+      walk(e[1]);
+    });
+  })(G.root);
+
+  var x = {};
+  levels.forEach(function(row){ row.forEach(function(k, j){ x[k] = j * GX; }); });
+
+  function spread(row){
+    if (row.length < 2) return;
+    var s = row.slice().sort(function(a, b){ return x[a] - x[b]; });
+    var m0 = 0; s.forEach(function(k){ m0 += x[k]; }); m0 /= s.length;
+    for (var j = 1; j < s.length; j++){
+      if (x[s[j]] < x[s[j - 1]] + GX) x[s[j]] = x[s[j - 1]] + GX;
+    }
+    var m1 = 0; s.forEach(function(k){ m1 += x[k]; }); m1 /= s.length;
+    var d = m0 - m1;
+    s.forEach(function(k){ x[k] += d; });
+  }
+  function mean(list){ var m = 0; list.forEach(function(k){ m += x[k]; }); return m / list.length; }
+
+  /* a dragged node holds its x; everything else relaxes around it */
+  function pin(){
+    Object.keys(S.manual).forEach(function(k){ if (x[k] !== undefined) x[k] = S.manual[k]; });
+  }
+
+  for (var it = 0; it < 10; it++){
+    pin();
+    for (var L = n - 1; L >= 0; L--){                 /* pull each node over its children */
+      levels[L].forEach(function(k){ if (kids[k]) x[k] = mean(kids[k]); });
+      spread(levels[L]);
+    }
+    for (L = 1; L <= n; L++){                          /* pull dummies and shared nodes under their parents */
+      levels[L].forEach(function(k){
+        var ps = par[k];
+        if (!ps) return;
+        if (dummy[k] || ps.length > 1) x[k] = mean(ps);
+      });
+      spread(levels[L]);
+    }
+  }
+
+  pin();
+
+  var pos = {}, minx = Infinity, maxx = -Infinity;
+  Object.keys(x).forEach(function(k){
+    pos[k] = {x: x[k], y: (dummy[k] ? dlvl[k] : lvl[k]) * GAPY + Y0};
+    minx = Math.min(minx, x[k]); maxx = Math.max(maxx, x[k]);
+  });
+  return {pos:pos, ids:ids, edges:edges,
+          x0:minx - 48, w:(maxx - minx) + 96, h:n * GAPY + Y0 + 56};
+}
+
+/* ═════════════════════════════════════════════ drawing */
+function trunc(s, k){ return s.length > k ? s.slice(0, k - 1) + "…" : s; }
+
+var CAPCH = 6;   /* rough width of one caption character, in px */
+
+/* How much room a caption has: the distance to the nearest node sharing its row.
+   Two captions of width w centred g apart collide when w > g, so the gap is the
+   budget. A node alone on its row gets a generous one. */
+function capRoom(L, id){
+  var me = L.pos[id], gap = Infinity;
+  L.ids.forEach(function(o){
+    if (o === id) return;
+    var q = L.pos[o];
+    if (Math.abs(q.y - me.y) > 1) return;
+    gap = Math.min(gap, Math.abs(q.x - me.x));
+  });
+  return gap;
+}
+function capFor(G, id, L){
+  var n = G.nodes[id];
+  if (!S.peek || !n.asg) return "";
+  var room = capRoom(L, id);
+  var k = room === Infinity ? 46 : Math.max(6, Math.min(46, Math.round((room - 8) / CAPCH)));
+  return trunc(fmtText(residualOf(n.asg)), k);
+}
+
+function draw(){
+  pruneSel();
+  syncPeek();
+  drawVars();
+  drawTerms();
+  drawRules();
+  var c = $("#canvas");
+  if (!S.G){ c.innerHTML = ""; return; }
+  var L = layout(S.G);
+  S.pos = L.pos;
+  var G = S.G, svg = "", capLo = Infinity, capHi = -Infinity;
+
+  /* edges first so nodes sit on top */
+  L.edges.forEach(function(e){
+    var pts = [L.pos[e.a]].concat(e.chain.map(function(k){ return L.pos[k]; })).concat([L.pos[e.b]]);
+    var trim = function(from, to, r){
+      var dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy) || 1;
+      return {x: from.x + dx / len * r, y: from.y + dy / len * r};
+    };
+
+    /* Both edges of a redundant test land on the same node, so drawn straight
+       they coincide and the 1-edge hides the 0-edge. Bow them apart into a
+       lens — that shape is the visual signature of a C2. */
+    var src = G.nodes[e.a];
+    if (pts.length === 2 && src.kind === "var" && src.lo === src.hi){
+      var a0 = pts[0], b0 = pts[1];
+      var dx = b0.x - a0.x, dy = b0.y - a0.y, len = Math.hypot(dx, dy) || 1;
+      var side = (e.kind === "lo" ? -1 : 1);
+      var cx = (a0.x + b0.x) / 2 + (-dy / len) * side * BOW * 2;
+      var cy = (a0.y + b0.y) / 2 + (dx / len) * side * BOW * 2;
+      var ctrl = {x:cx, y:cy};
+      var s0 = trim(a0, ctrl, NODE_R), s1 = trim(b0, ctrl, NODE_R + 2);
+      svg += '<path class="edge ' + e.kind + '" d="M' + s0.x.toFixed(1) + " " + s0.y.toFixed(1) +
+             "Q" + cx.toFixed(1) + " " + cy.toFixed(1) + " " + s1.x.toFixed(1) + " " + s1.y.toFixed(1) + '"/>';
+      return;
+    }
+
+    pts[0] = trim(pts[0], pts[1], NODE_R);
+    pts[pts.length - 1] = trim(pts[pts.length - 1], pts[pts.length - 2], NODE_R + 2);
+    var d = "M" + pts[0].x.toFixed(1) + " " + pts[0].y.toFixed(1);
+    if (pts.length === 2){
+      d += "L" + pts[1].x.toFixed(1) + " " + pts[1].y.toFixed(1);
+    } else {
+      /* round the bends so a routed edge reads as one continuous line */
+      for (var i = 1; i < pts.length - 1; i++){
+        var prev = pts[i - 1], cur = pts[i], nxt = pts[i + 1];
+        var inx = (prev.x + cur.x) / 2, iny = (prev.y + cur.y) / 2;
+        var outx = (cur.x + nxt.x) / 2, outy = (cur.y + nxt.y) / 2;
+        d += "L" + inx.toFixed(1) + " " + iny.toFixed(1) +
+             "Q" + cur.x.toFixed(1) + " " + cur.y.toFixed(1) + " " + outx.toFixed(1) + " " + outy.toFixed(1);
+      }
+      d += "L" + pts[pts.length - 1].x.toFixed(1) + " " + pts[pts.length - 1].y.toFixed(1);
+    }
+    svg += '<path class="edge ' + e.kind + '" d="' + d + '"/>';
+  });
+
+  L.ids.forEach(function(id){
+    var n = G.nodes[id], p = L.pos[id];
+    var cls = ["node"], tip, label, cap = "";
+    if (n.kind === "term"){
+      cls.push("term"); if (n.val) cls.push("one");
+      label = n.val; tip = "terminal " + n.val;
+    } else if (n.kind === "pend"){
+      cls.push("pend");
+      label = "?";
+      cap = capFor(G, id, L);
+      var fixed = S.vars.filter(function(x){ return x in n.asg; });
+      tip = "open slot" +
+        (fixed.length ? " — reached with " + fixed.map(function(x){ return x + " = " + (n.asg[x] ? 1 : 0); }).join(", ") : "") +
+        (S.peek ? "; must compute " + fmtText(residualOf(n.asg)) : "");
+    } else {
+      label = n.v; tip = "tests " + n.v;
+      if (n.asg){
+        cap = capFor(G, id, L);
+        if (S.peek) tip += " — computes " + fmtText(residualOf(n.asg));
+      }
+    }
+    if (S.sel.indexOf(id) >= 0) cls.push("sel");
+    if (S.flag.indexOf(id) >= 0) cls.push("flag");
+    var shape = n.kind === "term"
+      ? '<rect class="shape" x="' + (p.x - 15) + '" y="' + (p.y - 15) + '" width="30" height="30" rx="5"/>'
+      : '<circle class="shape" cx="' + p.x + '" cy="' + p.y + '" r="' + NODE_R + '"/>';
+    svg += '<g class="' + cls.join(" ") + '" data-id="' + id + '" role="button" tabindex="0">' +
+      "<title>" + tip + "</title>" + shape +
+      '<text class="lbl" x="' + p.x + '" y="' + (p.y + 1) + '">' + label + "</text>" +
+      '<text class="nid" x="' + (p.x + NODE_R + 7) + '" y="' + (p.y - NODE_R + 5) + '">' + id + "</text>" +
+      (cap ? '<text class="cap" x="' + p.x + '" y="' +
+             (id === G.root ? p.y - NODE_R - 12 : p.y + NODE_R + 14) + '">' + cap + "</text>" : "") +
+      "</g>";
+    if (cap){
+      var half = cap.length * CAPCH / 2;
+      capLo = Math.min(capLo, p.x - half);
+      capHi = Math.max(capHi, p.x + half);
+    }
+  });
+
+  var left = Math.min(L.x0, capLo - 8);
+  var right = Math.max(L.x0 + Math.max(L.w, 260), capHi + 8);
+  var W = Math.ceil(right - left);
+  c.innerHTML = '<svg width="' + W + '" height="' + L.h +
+    '" viewBox="' + left.toFixed(1) + " 0 " + W + " " + L.h +
+    '" role="img" aria-label="Binary decision diagram">' + svg + "</svg>";
+}
+
+function tone(code){
+  if (!S.sel.length) return "";
+  return check(code) === null ? " armed" : " dim";
+}
+function drawVars(){
+  if (!S.vars.length){
+    $("#vars").innerHTML = '<span class="novars">none — the formula has no variables</span>';
+    return;
+  }
+  var t = tone("TEST");
+  $("#vars").innerHTML = S.vars.map(function(v){
+    return '<button type="button" class="' + t.trim() + '" data-test="' + v +
+      '" title="Split the selected slot on ' + v + '">' + v + "</button>";
+  }).join("");
+}
+function drawTerms(){
+  $("#terms").innerHTML = [0, 1].map(function(t){
+    return '<button type="button" class="' + tone("T" + t).trim() + '" data-close="' + t +
+      '" title="Close the selected slot as the terminal ' + t + '">' + t + "</button>";
+  }).join("");
+}
+function syncPeek(){
+  var b = $("#peekBtn");
+  b.textContent = S.peek ? "hide residuals" : "show residuals";
+  b.setAttribute("aria-pressed", S.peek ? "true" : "false");
+}
+function drawRules(){
+  $("#rules").innerHTML = RULES.map(function(r){
+    return '<button type="button" class="rule' + tone(r.code) + '" data-rule="' + r.code + '">' +
+      '<span class="code">' + r.code + '</span><span class="what">' + r.what + "</span></button>";
+  }).join("");
+  $("#linkBtn").className = "rule" + tone("LINK");
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ dragging */
+/* Only x moves. A row is the node's longest distance from the root, and that
+   is computed, not chosen — so y is not the student's to set. */
+var drag = null, raf = 0;
+
+$("#canvas").addEventListener("pointerdown", function(e){
+  var g = e.target.closest(".node");
+  if (!g || e.button) return;
+  var id = +g.dataset.id;
+  if (!S.pos || !S.pos[id]) return;
+  drag = {id:id, x0:S.pos[id].x, cx:e.clientX, moved:false};
+  e.preventDefault();
+});
+
+window.addEventListener("pointermove", function(e){
+  if (!drag) return;
+  var dx = e.clientX - drag.cx;
+  if (!drag.moved && Math.abs(dx) < 4) return;
+  drag.moved = true;
+  S.manual[drag.id] = drag.x0 + dx;
+  if (!raf) raf = requestAnimationFrame(function(){ raf = 0; draw(); });
+});
+
+function endDrag(){
+  if (!drag) return;
+  var d = drag; drag = null;
+  if (raf){ cancelAnimationFrame(raf); raf = 0; }
+  if (!d.moved){ toggle(d.id); return; }
+  draw();
+  if (!S.toldDrag){
+    S.toldDrag = true;
+    say("", "Node " + nd(d.id) + " moved. Edges re-route around it — <b>Tidy</b> hands every node back to the layout.");
+  }
+}
+window.addEventListener("pointerup", endDrag);
+window.addEventListener("pointercancel", endDrag);
+
+/* ═════════════════════════════════════════════ wiring */
+function selMsg(){
+  if (!S.sel.length) return "Nothing selected.";
+  if (S.sel.length === 1){
+    var n = S.G.nodes[S.sel[0]];
+    if (n.kind === "pend"){
+      return "Node " + nd(n.id) + " is an open slot" + pathText(n.asg) +
+        (S.peek ? " and has to compute " + fh(residualOf(n.asg)) : "") +
+        ". Test a variable on it, close it as a terminal once the formula under that path has stopped " +
+        "depending on anything, or share a finished node that already computes it.";
+    }
+  }
+  var armed = ["C1","C2","C3","LINK"].filter(function(c){ return check(c) === null; })[0];
+  return plural(S.sel.length, "node") + " selected" +
+    (armed ? " — this is a legal <b>" + NAMES[armed] + "</b>." : ". Pick the move you think applies.");
+}
+
+function toggle(id){
+  if (S.phase === "done"){ say("", "This diagram is finished. Press Restart to build another one, or enter a new formula."); return; }
+  var i = S.sel.indexOf(id);
+  if (i >= 0) S.sel.splice(i, 1); else S.sel.push(id);
+  S.flag = [];
+  say("", selMsg());
+  draw();
+}
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-rule],[data-test],[data-close],[data-act]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
+  if (t.hasAttribute("data-test")){ expand(t.dataset.test); return; }
+  if (t.hasAttribute("data-close")){ closeAs(+t.dataset.close); return; }
+  if (t.hasAttribute("data-act")){ shareNode(); return; }
+});
+
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#peekBtn").addEventListener("click", function(){
+  S.peek = !S.peek;
+  try { localStorage.setItem("logic.bdd.peek", S.peek ? "1" : "0"); } catch (e){}
+  say("", S.peek
+    ? "Residuals shown — every node is labelled with the function it computes, and every open slot with " +
+      "the one it still has to."
+    : "Residuals hidden — the restriction at each slot is yours to work out. Turn them back on whenever you want.");
+  draw();
+});
+$("#doneBtn").addEventListener("click", done);
+$("#tofBtn").addEventListener("click", showFormula);
+$("#tidy").addEventListener("click", function(){
+  if (!Object.keys(S.manual).length){ say("", "Nothing to tidy — every node is already where the layout put it."); return; }
+  S.manual = {}; say("", "Layout reset."); draw();
+});
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){ build($("#formula").value); });
+
+document.addEventListener("keydown", function(e){
+  if (e.key === "Escape" && S.sel.length){ S.sel = []; S.flag = []; say("", "Nothing selected."); draw(); }
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+  if (e.key === "Enter" && e.target.hasAttribute && e.target.hasAttribute("data-id")){
+    e.preventDefault(); toggle(+e.target.dataset.id);
+  }
+});
+
+build($("#formula").value);
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

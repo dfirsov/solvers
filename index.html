@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Three interactive tools for propositional logic: a semantic tableaux trainer, an ROBDD constructor, and an equivalence checker.">
+<meta name="description" content="Four interactive tools for propositional logic: a semantic tableaux trainer, a BDD builder, an ROBDD constructor, and an equivalence checker.">
 <title>Propositional Logic Solvers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -133,7 +133,7 @@ header p{
       <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
       <button class="theme" id="themeBtn" type="button">◐</button>
     </div>
-    <p>Three interactive tools for a propositional logic course. Each one takes a
+    <p>Four interactive tools for a propositional logic course. Each one takes a
        formula and works through a method step by step, checking every move rather
        than just handing over an answer.</p>
   </header>
@@ -151,13 +151,26 @@ header p{
       <span class="arrow" aria-hidden="true">→</span>
     </a>
 
+    <a class="tool" href="bdd.html">
+      <span class="glyph" aria-hidden="true">◇</span>
+      <span class="text">
+        <h2>BDD Builder</h2>
+        <p>Grow a decision diagram slot by slot, splitting on whichever variable you
+           like at each node and stopping as soon as a branch is constant. Share
+           subgraphs to make it a DAG, reduce it, and find out whether any variable
+           order fits what you built.</p>
+        <span class="meta">Shannon expansion · unordered diagrams</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+
     <a class="tool" href="robdd.html">
       <span class="glyph" aria-hidden="true">◆</span>
       <span class="text">
         <h2>ROBDD Constructor</h2>
-        <p>Pick a variable order, then reduce the full decision tree with C1, C2 and C3
-           until it is reduced. Drag nodes to untangle the diagram, and read the finished
-           ROBDD back out as a formula.</p>
+        <p>Fix a variable order up front, then reduce the full decision tree with C1, C2
+           and C3 until nothing applies. Drag nodes to untangle the diagram, and read the
+           finished ROBDD back out as a formula.</p>
         <span class="meta">reduction rules · Shannon expansion</span>
       </span>
       <span class="arrow" aria-hidden="true">→</span>
@@ -178,7 +191,7 @@ header p{
 
   <section class="notation">
     <h3>Notation</h3>
-    <p>All three read the same syntax:
+    <p>All four read the same syntax:
        <span class="sym">¬ ∧ ∨ ⊃ ≡</span>, with <span class="sym">⊃</span> for implication
        and <span class="sym">≡</span> for the biconditional. Variables are letters.</p>
     <p>If those characters are awkward to type, <code>~ &amp; | -&gt; &lt;-&gt;</code> work

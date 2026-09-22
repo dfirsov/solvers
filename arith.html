@@ -946,14 +946,29 @@ function done(){
       "simpler one to read, it is just not the canonical one.";
   }
 
-  var frac = models + "/" + N;
+  /* Substituting ½ reads off the model fraction, but only from an expression
+     that is multilinear — E[x·y] is E[x]·E[y] for distinct variables, while
+     E[x·x] is E[x]. So rather than assert a condition, evaluate what the
+     student actually has and say what it gives. */
+  var frac = models + "/" + N, half = {};
+  S.vars.forEach(function(v){ half[v] = 0.5; });
+  var mine = evalT(e, half), want = models / N, holds = Math.abs(mine - want) < 1e-9;
+
   h += '<p class="onote">' + note +
     " Checked against " + fh(S.f) + " on all " + N + " valuation" + (N === 1 ? "" : "s") + ", of which " +
-    plural(models, "model") + " satisf" + (models === 1 ? "ies" : "y") + " it. Substituting <code>½</code> for every " +
-    "variable in the normal form gives exactly <code>" + frac + "</code>, the fraction of valuations that do. That " +
-    "reading needs the normal form and nothing short of it: every <code>x·x</code> has to go first, because " +
-    "<code>½·½</code> is not <code>½</code>." +
-    "</p>";
+    plural(models, "model") + " satisf" + (models === 1 ? "ies" : "y") + " it. Substituting <code>½</code> for " +
+    "every variable in the normal form gives exactly <code>" + frac + "</code>, the fraction that do — and other " +
+    "probabilities work the same way, so feeding in <code>p</code> for each variable gives the chance the formula " +
+    "comes out true when the variables are independent.";
+  if (!normal){
+    h += holds
+      ? " Yours is not the normal form but gives <code>" + frac + "</code> too: what the reading needs is only that " +
+        "no variable is ever multiplied by itself, which a factored expression can manage as well."
+      : " Yours gives <code>" + round4(mine) + "</code> instead, because some variable is still multiplied by " +
+        "itself: <code>½·½</code> is not <code>½</code>, so that expression is right on the corners of the cube " +
+        "and wrong in the middle.";
+  }
+  h += "</p>";
 
   $("#out").innerHTML = h;
   $("#out").hidden = false;
@@ -961,6 +976,7 @@ function done(){
       (normal ? "and that is the unique normal form." : "stopped short of the normal form, which is fine."));
   draw();
 }
+function round4(x){ return Math.round(x * 10000) / 10000; }
 function hideOut(){ $("#out").hidden = true; $("#out").innerHTML = ""; }
 
 /* ═════════════════════════════════════════════ drawing */

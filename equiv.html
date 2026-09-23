@@ -241,60 +241,29 @@ tbody tr:not(.differs) td.mark{color:var(--same)}
 "use strict";
 
 /* ═════════════════════════════════════════════ logging */
-/* Events go to the host that served this page — same origin, so no CORS and
-   nothing third-party. Opened from a file:// URL, or with the receiver down,
-   the post fails quietly: logging is never allowed to break the tool.
-   Set LOG_URL to "" to switch it off entirely. */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
 var LOG_URL = "log.php";
 var LOG_PAGE = "equiv";
-var LOG_SID = (function(){
-  try {
-    var v = sessionStorage.getItem("logic.sid");
-    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
-    return v;
-  } catch (e){ return "nostore"; }
-})();
-var logQ = [], logTimer = 0, LOG_READY = false;
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
 
-function logEvent(name, data){
+function logFormula(data){
   if (!LOG_URL) return;
   try {
-    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
-    if (data) Object.keys(data).forEach(function(k){
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
       var v = data[k];
       ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
     });
-    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
-       run of identical refusals collapses into a repeat count. */
-    var last = logQ[logQ.length - 1];
-    if (last && ev.ok === false && last.ok === false &&
-        last.e === ev.e && last.a === ev.a && last.why === ev.why){
-      last.n = (last.n || 1) + 1;
-      last.t = ev.t;
-      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-      return;
-    }
-    logQ.push(ev);
-    if (logQ.length >= 20) logFlush();
-    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-  } catch (err){}
-}
-function logFlush(){
-  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
-  if (!LOG_URL || !logQ.length) return;
-  var body = JSON.stringify(logQ);
-  logQ = [];
-  try {
+    var body = JSON.stringify([ev]);
     if (navigator.sendBeacon &&
         navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
     fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
                     headers:{"Content-Type":"application/json"}}).catch(function(){});
   } catch (e){}
 }
-window.addEventListener("pagehide", logFlush);
-document.addEventListener("visibilitychange", function(){
-  if (document.visibilityState === "hidden") logFlush();
-});
 
 
 /* ═════════════════════════════════════════════ formulas */
@@ -441,13 +410,13 @@ function verdict(kind, badge, html){
 function check(){
   var a, b, sa = $("#fa").value, sb = $("#fb").value;
   try { a = parse(sa); }
-  catch (e){ if (LOG_READY) logEvent("start", {fa:sa, fb:sb, err:"parse-A"}); fail("A", e.message); return; }
+  catch (e){ if (LOG_READY) logFormula({fa:sa, fb:sb, err:"parse-A"}); fail("A", e.message); return; }
   try { b = parse(sb); }
-  catch (e){ if (LOG_READY) logEvent("start", {fa:sa, fb:sb, err:"parse-B"}); fail("B", e.message); return; }
+  catch (e){ if (LOG_READY) logFormula({fa:sa, fb:sb, err:"parse-B"}); fail("B", e.message); return; }
 
   var vars = atomsOf(a); atomsOf(b, vars);
   if (vars.length > MAXVARS){
-    if (LOG_READY) logEvent("start", {fa:sa, fb:sb, err:"too-many-vars", vars:vars.length});
+    if (LOG_READY) logFormula({fa:sa, fb:sb, err:"too-many-vars"});
     verdict("bad", "too big", "Between them these formulas use " + vars.length +
       " variables, which is " + Math.pow(2, vars.length) + " valuations to check. " + MAXVARS + " is the limit here.");
     $("#reading").innerHTML = ""; $("#table").innerHTML = "";
@@ -455,7 +424,7 @@ function check(){
   }
 
   var r = compare(a, b);
-  if (LOG_READY) logEvent("start", {fa:sa, fb:sb, vars:r.vars.length, same:!r.diff.length, diff:r.diff.length});
+  if (LOG_READY) logFormula({fa:sa, fb:sb});
   $("#reading").innerHTML =
     '<div class="line"><span class="tag">A</span>' + fh(a) + "</div>" +
     '<div class="line"><span class="tag">B</span>' + fh(b) + "</div>";
@@ -539,7 +508,6 @@ $("#entry").addEventListener("submit", function(e){ e.preventDefault(); check();
 
 check();
 LOG_READY = true;
-logEvent("open", {fa:(document.querySelector("#fa")||{}).value, fb:(document.querySelector("#fb")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

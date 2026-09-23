@@ -297,60 +297,29 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 "use strict";
 
 /* ═════════════════════════════════════════════ logging */
-/* Events go to the host that served this page — same origin, so no CORS and
-   nothing third-party. Opened from a file:// URL, or with the receiver down,
-   the post fails quietly: logging is never allowed to break the tool.
-   Set LOG_URL to "" to switch it off entirely. */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
 var LOG_URL = "log.php";
 var LOG_PAGE = "arith";
-var LOG_SID = (function(){
-  try {
-    var v = sessionStorage.getItem("logic.sid");
-    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
-    return v;
-  } catch (e){ return "nostore"; }
-})();
-var logQ = [], logTimer = 0, LOG_READY = false;
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
 
-function logEvent(name, data){
+function logFormula(data){
   if (!LOG_URL) return;
   try {
-    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
-    if (data) Object.keys(data).forEach(function(k){
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
       var v = data[k];
       ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
     });
-    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
-       run of identical refusals collapses into a repeat count. */
-    var last = logQ[logQ.length - 1];
-    if (last && ev.ok === false && last.ok === false &&
-        last.e === ev.e && last.a === ev.a && last.why === ev.why){
-      last.n = (last.n || 1) + 1;
-      last.t = ev.t;
-      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-      return;
-    }
-    logQ.push(ev);
-    if (logQ.length >= 20) logFlush();
-    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-  } catch (err){}
-}
-function logFlush(){
-  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
-  if (!LOG_URL || !logQ.length) return;
-  var body = JSON.stringify(logQ);
-  logQ = [];
-  try {
+    var body = JSON.stringify([ev]);
     if (navigator.sendBeacon &&
         navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
     fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
                     headers:{"Content-Type":"application/json"}}).catch(function(){});
   } catch (e){}
 }
-window.addEventListener("pagehide", logFlush);
-document.addEventListener("visibilitychange", function(){
-  if (document.visibilityState === "hidden") logFlush();
-});
 
 
 /* ═════════════════════════════════════════════ formulas */
@@ -882,16 +851,16 @@ function cur(){ return S.steps.length ? S.steps[S.steps.length - 1].e : null; }
 function build(src){
   var f;
   try { f = parse(src); }
-  catch (e){ if (LOG_READY) logEvent("start", {f:src, err:"parse"}); say("err", e.message); return; }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
   var vars = atomsOf(f).sort();
   if (vars.length > MAXVARS){
-    if (LOG_READY) logEvent("start", {f:src, err:"too-many-vars", vars:vars.length});
+    if (LOG_READY) logFormula({f:src, err:"too-many-vars"});
     say("err", "That formula has " + plural(vars.length, "variable") +
         ". The polynomial can run to 2^" + vars.length + " terms, which is more than this page reads well — try " +
         MAXVARS + " or fewer.");
     return;
   }
-  if (LOG_READY) logEvent("start", {f:src, vars:vars.length});
+  if (LOG_READY) logFormula({f:src});
   S.f = f; S.vars = vars; S.sel = null; S.phase = "work";
   S.steps = [{e:encode(f), rule:null}];
   hideOut();
@@ -904,7 +873,7 @@ function build(src){
 function countTerms(e){ return e.k === "sum" ? e.xs.length : 1; }
 
 /* ═════════════════════════════════════════════ steps */
-function refuse(why, act, tag){ logEvent("step", {a:act, ok:false, why:tag}); say("err", why); draw(); }
+function refuse(why, act, tag){ say("err", why); draw(); }
 
 function why(code){
   var r = ruleOf(code), e = cur();
@@ -944,7 +913,6 @@ function applyRule(code){
     return;
   }
 
-  logEvent("step", {a:code, ok:true, aimed:S.sel !== null, at:n, terms:countTerms(out)});
   S.steps.push({e:out, rule:code});
   S.sel = null; chase = true;
   var was = countTerms(e), now = countTerms(out);
@@ -1031,8 +999,6 @@ function done(){
   }
   h += "</p>";
 
-  logEvent("done", {ok:true, rules:S.steps.length - 1, normal:normal,
-                    verdict:(e.k === "num" ? (e.v ? "tautology" : "contradiction") : "poly")});
   $("#out").innerHTML = h;
   $("#out").hidden = false;
   say("ok", "<b>Done</b> after " + plural(S.steps.length - 1, "rule") + " — " +
@@ -1153,7 +1119,12 @@ document.addEventListener("click", function(e){
 $("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
 $("#doneBtn").addEventListener("click", done);
 $("#undo").addEventListener("click", undo);
-$("#reset").addEventListener("click", function(){ build($("#formula").value); });
+$("#reset").addEventListener("click", function(){
+  /* a restart re-runs the formula already in the box; not a submission */
+  var was = LOG_READY; LOG_READY = false;
+  build($("#formula").value);
+  LOG_READY = was;
+});
 
 document.addEventListener("keydown", function(e){
   if (e.key === "Escape" && S.sel !== null){ S.sel = null; say("", selMsg()); draw(); return; }
@@ -1163,7 +1134,6 @@ document.addEventListener("keydown", function(e){
 
 build($("#formula").value);
 LOG_READY = true;
-logEvent("open", {f:(document.querySelector("#formula")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

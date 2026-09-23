@@ -110,55 +110,48 @@ An empty `LOG_URL` disables logging entirely — no requests, no queue.
 
 ### What a line looks like
 
-One JSON object per line. `t` is when the browser made the event, `r` when the host
-received it, `s` a random per-tab id, `p` the page, `e` the kind of event.
+One JSON object per line, one line per formula submitted. `t` is when the browser
+sent it, `r` when the host received it, `p` the page.
 
 ```json
-{"t":"…","s":"k3f9a2","p":"arith","e":"open","f":"~(p | q) <-> (~p & ~q)","r":"…"}
-{"t":"…","s":"k3f9a2","p":"arith","e":"start","f":"p -> (q -> p)","vars":2,"r":"…"}
-{"t":"…","s":"k3f9a2","p":"arith","e":"step","a":"SQ","ok":false,"why":"nowhere","n":28,"r":"…"}
-{"t":"…","s":"k3f9a2","p":"arith","e":"step","a":"EXP","ok":true,"at":1,"terms":3,"r":"…"}
-{"t":"…","s":"k3f9a2","p":"arith","e":"done","ok":true,"rules":5,"verdict":"tautology","r":"…"}
+{"t":"…","p":"arith","f":"p -> (q -> p)","r":"…"}
+{"t":"…","p":"tableaux","f":"q -> (p -> q)","sign":"F","r":"…"}
+{"t":"…","p":"bdd","f":"p &","err":"parse","r":"…"}
+{"t":"…","p":"equiv","fa":"~(p | q)","fb":"~p & ~q","r":"…"}
 ```
 
-| event   | when                          | fields                                             |
-|---------|-------------------------------|----------------------------------------------------|
-| `open`  | page loaded                   | `f` (or `fa`/`fb`), the formula it started on        |
-| `start` | a formula was submitted       | `f` (or `fa`/`fb` on equiv), `vars`, `err`           |
-| `step`  | a rule or move was attempted  | `a` action, `ok`, `why` when refused, `n` if repeated|
-| `done`  | the student pressed Done      | `ok`, plus the verdict and shape of the result       |
+That is the whole schema. Rule steps, mistakes, verdicts and page views are **not**
+recorded — only what someone typed and submitted.
 
-The default formula a page loads with is **not** logged as a `start` — only what
-someone actually submits. It is recorded on `open` instead, so a student who works
-through the default formula without retyping it still leaves a record of which
-formula their steps were about. Group a session by `s` and order by `t` to
-reconstruct it. A run of identical refusals collapses into one row with a
-repeat count `n`, so jabbing a dimmed button twenty times is one line, not twenty.
+Three things deliberately do not produce a line: the formula a page loads with,
+because nobody submitted it; **Restart**, because it re-runs whatever is already in
+the box; and reordering variables in the ROBDD tool, for the same reason. A formula
+that fails to parse *is* logged, with `err`, since it is still something someone
+tried. Switching T/F in the tableaux tool logs again, because the sign is part of
+what is being analysed and it travels in the line.
 
 ### Reading it
 
 ```sh
-# which formulas get tried
-jq -r 'select(.e=="start" and .f) | .f' logs/htevents.jsonl | sort | uniq -c | sort -rn | head -20
+# which formulas get tried, commonest first
+jq -r 'select(.f) | .f' logs/htevents.jsonl | sort | uniq -c | sort -rn | head -20
 
-# the commonest mistakes — the most useful view
-jq -r 'select(.e=="step" and .ok==false) | "\(.p)\t\(.a)\t\(.why // "-")"' logs/htevents.jsonl \
-  | sort | uniq -c | sort -rn | head -20
+# per tool
+jq -r '"\(.p)\t\(.f // (.fa + "  vs  " + .fb))"' logs/htevents.jsonl | sort | uniq -c | sort -rn
 
-# how often a session reaches Done, per tool
-jq -r 'select(.e=="done") | "\(.p)\t\(.ok)"' logs/htevents.jsonl | sort | uniq -c
+# what failed to parse
+jq -r 'select(.err == "parse") | .f' logs/htevents.jsonl | sort | uniq -c | sort -rn
 
-# distinct sessions and page views
-jq -r .s logs/htevents.jsonl | sort -u | wc -l
-jq -r 'select(.e=="open") | .p' logs/htevents.jsonl | sort | uniq -c
+# submissions per day
+jq -r '.t[0:10]' logs/htevents.jsonl | sort | uniq -c
 ```
 
 ### Privacy
 
-The log records what was typed into the formula boxes and which buttons were
-pressed. There is no name, no account and no cookie; `s` is a random id held in
-`sessionStorage`, so it lasts one tab and is not linkable across visits. Neither
-`serve.js` nor `log.php` records IP addresses.
+The log records the formulas people submit, and nothing else — no buttons, no
+progress, no page views. There is no name, no account, no cookie and no session
+id, so two lines from the same person are not linkable. Neither `serve.js` nor
+`log.php` records IP addresses.
 
 Two things to be aware of before running this for a real cohort:
 

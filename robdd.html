@@ -307,60 +307,29 @@ svg{display:block; margin:0 auto; overflow:visible}
 "use strict";
 
 /* ═════════════════════════════════════════════ logging */
-/* Events go to the host that served this page — same origin, so no CORS and
-   nothing third-party. Opened from a file:// URL, or with the receiver down,
-   the post fails quietly: logging is never allowed to break the tool.
-   Set LOG_URL to "" to switch it off entirely. */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
 var LOG_URL = "log.php";
 var LOG_PAGE = "robdd";
-var LOG_SID = (function(){
-  try {
-    var v = sessionStorage.getItem("logic.sid");
-    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
-    return v;
-  } catch (e){ return "nostore"; }
-})();
-var logQ = [], logTimer = 0, LOG_READY = false;
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
 
-function logEvent(name, data){
+function logFormula(data){
   if (!LOG_URL) return;
   try {
-    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
-    if (data) Object.keys(data).forEach(function(k){
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
       var v = data[k];
       ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
     });
-    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
-       run of identical refusals collapses into a repeat count. */
-    var last = logQ[logQ.length - 1];
-    if (last && ev.ok === false && last.ok === false &&
-        last.e === ev.e && last.a === ev.a && last.why === ev.why){
-      last.n = (last.n || 1) + 1;
-      last.t = ev.t;
-      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-      return;
-    }
-    logQ.push(ev);
-    if (logQ.length >= 20) logFlush();
-    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-  } catch (err){}
-}
-function logFlush(){
-  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
-  if (!LOG_URL || !logQ.length) return;
-  var body = JSON.stringify(logQ);
-  logQ = [];
-  try {
+    var body = JSON.stringify([ev]);
     if (navigator.sendBeacon &&
         navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
     fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
                     headers:{"Content-Type":"application/json"}}).catch(function(){});
   } catch (e){}
 }
-window.addEventListener("pagehide", logFlush);
-document.addEventListener("visibilitychange", function(){
-  if (document.visibilityState === "hidden") logFlush();
-});
 
 
 /* ═════════════════════════════════════════════ formulas */
@@ -698,15 +667,15 @@ function snapshot(){
 function build(src, keepOrder){
   var f;
   try { f = parse(src); }
-  catch (e){ if (LOG_READY) logEvent("start", {f:src, err:"parse"}); say("err", e.message); return; }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
   var vars = atomsOf(f).sort();
   if (vars.length > MAXVARS){
-    if (LOG_READY) logEvent("start", {f:src, err:"too-many-vars", vars:vars.length});
+    if (LOG_READY) logFormula({f:src, err:"too-many-vars"});
     say("err", "That formula has " + plural(vars.length, "variable") + ", so the decision tree starts with " +
         Math.pow(2, vars.length) + " leaves — too many to reduce by hand. Try " + MAXVARS + " variables or fewer.");
     return;
   }
-  if (LOG_READY && !keepOrder) logEvent("start", {f:src, vars:vars.length});
+  if (LOG_READY && !keepOrder) logFormula({f:src});
   S.f = f;
   if (!keepOrder || S.order.length !== vars.length ||
       S.order.slice().sort().join() !== vars.join()) S.order = vars;
@@ -728,7 +697,6 @@ function moveEarlier(i){
   var o = S.order.slice();
   var t = o[i - 1]; o[i - 1] = o[i]; o[i] = t;
   S.order = o;
-  logEvent("step", {a:"order", ok:true, order:o.join("<")});
   build($("#formula").value, true);
   say("", "Order is now " + orderText() + ". The tree was rebuilt — a different order can give a very different ROBDD.");
 }
@@ -791,9 +759,8 @@ function applyRule(code){
   if (S.phase === "done"){ say("", "This diagram is finished. Press Restart, or enter another formula."); return; }
   if (!S.sel.length){ say("", "Select one or more nodes in the diagram first, then choose a rule."); return; }
   var why = check(code);
-  if (why){ logEvent("step", {a:code, ok:false}); S.flag = S.sel.slice(); say("err", why); draw(); return; }
+  if (why){ S.flag = S.sel.slice(); say("err", why); draw(); return; }
 
-  logEvent("step", {a:code, ok:true});
   snapshot();
   var before = reachable(S.G).length, msg;
   if (code === "C2"){
@@ -827,7 +794,6 @@ function done(){
         " sends both edges to node " + nd(v.child) + ", so it decides nothing. <b>C2</b> removes it.";
     else m = "Not reduced yet — nodes " + nd(v.ids[0]) + " and " + nd(v.ids[1]) +
         " test the same variable with the same two children. <b>C3</b> merges them.";
-    logEvent("done", {ok:false, why:v.rule});
     say("err", m);
     draw();
     return;
@@ -847,7 +813,6 @@ function done(){
       '<span class="f">' + best.order.map(function(x){ return "<i>" + x + "</i>"; }).join(" &lt; ") + "</span>, would need only " +
       best.size + " — the ordering is what drives ROBDD size.";
   }
-  logEvent("done", {ok:true, nodes:size, order:S.order.join("<"), best:best.size});
   $("#tofBtn").disabled = false;
   say("ok", "<b>That’s the ROBDD</b> for " + orderText() + " — " + plural(size, "node") +
       ". ROBDDs are canonical for a fixed order, so this is the only one." + extra);
@@ -1184,7 +1149,6 @@ document.addEventListener("keydown", function(e){
 
 build($("#formula").value);
 LOG_READY = true;
-logEvent("open", {f:(document.querySelector("#formula")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

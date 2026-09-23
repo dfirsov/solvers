@@ -333,60 +333,29 @@ svg{display:block; margin:0 auto; overflow:visible}
 "use strict";
 
 /* ═════════════════════════════════════════════ logging */
-/* Events go to the host that served this page — same origin, so no CORS and
-   nothing third-party. Opened from a file:// URL, or with the receiver down,
-   the post fails quietly: logging is never allowed to break the tool.
-   Set LOG_URL to "" to switch it off entirely. */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
 var LOG_URL = "log.php";
 var LOG_PAGE = "bdd";
-var LOG_SID = (function(){
-  try {
-    var v = sessionStorage.getItem("logic.sid");
-    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
-    return v;
-  } catch (e){ return "nostore"; }
-})();
-var logQ = [], logTimer = 0, LOG_READY = false;
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
 
-function logEvent(name, data){
+function logFormula(data){
   if (!LOG_URL) return;
   try {
-    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
-    if (data) Object.keys(data).forEach(function(k){
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
       var v = data[k];
       ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
     });
-    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
-       run of identical refusals collapses into a repeat count. */
-    var last = logQ[logQ.length - 1];
-    if (last && ev.ok === false && last.ok === false &&
-        last.e === ev.e && last.a === ev.a && last.why === ev.why){
-      last.n = (last.n || 1) + 1;
-      last.t = ev.t;
-      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-      return;
-    }
-    logQ.push(ev);
-    if (logQ.length >= 20) logFlush();
-    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
-  } catch (err){}
-}
-function logFlush(){
-  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
-  if (!LOG_URL || !logQ.length) return;
-  var body = JSON.stringify(logQ);
-  logQ = [];
-  try {
+    var body = JSON.stringify([ev]);
     if (navigator.sendBeacon &&
         navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
     fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
                     headers:{"Content-Type":"application/json"}}).catch(function(){});
   } catch (e){}
 }
-window.addEventListener("pagehide", logFlush);
-document.addEventListener("visibilitychange", function(){
-  if (document.visibilityState === "hidden") logFlush();
-});
 
 
 /* ═════════════════════════════════════════════ formulas */
@@ -882,15 +851,15 @@ function pathText(asg){
 function build(src){
   var f;
   try { f = parse(src); }
-  catch (e){ if (LOG_READY) logEvent("start", {f:src, err:"parse"}); say("err", e.message); return; }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
   var vars = atomsOf(f).sort();
   if (vars.length > MAXVARS){
-    if (LOG_READY) logEvent("start", {f:src, err:"too-many-vars", vars:vars.length});
+    if (LOG_READY) logFormula({f:src, err:"too-many-vars"});
     say("err", "That formula has " + plural(vars.length, "variable") +
         " — more than this page draws comfortably. Try " + MAXVARS + " or fewer.");
     return;
   }
-  if (LOG_READY) logEvent("start", {f:src, vars:vars.length});
+  if (LOG_READY) logFormula({f:src});
   S.f = f; S.vars = vars;
   S.G = newG();
   S.G.root = addPend(S.G, {});
@@ -1001,7 +970,7 @@ function check(code){
   return "Unknown move.";
 }
 
-function refuse(why, act){ logEvent("step", {a:act, ok:false}); S.flag = S.sel.slice(); say("err", why); draw(); }
+function refuse(why, act){ S.flag = S.sel.slice(); say("err", why); draw(); }
 
 function guard(){
   if (!S.G) return false;
@@ -1021,7 +990,6 @@ function expand(v){
   /* the node keeps the path that created it: merging and sharing only ever join
      nodes computing the same function, so this stays a true description of it */
   S.G.nodes[id] = {id:id, kind:"var", v:v, lo:lo, hi:hi, asg:asg};
-  logEvent("step", {a:"test", ok:true, v:v, repeat:repeat});
   S.sel = []; S.flag = [];
 
   var msg = S.peek
@@ -1049,7 +1017,6 @@ function closeAs(val){
   snapshot();
   var slot = S.G.nodes[S.sel[0]], id = slot.id, asg = slot.asg;
   S.G.nodes[id] = {id:id, kind:"term", val:val};
-  logEvent("step", {a:"T" + val, ok:true});
   S.sel = []; S.flag = [];
   var fixed = S.vars.filter(function(x){ return x in asg; });
   var rest = S.vars.filter(function(x){ return !(x in asg); });
@@ -1076,7 +1043,6 @@ function shareNode(){
   var tn = ns.filter(function(n){ return n.kind !== "pend"; })[0];
   var need = residualOf(pn.asg);
   replaceNode(S.G, pn.id, tn.id);
-  logEvent("step", {a:"share", ok:true});
   S.sel = []; S.flag = [];
   say("ok", "That slot needed " + fh(need) + ", and node " + nd(tn.id) +
     " already computes it — the edge now points straight there. Two parents, one subgraph: " +
@@ -1091,7 +1057,6 @@ function applyRule(code){
   var why = check(code);
   if (why){ refuse(why, code); return; }
 
-  logEvent("step", {a:code, ok:true});
   snapshot();
   var before = reachable(S.G).length, msg;
   if (code === "C2"){
@@ -1174,7 +1139,6 @@ function done(){
       else m = pre + "Nodes " + nd(v.ids[0]) + " and " + nd(v.ids[1]) +
         " test the same variable with the same two children; <b>C3</b> merges them.";
     }
-    logEvent("done", {ok:false, why:v.rule});
     say("err", m);
     draw();
     return;
@@ -1210,7 +1174,6 @@ function done(){
         ? "Yours matches the smallest of them."
         : "Reduced still does not mean smallest, and it does not mean unique either: fix an order and the reduced diagram is pinned to one shape, drop it and the same formula has many.";
   }
-  logEvent("done", {ok:true, nodes:size, ordered:!findCycle(S.vars, precedence(S.G)), best:st.lo});
   $("#tofBtn").disabled = false;
   say("ok", msg);
   draw();
@@ -1655,7 +1618,12 @@ $("#tidy").addEventListener("click", function(){
   S.manual = {}; say("", "Layout reset."); draw();
 });
 $("#undo").addEventListener("click", undo);
-$("#reset").addEventListener("click", function(){ build($("#formula").value); });
+$("#reset").addEventListener("click", function(){
+  /* a restart re-runs the formula already in the box; not a submission */
+  var was = LOG_READY; LOG_READY = false;
+  build($("#formula").value);
+  LOG_READY = was;
+});
 
 document.addEventListener("keydown", function(e){
   if (e.key === "Escape" && S.sel.length){ S.sel = []; S.flag = []; say("", "Nothing selected."); draw(); }
@@ -1668,7 +1636,6 @@ document.addEventListener("keydown", function(e){
 
 build($("#formula").value);
 LOG_READY = true;
-logEvent("open", {f:(document.querySelector("#formula")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

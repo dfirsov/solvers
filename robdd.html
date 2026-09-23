@@ -1184,7 +1184,7 @@ document.addEventListener("keydown", function(e){
 
 build($("#formula").value);
 LOG_READY = true;
-logEvent("open", {});
+logEvent("open", {f:(document.querySelector("#formula")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

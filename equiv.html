@@ -539,7 +539,7 @@ $("#entry").addEventListener("submit", function(e){ e.preventDefault(); check();
 
 check();
 LOG_READY = true;
-logEvent("open", {});
+logEvent("open", {fa:(document.querySelector("#fa")||{}).value, fb:(document.querySelector("#fb")||{}).value});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

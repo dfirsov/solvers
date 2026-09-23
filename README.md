@@ -114,7 +114,7 @@ One JSON object per line. `t` is when the browser made the event, `r` when the h
 received it, `s` a random per-tab id, `p` the page, `e` the kind of event.
 
 ```json
-{"t":"…","s":"k3f9a2","p":"arith","e":"open","r":"…"}
+{"t":"…","s":"k3f9a2","p":"arith","e":"open","f":"~(p | q) <-> (~p & ~q)","r":"…"}
 {"t":"…","s":"k3f9a2","p":"arith","e":"start","f":"p -> (q -> p)","vars":2,"r":"…"}
 {"t":"…","s":"k3f9a2","p":"arith","e":"step","a":"SQ","ok":false,"why":"nowhere","n":28,"r":"…"}
 {"t":"…","s":"k3f9a2","p":"arith","e":"step","a":"EXP","ok":true,"at":1,"terms":3,"r":"…"}
@@ -123,13 +123,16 @@ received it, `s` a random per-tab id, `p` the page, `e` the kind of event.
 
 | event   | when                          | fields                                             |
 |---------|-------------------------------|----------------------------------------------------|
-| `open`  | page loaded                   | —                                                    |
+| `open`  | page loaded                   | `f` (or `fa`/`fb`), the formula it started on        |
 | `start` | a formula was submitted       | `f` (or `fa`/`fb` on equiv), `vars`, `err`           |
 | `step`  | a rule or move was attempted  | `a` action, `ok`, `why` when refused, `n` if repeated|
 | `done`  | the student pressed Done      | `ok`, plus the verdict and shape of the result       |
 
 The default formula a page loads with is **not** logged as a `start` — only what
-someone actually submits. A run of identical refusals collapses into one row with a
+someone actually submits. It is recorded on `open` instead, so a student who works
+through the default formula without retyping it still leaves a record of which
+formula their steps were about. Group a session by `s` and order by `t` to
+reconstruct it. A run of identical refusals collapses into one row with a
 repeat count `n`, so jabbing a dimmed button twenty times is one line, not twenty.
 
 ### Reading it

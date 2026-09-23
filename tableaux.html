@@ -861,7 +861,7 @@ window.addEventListener("resize", function(){ if (S.tab) equalize($("#canvas"));
 
 build($("#formula").value);
 LOG_READY = true;
-logEvent("open", {});
+logEvent("open", {f:(document.querySelector("#formula")||{}).value, sign:S.sign});
 if (document.fonts) document.fonts.ready.then(function(){ if (S.tab) equalize($("#canvas")); });
 
 /* ── theme toggle ─────────────────────────────────────── */

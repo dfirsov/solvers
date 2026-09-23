@@ -332,6 +332,63 @@ svg{display:block; margin:0 auto; overflow:visible}
 <script>
 "use strict";
 
+/* ═════════════════════════════════════════════ logging */
+/* Events go to the host that served this page — same origin, so no CORS and
+   nothing third-party. Opened from a file:// URL, or with the receiver down,
+   the post fails quietly: logging is never allowed to break the tool.
+   Set LOG_URL to "" to switch it off entirely. */
+var LOG_URL = "log";
+var LOG_PAGE = "bdd";
+var LOG_SID = (function(){
+  try {
+    var v = sessionStorage.getItem("logic.sid");
+    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
+    return v;
+  } catch (e){ return "nostore"; }
+})();
+var logQ = [], logTimer = 0, LOG_READY = false;
+
+function logEvent(name, data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
+    if (data) Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
+       run of identical refusals collapses into a repeat count. */
+    var last = logQ[logQ.length - 1];
+    if (last && ev.ok === false && last.ok === false &&
+        last.e === ev.e && last.a === ev.a && last.why === ev.why){
+      last.n = (last.n || 1) + 1;
+      last.t = ev.t;
+      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
+      return;
+    }
+    logQ.push(ev);
+    if (logQ.length >= 20) logFlush();
+    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
+  } catch (err){}
+}
+function logFlush(){
+  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
+  if (!LOG_URL || !logQ.length) return;
+  var body = JSON.stringify(logQ);
+  logQ = [];
+  try {
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+window.addEventListener("pagehide", logFlush);
+document.addEventListener("visibilitychange", function(){
+  if (document.visibilityState === "hidden") logFlush();
+});
+
+
 /* ═════════════════════════════════════════════ formulas */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 
@@ -825,13 +882,15 @@ function pathText(asg){
 function build(src){
   var f;
   try { f = parse(src); }
-  catch (e){ say("err", e.message); return; }
+  catch (e){ if (LOG_READY) logEvent("start", {f:src, err:"parse"}); say("err", e.message); return; }
   var vars = atomsOf(f).sort();
   if (vars.length > MAXVARS){
+    if (LOG_READY) logEvent("start", {f:src, err:"too-many-vars", vars:vars.length});
     say("err", "That formula has " + plural(vars.length, "variable") +
         " — more than this page draws comfortably. Try " + MAXVARS + " or fewer.");
     return;
   }
+  if (LOG_READY) logEvent("start", {f:src, vars:vars.length});
   S.f = f; S.vars = vars;
   S.G = newG();
   S.G.root = addPend(S.G, {});
@@ -942,7 +1001,7 @@ function check(code){
   return "Unknown move.";
 }
 
-function refuse(why){ S.flag = S.sel.slice(); say("err", why); draw(); }
+function refuse(why, act){ logEvent("step", {a:act, ok:false}); S.flag = S.sel.slice(); say("err", why); draw(); }
 
 function guard(){
   if (!S.G) return false;
@@ -953,7 +1012,7 @@ function guard(){
 function expand(v){
   if (!guard()) return;
   var why = check("TEST");
-  if (why){ refuse(why); return; }
+  if (why){ refuse(why, "test"); return; }
   snapshot();
   var slot = S.G.nodes[S.sel[0]], id = slot.id, asg = slot.asg;
   var repeat = (v in asg);
@@ -962,6 +1021,7 @@ function expand(v){
   /* the node keeps the path that created it: merging and sharing only ever join
      nodes computing the same function, so this stays a true description of it */
   S.G.nodes[id] = {id:id, kind:"var", v:v, lo:lo, hi:hi, asg:asg};
+  logEvent("step", {a:"test", ok:true, v:v, repeat:repeat});
   S.sel = []; S.flag = [];
 
   var msg = S.peek
@@ -985,10 +1045,11 @@ function expand(v){
 function closeAs(val){
   if (!guard()) return;
   var code = "T" + val, why = check(code);
-  if (why){ refuse(why); return; }
+  if (why){ refuse(why, code); return; }
   snapshot();
   var slot = S.G.nodes[S.sel[0]], id = slot.id, asg = slot.asg;
   S.G.nodes[id] = {id:id, kind:"term", val:val};
+  logEvent("step", {a:"T" + val, ok:true});
   S.sel = []; S.flag = [];
   var fixed = S.vars.filter(function(x){ return x in asg; });
   var rest = S.vars.filter(function(x){ return !(x in asg); });
@@ -1008,13 +1069,14 @@ function closeAs(val){
 function shareNode(){
   if (!guard()) return;
   var why = check("LINK");
-  if (why){ refuse(why); return; }
+  if (why){ refuse(why, "share"); return; }
   snapshot();
   var ns = S.sel.map(function(i){ return S.G.nodes[i]; });
   var pn = ns.filter(function(n){ return n.kind === "pend"; })[0];
   var tn = ns.filter(function(n){ return n.kind !== "pend"; })[0];
   var need = residualOf(pn.asg);
   replaceNode(S.G, pn.id, tn.id);
+  logEvent("step", {a:"share", ok:true});
   S.sel = []; S.flag = [];
   say("ok", "That slot needed " + fh(need) + ", and node " + nd(tn.id) +
     " already computes it — the edge now points straight there. Two parents, one subgraph: " +
@@ -1027,8 +1089,9 @@ function applyRule(code){
   if (!guard()) return;
   if (!S.sel.length){ say("", "Select one or more nodes in the diagram first, then choose a rule."); return; }
   var why = check(code);
-  if (why){ refuse(why); return; }
+  if (why){ refuse(why, code); return; }
 
+  logEvent("step", {a:code, ok:true});
   snapshot();
   var before = reachable(S.G).length, msg;
   if (code === "C2"){
@@ -1111,6 +1174,7 @@ function done(){
       else m = pre + "Nodes " + nd(v.ids[0]) + " and " + nd(v.ids[1]) +
         " test the same variable with the same two children; <b>C3</b> merges them.";
     }
+    logEvent("done", {ok:false, why:v.rule});
     say("err", m);
     draw();
     return;
@@ -1146,6 +1210,7 @@ function done(){
         ? "Yours matches the smallest of them."
         : "Reduced still does not mean smallest, and it does not mean unique either: fix an order and the reduced diagram is pinned to one shape, drop it and the same formula has many.";
   }
+  logEvent("done", {ok:true, nodes:size, ordered:!findCycle(S.vars, precedence(S.G)), best:st.lo});
   $("#tofBtn").disabled = false;
   say("ok", msg);
   draw();
@@ -1602,6 +1667,8 @@ document.addEventListener("keydown", function(e){
 });
 
 build($("#formula").value);
+LOG_READY = true;
+logEvent("open", {});
 
 /* ── theme toggle ─────────────────────────────────────── */
 function themeNow(){

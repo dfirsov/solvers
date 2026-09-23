@@ -287,6 +287,63 @@ button.line.pick{border-color:var(--error)}
 <script>
 "use strict";
 
+/* ═════════════════════════════════════════════ logging */
+/* Events go to the host that served this page — same origin, so no CORS and
+   nothing third-party. Opened from a file:// URL, or with the receiver down,
+   the post fails quietly: logging is never allowed to break the tool.
+   Set LOG_URL to "" to switch it off entirely. */
+var LOG_URL = "log";
+var LOG_PAGE = "tableaux";
+var LOG_SID = (function(){
+  try {
+    var v = sessionStorage.getItem("logic.sid");
+    if (!v){ v = Math.random().toString(36).slice(2, 10); sessionStorage.setItem("logic.sid", v); }
+    return v;
+  } catch (e){ return "nostore"; }
+})();
+var logQ = [], logTimer = 0, LOG_READY = false;
+
+function logEvent(name, data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), s:LOG_SID, p:LOG_PAGE, e:name};
+    if (data) Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    /* Someone jabbing a dimmed button is saying one thing, not twenty, so a
+       run of identical refusals collapses into a repeat count. */
+    var last = logQ[logQ.length - 1];
+    if (last && ev.ok === false && last.ok === false &&
+        last.e === ev.e && last.a === ev.a && last.why === ev.why){
+      last.n = (last.n || 1) + 1;
+      last.t = ev.t;
+      if (!logTimer) logTimer = setTimeout(logFlush, 2000);
+      return;
+    }
+    logQ.push(ev);
+    if (logQ.length >= 20) logFlush();
+    else if (!logTimer) logTimer = setTimeout(logFlush, 2000);
+  } catch (err){}
+}
+function logFlush(){
+  if (logTimer){ clearTimeout(logTimer); logTimer = 0; }
+  if (!LOG_URL || !logQ.length) return;
+  var body = JSON.stringify(logQ);
+  logQ = [];
+  try {
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+window.addEventListener("pagehide", logFlush);
+document.addEventListener("visibilitychange", function(){
+  if (document.visibilityState === "hidden") logFlush();
+});
+
+
 /* ═════════════════════════════════════════════ formulas */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 
@@ -495,7 +552,8 @@ function snapshot(){
 function build(src){
   var f;
   try { f = parse(src); }
-  catch (e){ say("err", e.message); return false; }
+  catch (e){ if (LOG_READY) logEvent("start", {f:src, err:"parse"}); say("err", e.message); return false; }
+  if (LOG_READY) logEvent("start", {f:src, sign:S.sign});
   S.root = f;
   S.tab = newTab();
   S.tab.root = addSeg(S.tab, null);
@@ -525,19 +583,22 @@ function clickRule(code){
   var L = S.tab.lines[S.sel], r = ruleFor(L.s, L.f);
   var want = RULES.filter(function(x){ return x.code === code; })[0];
 
-  if (!r){ say("err", "(" + code + ") needs a compound formula. Line " + S.sel + " is the atom " + fh(L.f) + " — there is nothing to break down."); return; }
-  if (L.used){ say("err", "Line " + S.sel + " is already used (✓). Applying its rule again adds nothing — pick another compound line."); return; }
+  if (!r){ logEvent("step", {a:code, ok:false, why:"atom"}); say("err", "(" + code + ") needs a compound formula. Line " + S.sel + " is the atom " + fh(L.f) + " — there is nothing to break down."); return; }
+  if (L.used){ logEvent("step", {a:code, ok:false, why:"already-used"}); say("err", "Line " + S.sel + " is already used (✓). Applying its rule again adds nothing — pick another compound line."); return; }
   if (r.code !== code){
+    logEvent("step", {a:code, ok:false, why:"wrong-rule", want:r.code});
     say("err", "(" + code + ") applies to " + want.prem + ". Line " + S.sel + " is " + sf(L.s, L.f) +
         " — main connective <b>" + (L.f.k === "not" ? "¬" : OPCH[L.f.k]) + "</b> under sign <b>" + L.s +
         "</b>, so the rule is <b>(" + r.code + ")</b>.");
     return;
   }
   if (!leaves(S.tab, L.seg, "active").length){
+    logEvent("step", {a:code, ok:false, why:"all-closed"});
     say("err", "Every branch through line " + S.sel + " is already closed — there is nothing left to expand.");
     return;
   }
 
+  logEvent("step", {a:code, ok:true});
   snapshot();
   var before = S.tab.nextLine;
   var n = applyAt(S.tab, S.sel);
@@ -560,6 +621,7 @@ function startClosing(seg){
 function pickClosure(id){
   var c = S.closing, tab = S.tab;
   if (pathLines(tab, c.seg).indexOf(id) < 0){
+    logEvent("step", {a:"close", ok:false, why:"not-on-branch"});
     say("err", "Line " + id + " is not on that branch. A branch is the path from the root down to the tip you are closing.");
     return;
   }
@@ -569,10 +631,12 @@ function pickClosure(id){
 
   var A = tab.lines[c.picks[0]], B = tab.lines[c.picks[1]];
   if (key(A.f) !== key(B.f)){
+    logEvent("step", {a:"close", ok:false, why:"different-formulas"});
     say("err", "Those are different formulas: " + sf(A.s, A.f) + " and " + sf(B.s, B.f) + ". A branch closes only on <b>the same formula</b> under opposite signs.");
     c.picks = []; draw(); return;
   }
   if (A.s === B.s){
+    logEvent("step", {a:"close", ok:false, why:"same-sign"});
     say("err", "Lines " + A.id + " and " + B.id + " are both signed <b>" + A.s + "</b>. You need one <b>T</b> and one <b>F</b>.");
     c.picks = []; draw(); return;
   }
@@ -588,6 +652,7 @@ function pickClosure(id){
 function markOpen(seg){
   var tab = S.tab, c = clashOn(tab, seg);
   if (c){
+    logEvent("step", {a:"open", ok:false, why:"branch-clashes"});
     say("err", "That branch already carries " + sf(tab.lines[c[0]].s, tab.lines[c[0]].f) + " (line " + c[0] + ") and " +
         sf(tab.lines[c[1]].s, tab.lines[c[1]].f) + " (line " + c[1] + "). It contradicts itself, so it closes.");
     return;
@@ -595,9 +660,11 @@ function markOpen(seg){
   var u = unusedOn(tab, seg);
   if (u.length){
     var L = tab.lines[u[0]];
+    logEvent("step", {a:"open", ok:false, why:"unticked-line"});
     say("err", "Not finished: line " + L.id + ", " + sf(L.s, L.f) + ", is still unticked on that branch. Every compound line must be used before a branch counts as open.");
     return;
   }
+  logEvent("step", {a:"open", ok:true});
   snapshot();
   tab.segs[seg].state = "open";
   say("ok", "Branch open — it reads off as " + valText(valuationOn(tab, seg)) + ".");
@@ -616,9 +683,11 @@ function checkDone(){
   if (lv.some(function(s){ return tab.segs[s].state === "active"; })) return;
   var open = lv.filter(function(s){ return tab.segs[s].state === "open"; });
   if (!open.length){
+    logEvent("done", {ok:true, outcome:"closed", sign:S.sign, branches:lv.length});
     say("ok", "<b>Tableau closed.</b> All " + lv.length + " branch" + (lv.length === 1 ? "" : "es") + " died, so nothing makes " +
         sf(S.sign, S.root) + " — " + (S.sign === "F" ? "the formula is <b>valid</b>." : "the formula is <b>unsatisfiable</b>."));
   } else {
+    logEvent("done", {ok:true, outcome:"open", sign:S.sign, branches:lv.length});
     say("ok", "<b>Tableau open.</b> The branch marked ○ gives " + valText(valuationOn(tab, open[0])) + ", which makes " +
         sf(S.sign, S.root) + " — " + (S.sign === "F" ? "a <b>counterexample</b>, so the formula is not valid." : "a <b>model</b>, so the formula is satisfiable."));
   }
@@ -791,6 +860,8 @@ document.addEventListener("keydown", function(e){
 window.addEventListener("resize", function(){ if (S.tab) equalize($("#canvas")); });
 
 build($("#formula").value);
+LOG_READY = true;
+logEvent("open", {});
 if (document.fonts) document.fonts.ready.then(function(){ if (S.tab) equalize($("#canvas")); });
 
 /* ── theme toggle ─────────────────────────────────────── */

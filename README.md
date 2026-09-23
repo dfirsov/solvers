@@ -16,19 +16,61 @@ Every page is a complete HTML document — no build step and no dependencies bey
 Google Fonts — so the directory can be uploaded as-is, or opened straight from
 disk.
 
-## Running
+## Deploying
 
-Open `index.html`, or serve the directory any way you like.
+The five tools and the index are plain files: upload them anywhere and they work,
+including opened straight from disk over `file://`. **The logging is the part that
+needs something from the host**, because a static file server has nothing to
+receive a POST.
 
-To collect the event log as well:
+| host                                          | tools        | logging                                  |
+|-----------------------------------------------|--------------|------------------------------------------|
+| static — GitHub Pages, S3, plain web space     | works        | silently does nothing                     |
+| Apache or nginx with PHP                       | works        | works, after the `sed` below              |
+| anywhere you can run Node                      | works        | `node serve.js`                           |
+
+A failed post is swallowed, so on a static host the tools behave exactly as they
+do now — you simply get no log.
+
+### With Node
 
 ```sh
 node serve.js            # http://localhost:8080
 node serve.js 9000       # another port, or set $PORT
 ```
 
-`serve.js` needs no packages. It serves this directory and accepts the log; events
-land in `logs/events.jsonl`, which is gitignored.
+No packages needed. It serves this directory, accepts the log at `/log`, and
+writes `logs/events.jsonl`. It listens on all interfaces, so put it behind nginx
+if the machine is public.
+
+### With PHP
+
+Upload `log.php` along with the pages and point the pages at it:
+
+```sh
+sed -i 's|var LOG_URL = "log";|var LOG_URL = "log.php";|' *.html
+```
+
+`logs/` must be writable **by the web server user**, which is usually not the user
+that uploaded the files. If nothing appears, that is almost always why.
+
+### Do not upload a local `logs/`
+
+It is gitignored, so a git-based deploy will not carry it, but an `rsync` or a drag
+of the whole folder will. `serve.js` refuses to serve anything under `logs/`, and
+`log.php` drops an `.htaccess` there that denies access on Apache. **On nginx
+neither of those applies**, so add:
+
+```nginx
+location ^~ /logs/ { deny all; }
+```
+
+Whatever the host, check it once after setting up — the log holds what other
+students typed, and everyone can reach every other URL on the site:
+
+```sh
+curl -i https://your.host/path/logs/events.jsonl     # must not be 200
+```
 
 ## Logging
 

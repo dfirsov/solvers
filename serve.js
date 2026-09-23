@@ -32,7 +32,6 @@ var TYPES = {
   ".js":   "text/javascript; charset=utf-8",
   ".css":  "text/css; charset=utf-8",
   ".json": "application/json; charset=utf-8",
-  ".jsonl":"application/x-ndjson; charset=utf-8",
   ".md":   "text/plain; charset=utf-8",
   ".svg":  "image/svg+xml",
   ".png":  "image/png",
@@ -123,8 +122,16 @@ http.createServer(function(req, res){
   var rel = decodeURIComponent(url);
   if (rel === "/" ) rel = "/index.html";
   var file = path.join(ROOT, rel);
-  if (path.relative(ROOT, file).split(path.sep)[0] === ".."){
+  var inside = path.relative(ROOT, file);
+  if (inside.split(path.sep)[0] === ".."){
     res.writeHead(403).end();
+    return;
+  }
+  /* the log is written under logs/ and never served back: it holds what
+     other people typed, and students can reach every other URL here */
+  if (inside === "logs" || inside.indexOf("logs" + path.sep) === 0){
+    res.writeHead(404, {"Content-Type": "text/plain; charset=utf-8"});
+    res.end("Not found\n");
     return;
   }
   serveFile(res, file);

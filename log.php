@@ -19,6 +19,15 @@ if (!is_array($events)) { http_response_code(400); exit; }
 $dir = __DIR__ . '/logs';
 if (!is_dir($dir) && !mkdir($dir, 0750, true)) { http_response_code(500); exit; }
 
+/* The log sits under the document root, so keep the web server from handing it
+   back: it holds what other people typed. This covers Apache; on nginx add
+   `location ^~ /logs/ { deny all; }` yourself. */
+$guard = $dir . '/.htaccess';
+if (!file_exists($guard)) {
+    @file_put_contents($guard,
+        "Require all denied\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n");
+}
+
 $now = gmdate('c');
 $out = '';
 foreach (array_slice($events, 0, 40) as $ev) {

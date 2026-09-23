@@ -53,17 +53,25 @@ without adjustment.
 `logs/` must be writable **by the web server user**, which is often not the user
 that uploaded the files. If nothing appears, that is almost always why.
 
-If the log URL returns 403, read the body — Apache says which of its own rules
-fired. `Server unable to read htaccess file, denying access to be safe` means
-there is an `.htaccess` in `logs/` that the web server cannot read, usually
-because the directory is mode 0750 and Apache serves static files as a different
-user. Delete the file and open the directory up:
+If the log URL returns 403, read the response body — Apache names the rule that
+fired. The one to expect here is:
+
+```
+Server unable to read htaccess file, denying access to be safe
+```
+
+That does **not** mean an `.htaccess` exists. It means Apache could not look for
+one, because it cannot read the directory — so it refuses rather than risk
+ignoring a rule. The cause is the directory's mode: PHP creates `logs/` as the
+account user, and on a host where Apache serves static files as a different user,
+anything tighter than `0755` shuts it out. One command fixes it:
 
 ```sh
-ls -a solvers/logs/          # .htaccess is a dotfile; plain ls will not show it
-rm -f solvers/logs/.htaccess
 chmod 755 solvers/logs
 ```
+
+`log.php` now creates the directory `0755`, but an existing one keeps whatever
+mode it was made with.
 
 ### The log is readable over the web, on purpose — for now
 

@@ -53,6 +53,18 @@ without adjustment.
 `logs/` must be writable **by the web server user**, which is often not the user
 that uploaded the files. If nothing appears, that is almost always why.
 
+If the log URL returns 403, read the body — Apache says which of its own rules
+fired. `Server unable to read htaccess file, denying access to be safe` means
+there is an `.htaccess` in `logs/` that the web server cannot read, usually
+because the directory is mode 0750 and Apache serves static files as a different
+user. Delete the file and open the directory up:
+
+```sh
+ls -a solvers/logs/          # .htaccess is a dotfile; plain ls will not show it
+rm -f solvers/logs/.htaccess
+chmod 755 solvers/logs
+```
+
 ### The log is readable over the web, on purpose — for now
 
 `logs/htevents.jsonl` is left fetchable so bring-up can be checked from a browser:

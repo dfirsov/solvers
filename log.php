@@ -20,7 +20,11 @@ $events = json_decode($raw, true);
 if (!is_array($events)) { http_response_code(400); exit; }
 
 $dir = __DIR__ . '/logs';
-if (!is_dir($dir) && !mkdir($dir, 0750, true)) { http_response_code(500); exit; }
+/* 0755, not 0750: on a host where PHP and Apache's static file serving run as
+   different users, 0750 locks the web server out of the directory entirely —
+   it then cannot even read an .htaccess in there and returns 403 for
+   everything, which is exactly what happened on the first deployment. */
+if (!is_dir($dir) && !mkdir($dir, 0755, true)) { http_response_code(500); exit; }
 
 /* Deliberately not writing an .htaccess guard here yet — see the note above.
    To close the log off again, restore:

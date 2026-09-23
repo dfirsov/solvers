@@ -3,9 +3,9 @@
  *
  *     node serve.js [port]        default 8080, or $PORT
  *
- * Pages post a JSON array of events to /log; each event is appended as one
- * line to logs/events.jsonl. Same origin as the pages, so there is no CORS
- * and nothing third-party involved.
+ * Pages post a JSON array of events to /log.php (also accepted at /log); each
+ * event is appended as one line to logs/.htevents.jsonl. Same origin as the
+ * pages, so there is no CORS and nothing third-party involved.
  *
  * The receiver deliberately does not record IP addresses. Note that a
  * reverse proxy in front of this (nginx, Apache) will record them in its own
@@ -19,7 +19,10 @@ var path = require("path");
 
 var ROOT = __dirname;
 var LOGDIR = path.join(ROOT, "logs");
-var LOGFILE = path.join(LOGDIR, "events.jsonl");
+/* Named .ht* on purpose: Apache denies that prefix by name from its main
+   config, so the log is unreadable over the web even where AllowOverride is
+   off and an .htaccess would be ignored. */
+var LOGFILE = path.join(LOGDIR, ".htevents.jsonl");
 var PORT = Number(process.argv[2] || process.env.PORT || 8080);
 
 var MAX_BODY = 64 * 1024;   /* bytes per post */
@@ -98,7 +101,7 @@ function serveFile(res, file){
 http.createServer(function(req, res){
   var url = req.url.split("?")[0];
 
-  if (req.method === "POST" && (url === "/log" || url === "/log/")){
+  if (req.method === "POST" && (url === "/log" || url === "/log/" || url === "/log.php")){
     collect(req, function(err, body){
       if (err){ res.writeHead(413).end(); return; }
       var events;

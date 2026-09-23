@@ -23,14 +23,14 @@ including opened straight from disk over `file://`. **The logging is the part th
 needs something from the host**, because a static file server has nothing to
 receive a POST.
 
-| host                                          | tools        | logging                                  |
-|-----------------------------------------------|--------------|------------------------------------------|
-| static — GitHub Pages, S3, plain web space     | works        | silently does nothing                     |
-| Apache or nginx with PHP                       | works        | works, after the `sed` below              |
-| anywhere you can run Node                      | works        | `node serve.js`                           |
+| host                                       | tools | logging                          |
+|--------------------------------------------|-------|----------------------------------|
+| static — GitHub Pages, S3, plain web space  | works | silently does nothing             |
+| Apache or nginx **with PHP**                | works | works, nothing to configure       |
+| anywhere you can run Node                   | works | `node serve.js`                   |
 
 A failed post is swallowed, so on a static host the tools behave exactly as they
-do now — you simply get no log.
+do otherwise — you simply get no log.
 
 ### With Node
 
@@ -39,37 +39,54 @@ node serve.js            # http://localhost:8080
 node serve.js 9000       # another port, or set $PORT
 ```
 
-No packages needed. It serves this directory, accepts the log at `/log`, and
-writes `logs/events.jsonl`. It listens on all interfaces, so put it behind nginx
-if the machine is public.
+No packages needed. It serves this directory, accepts the log at `/log.php` (and
+at `/log`), and writes `logs/.htevents.jsonl`. It listens on all interfaces, so
+put it behind nginx if the machine is public.
 
 ### With PHP
 
-Upload `log.php` along with the pages and point the pages at it:
+Upload `log.php` along with the pages. That is the whole procedure — the pages
+already post to `log.php`, relative to wherever they sit, so a subdirectory works
+without adjustment.
 
-```sh
-sed -i 's|var LOG_URL = "log";|var LOG_URL = "log.php";|' *.html
-```
-
-`logs/` must be writable **by the web server user**, which is usually not the user
+`logs/` must be writable **by the web server user**, which is often not the user
 that uploaded the files. If nothing appears, that is almost always why.
 
-### Do not upload a local `logs/`
+### Why the log is called `.htevents.jsonl`
 
-It is gitignored, so a git-based deploy will not carry it, but an `rsync` or a drag
-of the whole folder will. `serve.js` refuses to serve anything under `logs/`, and
-`log.php` drops an `.htaccess` there that denies access on Apache. **On nginx
-neither of those applies**, so add:
+Because Apache denies anything whose name starts with `.ht` from its *main*
+config, by name, before it ever looks for the file. That holds even where
+`AllowOverride` is off and a dropped `.htaccess` would be ignored — which is the
+common case on shared hosting, and is easy to get wrong:
+
+```
+GET logs/.htnonexistent    403     denied by name, though nothing is there
+GET logs/nonexistent.jsonl 404     ordinary file handling
+```
+
+`log.php` still writes an `.htaccess` beside the log as a second layer, and
+`serve.js` refuses to serve anything under `logs/` at all. **nginx honours none of
+this**, so there add:
 
 ```nginx
 location ^~ /logs/ { deny all; }
 ```
 
-Whatever the host, check it once after setting up — the log holds what other
-students typed, and everyone can reach every other URL on the site:
+One consequence: a dotfile is hidden by default in most file managers and by plain
+`ls`. Fetch it with `ls -a`, `scp` or `sftp` by its full name.
+
+### Do not upload a local `logs/`
+
+It is gitignored, so a git deploy will not carry it, but an `rsync` or a drag of
+the whole folder will — and then someone else's events are sitting on your server
+under a name you did not choose.
+
+Whatever the host, check once after setting up. The log holds what other people
+typed, and students can reach every other URL on the site:
 
 ```sh
-curl -i https://your.host/path/logs/events.jsonl     # must not be 200
+curl -i https://your.host/path/logs/.htevents.jsonl   # must not be 200
+curl -i https://your.host/path/logs/events.jsonl       # nor this, if one is left over
 ```
 
 ## Logging
@@ -82,7 +99,7 @@ a tool.**
 ### Turning it off
 
 ```sh
-sed -i 's|var LOG_URL = "log";|var LOG_URL = "";|' *.html
+sed -i 's|var LOG_URL = "log.php";|var LOG_URL = "";|' *.html
 ```
 
 An empty `LOG_URL` disables logging entirely — no requests, no queue.
@@ -115,18 +132,18 @@ repeat count `n`, so jabbing a dimmed button twenty times is one line, not twent
 
 ```sh
 # which formulas get tried
-jq -r 'select(.e=="start" and .f) | .f' logs/events.jsonl | sort | uniq -c | sort -rn | head -20
+jq -r 'select(.e=="start" and .f) | .f' logs/.htevents.jsonl | sort | uniq -c | sort -rn | head -20
 
 # the commonest mistakes — the most useful view
-jq -r 'select(.e=="step" and .ok==false) | "\(.p)\t\(.a)\t\(.why // "-")"' logs/events.jsonl \
+jq -r 'select(.e=="step" and .ok==false) | "\(.p)\t\(.a)\t\(.why // "-")"' logs/.htevents.jsonl \
   | sort | uniq -c | sort -rn | head -20
 
 # how often a session reaches Done, per tool
-jq -r 'select(.e=="done") | "\(.p)\t\(.ok)"' logs/events.jsonl | sort | uniq -c
+jq -r 'select(.e=="done") | "\(.p)\t\(.ok)"' logs/.htevents.jsonl | sort | uniq -c
 
 # distinct sessions and page views
-jq -r .s logs/events.jsonl | sort -u | wc -l
-jq -r 'select(.e=="open") | .p' logs/events.jsonl | sort | uniq -c
+jq -r .s logs/.htevents.jsonl | sort -u | wc -l
+jq -r 'select(.e=="open") | .p' logs/.htevents.jsonl | sort | uniq -c
 ```
 
 ### Privacy
@@ -145,5 +162,5 @@ Two things to be aware of before running this for a real cohort:
   type into them.
 
 So: say on the page or in the course notes that the tools log what is entered, and
-decide how long `events.jsonl` is kept. If none of that is wanted, the `sed` above
+decide how long the log is kept. If none of that is wanted, the `sed` above
 switches logging off and the pages go back to making no network calls at all.

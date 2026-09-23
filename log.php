@@ -1,9 +1,10 @@
 <?php
 /* Drop-in receiver for a host that runs PHP, as an alternative to serve.js.
- * Appends one JSON object per line to logs/events.jsonl, alongside this file.
- *
- * If you use this, point the pages at it:
- *     sed -i 's|var LOG_URL = "log";|var LOG_URL = "log.php";|' *.html
+ * Upload it next to the pages; they post here with no configuration needed.
+ * Appends one JSON object per line to logs/.htevents.jsonl, alongside this file.
+ * The .ht prefix is deliberate: Apache denies that name pattern from its main
+ * config, so the log stays unreadable over the web even where .htaccess is
+ * ignored because AllowOverride is off.
  *
  * Does not record IP addresses. Your web server's access log will, unless
  * you configure it otherwise.
@@ -42,5 +43,5 @@ foreach (array_slice($events, 0, 40) as $ev) {
     $out .= json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
 }
 
-if ($out !== '') { file_put_contents($dir . '/events.jsonl', $out, FILE_APPEND | LOCK_EX); }
+if ($out !== '') { file_put_contents($dir . '/.htevents.jsonl', $out, FILE_APPEND | LOCK_EX); }
 http_response_code(204);

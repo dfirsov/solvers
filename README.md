@@ -87,14 +87,6 @@ sed -i 's|var LOG_URL = "log";|var LOG_URL = "";|' *.html
 
 An empty `LOG_URL` disables logging entirely — no requests, no queue.
 
-### On a PHP host instead
-
-Use `log.php` in place of `serve.js` and point the pages at it:
-
-```sh
-sed -i 's|var LOG_URL = "log";|var LOG_URL = "log.php";|' *.html
-```
-
 ### What a line looks like
 
 One JSON object per line. `t` is when the browser made the event, `r` when the host

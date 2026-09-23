@@ -55,17 +55,21 @@ that uploaded the files. If nothing appears, that is almost always why.
 ### Why the log is called `.htevents.jsonl`
 
 Because Apache denies anything whose name starts with `.ht` from its *main*
-config, by name, before it ever looks for the file. That holds even where
-`AllowOverride` is off and a dropped `.htaccess` would be ignored — which is the
-common case on shared hosting, and is easy to get wrong:
+config, by name, before it ever looks for the file:
 
 ```
 GET logs/.htnonexistent    403     denied by name, though nothing is there
 GET logs/nonexistent.jsonl 404     ordinary file handling
 ```
 
-`log.php` still writes an `.htaccess` beside the log as a second layer, and
-`serve.js` refuses to serve anything under `logs/` at all. **nginx honours none of
+That holds whether or not `AllowOverride` lets an `.htaccess` take effect, so the
+two protections are independent: `log.php` writes an `.htaccess` beside the log,
+and the name guards it even if that file is ignored. `serve.js` refuses to serve
+anything under `logs/` at all.
+
+Check which one is actually doing the work on your host. A `403` on a file that
+does not exist anywhere in `logs/` means the `.htaccess` is being honoured and the
+whole directory is denied; a `403` only on `.ht*` names means it is not. **nginx honours none of
 this**, so there add:
 
 ```nginx

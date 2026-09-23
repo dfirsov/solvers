@@ -4,7 +4,7 @@
  *     node serve.js [port]        default 8080, or $PORT
  *
  * Pages post a JSON array of events to /log.php (also accepted at /log); each
- * event is appended as one line to logs/.htevents.jsonl. Same origin as the
+ * event is appended as one line to logs/htevents.jsonl. Same origin as the
  * pages, so there is no CORS and nothing third-party involved.
  *
  * The receiver deliberately does not record IP addresses. Note that a
@@ -19,10 +19,10 @@ var path = require("path");
 
 var ROOT = __dirname;
 var LOGDIR = path.join(ROOT, "logs");
-/* Named .ht* on purpose: Apache denies that prefix by name from its main
-   config, so the log is unreadable over the web even where AllowOverride is
-   off and an .htaccess would be ignored. */
-var LOGFILE = path.join(LOGDIR, ".htevents.jsonl");
+/* Readable over the web on purpose for now, to make bring-up checkable from a
+   browser. Renaming this to ".htevents.jsonl" closes it on Apache, which denies
+   that prefix by name from its main config. */
+var LOGFILE = path.join(LOGDIR, "htevents.jsonl");
 var PORT = Number(process.argv[2] || process.env.PORT || 8080);
 
 var MAX_BODY = 64 * 1024;   /* bytes per post */
@@ -130,13 +130,11 @@ http.createServer(function(req, res){
     res.writeHead(403).end();
     return;
   }
-  /* the log is written under logs/ and never served back: it holds what
-     other people typed, and students can reach every other URL here */
-  if (inside === "logs" || inside.indexOf("logs" + path.sep) === 0){
-    res.writeHead(404, {"Content-Type": "text/plain; charset=utf-8"});
-    res.end("Not found\n");
-    return;
-  }
+  /* logs/ is served for now, to match the PHP receiver while the log is
+     deliberately readable. To close it again, reinstate:
+       if (inside === "logs" || inside.indexOf("logs" + path.sep) === 0){
+         res.writeHead(404).end(); return;
+       } */
   serveFile(res, file);
 }).listen(PORT, function(){
   console.log("solvers on http://localhost:" + PORT);

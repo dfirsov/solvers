@@ -40,7 +40,8 @@ node serve.js 9000       # another port, or set $PORT
 ```
 
 No packages needed. It serves this directory, accepts the log at `/log.php` (and
-at `/log`), and writes `logs/.htevents.jsonl`. It listens on all interfaces, so
+at `/log`), and writes `logs/htevents.jsonl`, which it also serves back. It
+listens on all interfaces, so
 put it behind nginx if the machine is public.
 
 ### With PHP
@@ -52,32 +53,36 @@ without adjustment.
 `logs/` must be writable **by the web server user**, which is often not the user
 that uploaded the files. If nothing appears, that is almost always why.
 
-### Why the log is called `.htevents.jsonl`
+### The log is readable over the web, on purpose — for now
 
-Because Apache denies anything whose name starts with `.ht` from its *main*
-config, by name, before it ever looks for the file:
+`logs/htevents.jsonl` is left fetchable so bring-up can be checked from a browser:
 
 ```
-GET logs/.htnonexistent    403     denied by name, though nothing is there
-GET logs/nonexistent.jsonl 404     ordinary file handling
+https://your.host/path/logs/htevents.jsonl
 ```
 
-That holds whether or not `AllowOverride` lets an `.htaccess` take effect, so the
-two protections are independent: `log.php` writes an `.htaccess` beside the log,
-and the name guards it even if that file is ignored. `serve.js` refuses to serve
-anything under `logs/` at all.
+That means **anyone who can reach the site can read what everyone typed**, so it
+is a setting for getting things working, not for running a cohort. Either of these
+closes it again, and either alone is enough:
 
-Check which one is actually doing the work on your host. A `403` on a file that
-does not exist anywhere in `logs/` means the `.htaccess` is being honoured and the
-whole directory is denied; a `403` only on `.ht*` names means it is not. **nginx honours none of
-this**, so there add:
+- Rename the file to `.htevents.jsonl` in `log.php` and `serve.js`. Apache denies
+  anything starting with `.ht` from its *main* config, by name, before it looks
+  for the file, so this holds whether or not `AllowOverride` is on:
 
-```nginx
-location ^~ /logs/ { deny all; }
-```
+  ```
+  GET logs/.htnonexistent    403     denied by name, though nothing is there
+  GET logs/nonexistent.jsonl 404     ordinary file handling
+  ```
 
-One consequence: a dotfile is hidden by default in most file managers and by plain
-`ls`. Fetch it with `ls -a`, `scp` or `sftp` by its full name.
+- Restore the `.htaccess` that `log.php` used to write into `logs/`. The block is
+  still in the file, commented, with the lines to put back. This one needs
+  `AllowOverride` to be on, which you can check: a `403` on a file that exists
+  nowhere under `logs/` means it is being honoured.
+
+An `.htaccess` already sitting in `logs/` on a server keeps denying the directory
+until it is deleted by hand — a newer `log.php` will not remove it.
+
+On nginx neither applies; use `location ^~ /logs/ { deny all; }`.
 
 ### Do not upload a local `logs/`
 
@@ -85,13 +90,8 @@ It is gitignored, so a git deploy will not carry it, but an `rsync` or a drag of
 the whole folder will — and then someone else's events are sitting on your server
 under a name you did not choose.
 
-Whatever the host, check once after setting up. The log holds what other people
-typed, and students can reach every other URL on the site:
-
-```sh
-curl -i https://your.host/path/logs/.htevents.jsonl   # must not be 200
-curl -i https://your.host/path/logs/events.jsonl       # nor this, if one is left over
-```
+If you left an old `events.jsonl` or `.htevents.jsonl` up there from an earlier
+round, delete it — nothing writes to those names any more.
 
 ## Logging
 
@@ -136,18 +136,18 @@ repeat count `n`, so jabbing a dimmed button twenty times is one line, not twent
 
 ```sh
 # which formulas get tried
-jq -r 'select(.e=="start" and .f) | .f' logs/.htevents.jsonl | sort | uniq -c | sort -rn | head -20
+jq -r 'select(.e=="start" and .f) | .f' logs/htevents.jsonl | sort | uniq -c | sort -rn | head -20
 
 # the commonest mistakes — the most useful view
-jq -r 'select(.e=="step" and .ok==false) | "\(.p)\t\(.a)\t\(.why // "-")"' logs/.htevents.jsonl \
+jq -r 'select(.e=="step" and .ok==false) | "\(.p)\t\(.a)\t\(.why // "-")"' logs/htevents.jsonl \
   | sort | uniq -c | sort -rn | head -20
 
 # how often a session reaches Done, per tool
-jq -r 'select(.e=="done") | "\(.p)\t\(.ok)"' logs/.htevents.jsonl | sort | uniq -c
+jq -r 'select(.e=="done") | "\(.p)\t\(.ok)"' logs/htevents.jsonl | sort | uniq -c
 
 # distinct sessions and page views
-jq -r .s logs/.htevents.jsonl | sort -u | wc -l
-jq -r 'select(.e=="open") | .p' logs/.htevents.jsonl | sort | uniq -c
+jq -r .s logs/htevents.jsonl | sort -u | wc -l
+jq -r 'select(.e=="open") | .p' logs/htevents.jsonl | sort | uniq -c
 ```
 
 ### Privacy

@@ -1,10 +1,12 @@
 <?php
 /* Drop-in receiver for a host that runs PHP, as an alternative to serve.js.
  * Upload it next to the pages; they post here with no configuration needed.
- * Appends one JSON object per line to logs/.htevents.jsonl, alongside this file.
- * The .ht prefix is deliberate: Apache denies that name pattern from its main
- * config, so the log stays unreadable over the web even where .htaccess is
- * ignored because AllowOverride is off.
+ * Appends one JSON object per line to logs/htevents.jsonl, alongside this file.
+ *
+ * NOTE: the log is deliberately left readable over the web for now, so it can
+ * be fetched from a browser during bring-up. To close that later, rename the
+ * file back to .htevents.jsonl (Apache denies the .ht prefix by name, from its
+ * main config) and/or restore the .htaccess written below.
  *
  * Does not record IP addresses. Your web server's access log will, unless
  * you configure it otherwise.
@@ -20,14 +22,11 @@ if (!is_array($events)) { http_response_code(400); exit; }
 $dir = __DIR__ . '/logs';
 if (!is_dir($dir) && !mkdir($dir, 0750, true)) { http_response_code(500); exit; }
 
-/* The log sits under the document root, so keep the web server from handing it
-   back: it holds what other people typed. This covers Apache; on nginx add
-   `location ^~ /logs/ { deny all; }` yourself. */
-$guard = $dir . '/.htaccess';
-if (!file_exists($guard)) {
-    @file_put_contents($guard,
-        "Require all denied\n<IfModule !mod_authz_core.c>\nDeny from all\n</IfModule>\n");
-}
+/* Deliberately not writing an .htaccess guard here yet — see the note above.
+   To close the log off again, restore:
+       $guard = $dir . '/.htaccess';
+       if (!file_exists($guard)) { @file_put_contents($guard, "Require all denied\n"); }
+*/
 
 $now = gmdate('c');
 $out = '';
@@ -43,5 +42,5 @@ foreach (array_slice($events, 0, 40) as $ev) {
     $out .= json_encode($clean, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n";
 }
 
-if ($out !== '') { file_put_contents($dir . '/.htevents.jsonl', $out, FILE_APPEND | LOCK_EX); }
+if ($out !== '') { file_put_contents($dir . '/htevents.jsonl', $out, FILE_APPEND | LOCK_EX); }
 http_response_code(204);

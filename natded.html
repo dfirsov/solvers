@@ -522,7 +522,15 @@ function depsOf(P, id, out, disch){
     return out;
   }
   /* a rule inside the fragment may have discharged the very assumption a leaf
-     below it rests on — that one is paid off and is not a dependency */
+     below it rests on — that one is paid off and is not a dependency.
+     ∨E is the awkward one: its two labels belong to the two case branches,
+     not to the derivation of the disjunction itself. */
+  if (n.rule === "∨E" && n.kids.length === 3){
+    depsOf(P, n.kids[0], out, disch);
+    depsOf(P, n.kids[1], out, disch.concat(n.disch != null ? [n.disch] : []));
+    depsOf(P, n.kids[2], out, disch.concat(n.disch2 != null ? [n.disch2] : []));
+    return out;
+  }
   var d = disch;
   if (n.disch != null) d = d.concat([n.disch]);
   if (n.disch2 != null) d = d.concat([n.disch2]);
@@ -742,6 +750,17 @@ function forward(r, n){
   }
   var fs = S.pick.map(function(i){ return P.nodes[i].f; });
   if (!r.fwd.ok(fs[0], fs[1])){ say("err", whyNot(r, fs)); return; }
+  /* An ordinary elimination only makes another loose fragment, and its deps
+     travel with it, so the join is where scope gets enforced. ∨E is different:
+     it grafts the disjunction straight into the tree here, so an out-of-scope
+     assumption would end up in a branch with nothing to discharge it. */
+  if (r.fwd.splits && !inScopeOf(P, S.pick[0], n)){
+    say("err", "That tree leans on assumption " + depsOf(P, S.pick[0]).join(", ") +
+        ", which is not in scope at this goal. <b>∨E</b> would plant it in a branch where nothing " +
+        "discharges it, so it is refused — derive the disjunction again here, or use it at a goal " +
+        "inside that assumption.");
+    return;
+  }
   snapshot();
   if (r.fwd.splits){ splitOnDisjunction(n, S.pick[0]); return; }
 
@@ -896,6 +915,17 @@ function clickFrag(fid){
     draw();
     return;
   }
+  /* same formula, wrong branch: the commonest way to meet scope, so say so
+     rather than quietly treating the click as a selection */
+  if (n && eqF(P.nodes[fid].f, n.f) && !inScopeOf(P, fid, n)){
+    var d = depsOf(P, fid);
+    say("err", "That tree does prove " + fh(n.f) + ", but it rests on " +
+        plural(d.length, "assumption") + " (" + d.join(", ") + ") made in another branch, and " +
+        "nothing here discharges " + (d.length === 1 ? "it" : "them") + ". An assumption is only " +
+        "available under the rule that opened it — write down what <i>this</i> branch assumes instead.");
+    draw();
+    return;
+  }
   var k = S.pick.indexOf(fid);
   if (k >= 0) S.pick.splice(k, 1); else S.pick.push(fid);
   say("", pickMsg());
@@ -1000,6 +1030,13 @@ function done(){
     say("err", "Not finished — " + plural(o.length, "goal") + " still open. The first is " +
         fh(P.nodes[o[0]].f) + "; it is selected now.");
     draw();
+    return;
+  }
+  var loose = depsOf(P, P.root);
+  if (loose.length){
+    say("err", "Something is wrong: the finished tree still rests on undischarged " +
+        plural(loose.length, "assumption") + " (" + loose.join(", ") + "), so it does not prove the " +
+        "stated sequent. This is a bug in the tool, not in your reasoning — please report it.");
     return;
   }
   S.phase = "done";

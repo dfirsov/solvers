@@ -699,10 +699,23 @@ function fwdRoles(r, fs, goal){
    applying — a rule must never light up and then refuse. */
 function fwdReady(r, ids, g){
   if (!S.P || !g) return null;
-  var P = S.P, ord = fwdRoles(r, ids.map(function(i){ return P.nodes[i].f; }), g.f);
-  if (!ord) return null;
-  if (r.fwd.splits && !inScopeOf(P, ids[ord[0]], g)) return null;
-  return ord;
+  var P = S.P;
+  /* Every premise must be in scope here. Combining a tree from another branch
+     would only ever make a bigger tree that is still out of scope — and since
+     a rule consumes what it is applied to, it would destroy something that is
+     perfectly usable back where it came from. */
+  if (!ids.every(function(i){ return inScopeOf(P, i, g); })) return null;
+  return fwdRoles(r, ids.map(function(i){ return P.nodes[i].f; }), g.f);
+}
+
+/* why a tree cannot be touched from where the student is standing */
+function outOfScopeMsg(fid, g){
+  var P = S.P, d = depsOf(P, fid);
+  return "That tree rests on " + plural(d.length, "assumption") + " (" + d.join(", ") +
+    ") made in another branch, and nothing here discharges " + (d.length === 1 ? "it" : "them") +
+    ". An assumption is only available under the rule that opened it" +
+    (eqF(P.nodes[fid].f, g.f) ? ", so even though it proves " + fh(g.f) + " it cannot close this goal" : "") +
+    " — write down what <i>this</i> branch assumes instead.";
 }
 
 /* ═════════════════════════════════════════════ state */
@@ -790,22 +803,13 @@ function forward(r, n){
         r.law + ". You have " + S.pick.length + " selected.");
     return;
   }
+  var stray = S.pick.filter(function(i){ return !inScopeOf(P, i, n); });
+  if (stray.length){ say("err", outOfScopeMsg(stray[0], n)); return; }
   var fs = S.pick.map(function(i){ return P.nodes[i].f; });
   var ord = fwdRoles(r, fs, n.f);
   if (!ord){ say("err", whyNot(r, fs)); return; }
   var pk = ord.map(function(i){ return S.pick[i]; });
   fs = ord.map(function(i){ return fs[i]; });
-  /* An ordinary elimination only makes another loose fragment, and its deps
-     travel with it, so the join is where scope gets enforced. ∨E is different:
-     it grafts the disjunction straight into the tree here, so an out-of-scope
-     assumption would end up in a branch with nothing to discharge it. */
-  if (r.fwd.splits && !inScopeOf(P, pk[0], n)){
-    say("err", "That tree leans on assumption " + depsOf(P, pk[0]).join(", ") +
-        ", which is not in scope at this goal. <b>∨E</b> would plant it in a branch where nothing " +
-        "discharges it, so it is refused — derive the disjunction again here, or use it at a goal " +
-        "inside that assumption.");
-    return;
-  }
   if (r.fwd.asks){ askDisjunct(r, n, pk[0]); return; }
   snapshot();
   if (r.fwd.splits){ splitOnDisjunction(n, pk[0]); return; }
@@ -1006,14 +1010,8 @@ function clickFrag(fid){
     draw();
     return;
   }
-  /* same formula, wrong branch: the commonest way to meet scope, so say so
-     rather than quietly treating the click as a selection */
-  if (n && eqF(P.nodes[fid].f, n.f) && !inScopeOf(P, fid, n)){
-    var d = depsOf(P, fid);
-    say("err", "That tree does prove " + fh(n.f) + ", but it rests on " +
-        plural(d.length, "assumption") + " (" + d.join(", ") + ") made in another branch, and " +
-        "nothing here discharges " + (d.length === 1 ? "it" : "them") + ". An assumption is only " +
-        "available under the rule that opened it — write down what <i>this</i> branch assumes instead.");
+  if (n && !inScopeOf(P, fid, n)){
+    say("err", outOfScopeMsg(fid, n));
     draw();
     return;
   }

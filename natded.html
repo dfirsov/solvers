@@ -147,49 +147,57 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .f .pr{color:var(--ink-3)}
 .f .cst{font-style:normal; color:var(--accent)}
 
-/* ── the two panes ─────────────────────────────────────── */
-.panes{flex:1; min-height:0; display:flex; gap:16px; margin-bottom:18px}
-.tree{
-  flex:1; min-width:0; overflow:auto;
-  padding:26px 22px 30px; background:var(--paper);
-  border:1px solid var(--line); border-radius:10px;
+/* ── the board ─────────────────────────────────────────── */
+.board{
+  flex:1; min-height:0; overflow:auto; margin-bottom:18px;
   display:flex; flex-direction:column;
+  background:var(--paper); border:1px solid var(--line); border-radius:10px;
 }
-.tree > *:first-child{margin-top:auto}
-.side{
-  width:300px; flex:none; overflow:auto;
-  padding:14px 15px; background:var(--paper);
-  border:1px solid var(--line); border-radius:10px;
+.band{padding:12px 16px 16px; border-bottom:1px solid var(--line)}
+.band:last-child{border-bottom:0}
+.band .bl{
+  display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); margin-bottom:10px;
 }
-.side h3{
-  margin:0 0 9px; font-family:var(--mono); font-size:10px;
-  letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:500;
+.band .bl i{font-style:normal; opacity:.75}
+.band .row{display:flex; flex-wrap:wrap; align-items:flex-end; gap:14px 26px}
+.band .none{font-size:12.5px; color:var(--ink-3); font-style:italic}
+.scopeband{background:var(--soft); padding-block:9px 11px}
+.scopeband .row{gap:6px}
+
+.frag{
+  /* extra room on the right: rule names hang off the end of their bar */
+  display:inline-block; padding:7px 38px 5px 12px; border-radius:8px; cursor:pointer;
+  border:1px solid var(--line); background:var(--paper);
+  transition:border-color .1s, background .1s, opacity .1s;
 }
-.side h3 + p{margin:0 0 12px; font-size:12.5px; color:var(--ink-3)}
-.side .none{font-size:12.5px; color:var(--ink-3); font-style:italic}
-.fact{
-  display:flex; align-items:baseline; gap:8px; width:100%; text-align:left;
-  padding:6px 9px; margin-bottom:4px; border-radius:7px;
-  border:1px solid var(--line); background:var(--paper); color:var(--ink);
-  transition:background .1s, border-color .1s;
+.frag:hover{border-color:var(--ink-3); background:var(--soft)}
+.frag.sel{border-color:var(--accent); background:var(--accent-soft); box-shadow:0 0 0 1px var(--accent)}
+.frag.fits{border-color:var(--closed); background:var(--closed-soft)}
+.frag.fits::after{
+  content:"joins"; display:block; margin-top:4px; text-align:center;
+  font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--closed);
 }
-.fact:hover{background:var(--soft); border-color:var(--ink-3)}
-.fact.sel{background:var(--accent-soft); border-color:var(--accent); box-shadow:0 0 0 1px var(--accent)}
-.fact.hit{border-color:var(--closed); background:var(--closed-soft)}
-.fact .body{flex:1; min-width:0}
-.fact .from{
-  font-family:var(--mono); font-size:9.5px; color:var(--ink-3);
-  flex:none; align-self:center; white-space:nowrap;
+.frag.out{opacity:.4}
+.frag.out:hover{opacity:.7}
+
+.chip{
+  font-family:var(--serif); font-size:14.5px; line-height:1.2;
+  padding:4px 10px; border-radius:20px;
+  border:1px dashed var(--open); background:var(--paper); color:var(--ink);
 }
-.fact .lab{font-family:var(--mono); font-size:9.5px; color:var(--open); flex:none}
-.goalbox{
-  border:1px solid var(--line); border-radius:8px; padding:9px 11px;
-  margin-bottom:14px; background:var(--soft);
+.chip:hover{background:var(--open-soft)}
+.chip sup{font-family:var(--mono); font-size:.6em; color:var(--open); vertical-align:super; margin-left:2px}
+.chip .pm{font-family:var(--mono); font-size:.58em; color:var(--ink-3); margin-left:5px;
+          letter-spacing:.06em; text-transform:uppercase}
+
+.gtree{display:inline-flex; flex-direction:column; align-items:flex-start}
+.gtree .gl{
+  font-family:var(--mono); font-size:9px; letter-spacing:.08em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:6px;
 }
-.goalbox .gl{
-  font-family:var(--mono); font-size:9.5px; letter-spacing:.08em;
-  text-transform:uppercase; color:var(--ink-3); display:block; margin-bottom:3px;
-}
+.gtree.claim .gl{color:var(--open)}
 
 /* ── the proof tree ────────────────────────────────────── */
 .pn{display:inline-flex; flex-direction:column; align-items:center; vertical-align:bottom}
@@ -224,14 +232,6 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .goal.dead .q{color:var(--error)}
 
 /* ── the ask panel ─────────────────────────────────────── */
-.claimwrap,.mainwrap{margin-bottom:26px}
-.claimwrap .cl,.mainwrap .cl{
-  display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
-  text-transform:uppercase; color:var(--ink-3); margin-bottom:7px;
-}
-.claimwrap{padding-bottom:20px; border-bottom:1px dashed var(--line)}
-.claimwrap .cl{color:var(--open)}
-
 .ask{
   border:1px solid var(--accent); background:var(--accent-soft);
   border-radius:9px; padding:11px 13px; margin-bottom:14px;
@@ -258,9 +258,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 
 @media (max-width:980px){
   #app{height:auto; min-height:100%; padding-inline:16px}
-  .panes{flex-direction:column-reverse}
-  .side{width:auto; max-height:none}
-  .tree{min-height:340px}
+  .board{min-height:420px}
   .wordmark{display:none}
   .pad button{min-width:34px; padding:6px 7px; font-size:16px}
   .padhint{flex-basis:100%; margin:2px 0 0}
@@ -328,10 +326,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
   <div class="ask" id="ask" hidden></div>
   <div class="out" id="out" hidden></div>
 
-  <div class="panes">
-    <div class="tree" id="tree"></div>
-    <div class="side" id="side"></div>
-  </div>
+  <div class="board" id="board"></div>
 </div>
 
 <script>
@@ -514,7 +509,45 @@ function entails(prems, concl){
    Facts live in the same pool as tree nodes but hang loose until grafted:
    they are the forward half of the proof, growing down from the assumptions
    while the goals grow up from the conclusion. */
-function newProof(){ return {nodes:{}, next:1, root:null, nextLab:1, claims:[]}; }
+function newProof(){ return {nodes:{}, next:1, root:null, nextLab:1, claims:[], frags:[]}; }
+
+/* Which undischarged assumptions a finished fragment leans on. A fragment can
+   only be joined to a goal that has all of them in scope — that is the whole
+   bookkeeping behind "joinable where". Premises carry no label and are free. */
+function depsOf(P, id, out, disch){
+  out = out || []; disch = disch || [];
+  var n = P.nodes[id];
+  if (n.rule === "Ass"){
+    if (n.lab !== null && disch.indexOf(n.lab) < 0 && out.indexOf(n.lab) < 0) out.push(n.lab);
+    return out;
+  }
+  /* a rule inside the fragment may have discharged the very assumption a leaf
+     below it rests on — that one is paid off and is not a dependency */
+  var d = disch;
+  if (n.disch != null) d = d.concat([n.disch]);
+  if (n.disch2 != null) d = d.concat([n.disch2]);
+  n.kids.forEach(function(k){ depsOf(P, k, out, d); });
+  return out;
+}
+function joinable(P, fid, g){
+  if (!g || g.rule !== null) return false;
+  if (!eqF(P.nodes[fid].f, g.f)) return false;
+  return depsOf(P, fid).every(function(l){ return g.scope.indexOf(l) >= 0; });
+}
+function inScopeOf(P, fid, g){
+  if (!g) return false;
+  return depsOf(P, fid).every(function(l){ return g.scope.indexOf(l) >= 0; });
+}
+/* a claim that has just been finished stops being a goal and becomes a fact */
+function promoteClaims(){
+  var P = S.P;
+  P.claims = P.claims.filter(function(id){
+    if (!P.nodes[id]) return false;
+    if (openGoals(P, id).length) return true;
+    P.frags.push(id);
+    return false;
+  });
+}
 
 function mk(P, f, rule, kids){
   var id = P.next++;
@@ -664,7 +697,8 @@ function build(src){
   var root = mk(S.P, seq.concl, null, []);
   S.P.root = root;
   S.P.nodes[root].ctx = seq.prems.map(function(f){ return {f:f, lab:null}; });
-  S.P.nodes[root].facts = seq.prems.map(function(f){ return mk(S.P, f, "Ass", []); });
+  S.P.nodes[root].scope = [];
+  S.P.frags = [];
   S.sel = root; S.pick = []; S.undo = []; S.phase = "work";
   hideAsk(); hideOut();
 
@@ -674,7 +708,8 @@ function build(src){
         " — every premise holds and " + fh(seq.concl) + " fails. Check the formula before proving it.");
   } else {
     say("", "Goal set. Work <b>down</b> from the facts with the elimination rules and <b>up</b> from the goal " +
-        "with the introduction rules; the proof is finished when the two meet.");
+        "with the introduction rules; join a derived tree to a goal when they match. " +
+        "Nothing is written down for you — start by clicking something in scope.");
   }
   draw();
 }
@@ -711,11 +746,14 @@ function forward(r, n){
   if (r.fwd.splits){ splitOnDisjunction(n, S.pick[0]); return; }
 
   var got = r.fwd.out(fs[0], fs[1], n.f);
-  var id = mk(P, got, r.code, S.pick.map(function(i){ return copyTree(P, i); }));
-  n.facts = n.facts.concat([id]);
+  var used = S.pick.slice();
+  var id = mk(P, got, r.code, used);
+  P.frags = P.frags.filter(function(x){ return used.indexOf(x) < 0; }).concat([id]);
   S.pick = [];
-  say("ok", "<b>" + r.code + "</b> — " + r.law + ". " + fh(got) + " is now available." +
-      (eqF(got, n.f) ? " That <b>is</b> the goal — click it in the panel to close this branch." : ""));
+  say("ok", "<b>" + r.code + "</b> — " + r.law + ". Those trees grew into one, rooted at " + fh(got) + "." +
+      (joinable(P, id, n) ? " That matches the goal — click it to join them."
+       : eqF(got, n.f) ? " It matches the goal, but leans on an assumption not in scope there."
+       : "") );
   draw();
 }
 
@@ -738,18 +776,16 @@ function backward(r, n){
     var id = mk(P, sub.f, null, []);
     var kid = P.nodes[id];
     kid.ctx = n.ctx.slice();
-    kid.facts = n.facts.slice();
+    kid.scope = n.scope.slice();
     if (sub.assume){
       var lab = P.nextLab++;
       kid.ctx = kid.ctx.concat([{f:sub.assume, lab:lab}]);
-      var a = mk(P, sub.assume, "Ass", []);
-      P.nodes[a].lab = lab;
-      kid.facts = kid.facts.concat([a]);
+      kid.scope = kid.scope.concat([lab]);
       n.disch = lab;
     }
     kids.push(id);
   });
-  n.rule = r.code; n.kids = kids; n.ctx = null; n.facts = null;
+  n.rule = r.code; n.kids = kids; n.ctx = null; n.scope = null;
   S.pick = [];
   S.sel = firstOpenIn(kids) || firstOpen();
 
@@ -783,19 +819,18 @@ function whyNot(r, fs){
 /* ── ∨E: the goal has to be proved twice over, once from each disjunct ── */
 function splitOnDisjunction(n, factId){
   var P = S.P, d = P.nodes[factId].f;
-  var kids = [copyTree(P, factId)];
+  var kids = [factId];
+  P.frags = P.frags.filter(function(x){ return x !== factId; });
   [d.a, d.b].forEach(function(side){
     var lab = P.nextLab++;
     var id = mk(P, n.f, null, []);
     var kid = P.nodes[id];
     kid.ctx = n.ctx.concat([{f:side, lab:lab}]);
-    var a = mk(P, side, "Ass", []);
-    P.nodes[a].lab = lab;
-    kid.facts = n.facts.concat([a]);
+    kid.scope = n.scope.concat([lab]);
     kids.push(id);
   });
   n.rule = "∨E"; n.kids = kids; n.disch = P.nextLab - 2; n.disch2 = P.nextLab - 1;
-  n.ctx = null; n.facts = null;
+  n.ctx = null; n.scope = null;
   S.pick = [];
   S.sel = firstOpenIn(kids) || firstOpen();
   say("ok", "<b>∨E</b> — " + fh(d) + " splits the proof: the goal has to follow from " + fh(d.a) +
@@ -836,49 +871,60 @@ function addClaim(){
   var P = S.P, n = goalNode();
   var id = mk(P, f, null, []);
   P.nodes[id].ctx = n.ctx.slice();
-  P.nodes[id].facts = n.facts.slice();
+  P.nodes[id].scope = n.scope.slice();
   P.nodes[id].claim = true;
-  n.facts.push(id);
   P.claims.push(id);
   S.sel = id; S.pick = [];
   hideAsk();
-  say("ok", "Claim added: prove " + fh(f) + " here, and it becomes available as a fact." + remaining());
+  say("ok", "Claim added — a second goal tree, in the same scope. Prove " + fh(f) +
+      " and it joins the derived trees." + remaining());
   draw();
 }
 
-/* ═════════════════════════════════════════════ closing a goal with a fact */
-function useFact(factId){
-  var n = goalNode();
+/* ═════════════════════════════════════════════ joining the two halves */
+function clickFrag(fid){
   if (!guard()) return;
-  if (!n) return;
-  var P = S.P, fn = P.nodes[factId], f = fn.f;
-  if (fn.claim && openGoals(P, factId).length){
-    S.sel = factId; S.pick = [];
-    say("", "Working on the claim " + fh(f) + " — prove it and it joins the facts." + remaining());
+  var P = S.P, n = goalNode();
+  if (n && joinable(P, fid, n)){
+    snapshot();
+    graft(P, n.id, fid);
+    P.frags = P.frags.filter(function(x){ return x !== fid; });
+    S.pick = [];
+    promoteClaims();
+    S.sel = firstOpenIn([unitRootOf(n.id)]) || firstOpen();
+    say("ok", "Joined — that tree proves " + fh(P.nodes[n.id].f) + ", so the branch is closed." + remaining());
     draw();
     return;
   }
-  if (!eqF(f, n.f)){
-    /* not the goal — treat the click as selecting it for an elimination */
-    var i = S.pick.indexOf(factId);
-    if (i >= 0) S.pick.splice(i, 1); else S.pick.push(factId);
-    say("", pickMsg());
-    draw();
-    return;
-  }
-  snapshot();
-  var c = copyTree(P, factId);
-  graft(P, n.id, c);
-  S.pick = [];
-  S.sel = firstOpenIn([unitRootOf(n.id)]) || firstOpen();
-  say("ok", "Branch closed — " + fh(f) + " was already available, so it proves the goal." + remaining());
+  var k = S.pick.indexOf(fid);
+  if (k >= 0) S.pick.splice(k, 1); else S.pick.push(fid);
+  say("", pickMsg());
   draw();
 }
+
+/* an assumption in scope can always be written down again as a fresh leaf */
+function spawn(ix){
+  if (!guard()) return;
+  var n = goalNode();
+  if (!n) return;
+  var P = S.P;
+  var e = n.ctx[+ix];
+  if (!e) return;
+  snapshot();
+  var id = mk(P, e.f, "Ass", []);
+  P.nodes[id].lab = e.lab;
+  P.frags.push(id);
+  say("ok", (e.lab === null ? "Premise " : "Assumption ") + fh(e.f) +
+      " written down as a new leaf — grow it downward, or join it straight to the goal." );
+  draw();
+}
+
 /* replace an open goal with a finished derivation of the same formula */
 function graft(P, goalId, srcId){
   var g = P.nodes[goalId], s = P.nodes[srcId];
   g.rule = s.rule; g.kids = s.kids; g.lab = s.lab; g.disch = s.disch;
-  g.ctx = null; g.facts = null;
+  g.disch2 = s.disch2;
+  g.ctx = null; g.scope = null;
   delete P.nodes[srcId];
 }
 /* every goal still open: the main tree first, then any claim left hanging */
@@ -925,7 +971,7 @@ function guard(){
   return true;
 }
 function pickMsg(){
-  if (!S.pick.length) return "Nothing selected. Pick a fact, then an elimination rule.";
+  if (!S.pick.length) return "Nothing selected. Pick a derived tree, then an elimination rule to grow it downward.";
   var P = S.P;
   var names = S.pick.map(function(i){ return fh(P.nodes[i].f); }).join(" and ");
   var fs = S.pick.map(function(i){ return P.nodes[i].f; });
@@ -993,7 +1039,6 @@ function undo(){
 function draw(){
   drawRules();
   drawTree();
-  drawSide();
   $("#doneBtn").disabled = !S.P;
 }
 
@@ -1015,24 +1060,57 @@ function drawRules(){
 }
 
 function drawTree(){
-  var t = $("#tree");
-  if (!S.P){ t.innerHTML = ""; return; }
-  var h = "";
-  pendingClaims().forEach(function(id){
-    h += '<div class="claimwrap"><span class="cl">claim</span>' +
-         renderNode(S.P, id) + "</div>";
-  });
-  h += '<div class="mainwrap">' + (h ? '<span class="cl">goal</span>' : "") +
-       renderNode(S.P, S.P.root) + "</div>";
-  t.innerHTML = h;
+  var b = $("#board");
+  if (!S.P){ b.innerHTML = ""; return; }
+  var P = S.P, n = goalNode();
+
+  /* derived trees — the forward half, growing downward */
+  var frags = P.frags.filter(function(x){ return P.nodes[x]; });
+  var h = '<div class="band"><span class="bl">Derived <i>↓ grows downward</i></span><div class="row">';
+  h += frags.length ? frags.map(function(fid){
+        var cls = "frag" + (S.pick.indexOf(fid) >= 0 ? " sel" : "") +
+                  (joinable(P, fid, n) ? " fits" : "") +
+                  (n && !inScopeOf(P, fid, n) ? " out" : "");
+        var deps = depsOf(P, fid);
+        var tip = joinable(P, fid, n) ? "matches the goal — click to join"
+                : (n && !inScopeOf(P, fid, n))
+                  ? "leans on assumption " + deps.join(", ") + ", which is not in scope at this goal"
+                  : "click to select for an elimination";
+        return '<span class="' + cls + '" data-frag="' + fid + '" role="button" tabindex="0" title="' +
+               tip + '">' + renderNode(P, fid) + "</span>";
+      }).join("")
+    : '<span class="none">nothing yet — write an assumption down, or work backwards from the goal</span>';
+  h += "</div></div>";
+
+  /* what may be leaned on right here */
+  h += '<div class="band scopeband"><span class="bl">In scope <i>click to write one down</i></span><div class="row">';
+  if (n && n.ctx.length){
+    h += n.ctx.map(function(c, ci){
+      return '<button type="button" class="chip" data-spawn="' + ci + '">' + fmtHTML(c.f) +
+             (c.lab !== null ? '<sup>' + c.lab + "</sup>" : '<span class="pm">prem</span>') + "</button>";
+    }).join("");
+  } else {
+    h += '<span class="none">' + (n ? "nothing assumed here yet" : "no goal selected") + "</span>";
+  }
+  h += "</div></div>";
+
+  /* goal trees — the backward half, growing upward */
+  h += '<div class="band"><span class="bl">Goals <i>↑ grow upward</i></span><div class="row">';
+  h += P.claims.filter(function(id){ return P.nodes[id]; }).map(function(id){
+        return '<span class="gtree claim"><span class="gl">claim</span>' + renderNode(P, id) + "</span>";
+      }).join("");
+  h += '<span class="gtree"><span class="gl">goal</span>' + renderNode(P, P.root) + "</span>";
+  h += "</div></div>";
+  b.innerHTML = h;
 }
+
 function renderNode(P, id){
   var n = P.nodes[id];
   if (n.rule === null){
     var dead = n.ctx && !entails(n.ctx.map(function(c){ return c.f; }), n.f).ok;
     var cls = "pn-f goal" + (id === S.sel ? " sel" : "") + (dead ? " dead" : "");
     return '<span class="pn"><span class="' + cls + '" data-goal="' + id + '" role="button" tabindex="0" ' +
-      'title="' + (dead ? "this goal does not follow from what is in scope" : "open goal") + '">' +
+      'title="' + (dead ? "this goal does not follow from what is in scope here" : "open goal") + '">' +
       '<span class="q">' + (dead ? "✕" : "?") + "</span>" + fmtHTML(n.f) + "</span></span>";
   }
   if (n.rule === "Ass"){
@@ -1047,38 +1125,6 @@ function renderNode(P, id){
     (kids ? '<span class="pn-kids">' + kids + "</span>" : "") +
     '<span class="pn-bar"><span class="pn-rule">' + tag + "</span></span>" +
     '<span class="pn-f">' + fmtHTML(n.f) + "</span></span>";
-}
-
-function drawSide(){
-  var s = $("#side"), n = goalNode();
-  if (!S.P){ s.innerHTML = ""; return; }
-  if (!n){
-    s.innerHTML = '<h3>Goal</h3><p class="none">No goal selected. Every branch is closed — press Done.</p>';
-    return;
-  }
-  var P = S.P;
-  var h = '<div class="goalbox"><span class="gl">Goal</span>' + fh(n.f) + "</div>";
-  h += "<h3>Facts in scope</h3>";
-  h += "<p>Click the one that matches the goal to close the branch, or select one or two and apply an " +
-       "elimination rule.</p>";
-  if (!n.facts.length){
-    h += '<p class="none">Nothing yet — this sequent has no premises, so work backwards from the goal first.</p>';
-  } else {
-    h += n.facts.map(function(fid){
-      var fn = P.nodes[fid];
-      var hit = eqF(fn.f, n.f);
-      var cls = "fact" + (S.pick.indexOf(fid) >= 0 ? " sel" : "") + (hit ? " hit" : "");
-      var open = fn.claim && openGoals(P, fid).length;
-      var from = open ? "claim, unproved"
-               : fn.rule === "Ass" ? (fn.lab !== null ? "assumed " + fn.lab : "premise")
-               : fn.rule;
-      if (open){ cls = "fact"; hit = false; }
-      return '<button type="button" class="' + cls + '" data-fact="' + fid + '">' +
-        '<span class="body">' + fh(fn.f) + "</span>" +
-        '<span class="from">' + from + "</span></button>";
-    }).join("");
-  }
-  s.innerHTML = h;
 }
 
 /* ═════════════════════════════════════════════ connective pad */
@@ -1107,20 +1153,24 @@ $("#pad").addEventListener("mousedown", function(e){
 
 /* ═════════════════════════════════════════════ wiring */
 document.addEventListener("click", function(e){
-  var t = e.target.closest("[data-sym],[data-rule],[data-goal],[data-fact],[data-claim]");
+  var t = e.target.closest("[data-sym],[data-rule],[data-goal],[data-frag],[data-spawn],[data-claim]");
   if (!t) return;
   if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
   if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
   if (t.hasAttribute("data-claim")){ startClaim(); return; }
   if (t.hasAttribute("data-goal")){ selectGoal(+t.dataset.goal); return; }
-  if (t.hasAttribute("data-fact")){ useFact(+t.dataset.fact); return; }
+  if (t.hasAttribute("data-frag")){ clickFrag(+t.dataset.frag); return; }
+  if (t.hasAttribute("data-spawn")){ spawn(t.dataset.spawn); return; }
 });
 function selectGoal(id){
   if (S.phase === "done"){ say("", "This proof is finished. Press Restart to try another route."); return; }
   S.sel = id; S.pick = [];
   var n = S.P.nodes[id];
-  say("", "Goal " + fh(n.f) + " selected — " + plural(n.facts ? n.facts.length : 0, "fact") +
-      " in scope." + remaining());
+  var fits = S.P.frags.filter(function(f){ return joinable(S.P, f, n); }).length;
+  say("", "Goal " + fh(n.f) + " selected. " +
+      (fits ? "<b>" + plural(fits, "derived tree") + "</b> already " + (fits === 1 ? "matches" : "match") +
+              " it — click to join."
+            : "Nothing derived matches it yet.") + remaining());
   draw();
 }
 

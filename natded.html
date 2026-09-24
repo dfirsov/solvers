@@ -688,6 +688,16 @@ function fwdRoles(r, fs, goal){
   if (r.fwd.roles) return r.fwd.roles(fs[0], fs[1], goal);
   return r.fwd.ok(fs[0], fs[1]) ? (r.fwd.n === 2 ? [0, 1] : [0]) : null;
 }
+/* Same question, but for a concrete selection at a concrete goal, so it also
+   answers the scope condition ∨E needs. Arming asks this, and so does
+   applying — a rule must never light up and then refuse. */
+function fwdReady(r, ids, g){
+  if (!S.P || !g) return null;
+  var P = S.P, ord = fwdRoles(r, ids.map(function(i){ return P.nodes[i].f; }), g.f);
+  if (!ord) return null;
+  if (r.fwd.splits && !inScopeOf(P, ids[ord[0]], g)) return null;
+  return ord;
+}
 
 /* ═════════════════════════════════════════════ state */
 var MAXVARS = 8;
@@ -1036,9 +1046,8 @@ function pickMsg(){
   if (!S.pick.length) return "Nothing selected. Pick a derived tree, then an elimination rule to grow it downward.";
   var P = S.P;
   var names = S.pick.map(function(i){ return fh(P.nodes[i].f); }).join(" and ");
-  var fs = S.pick.map(function(i){ return P.nodes[i].f; });
   var g = goalNode();
-  var live = RULES.filter(function(r){ return !!fwdRoles(r, fs, g && g.f); })
+  var live = RULES.filter(function(r){ return !!fwdReady(r, S.pick, g); })
                   .map(function(r){ return "<b>" + r.code + "</b>"; });
   return "Selected " + names + " — " +
     (live.length ? live.join(", ") + (live.length === 1 ? " applies" : " apply") + "."
@@ -1113,12 +1122,11 @@ function draw(){
 
 function drawRules(){
   var P = S.P, n = goalNode(), fwd = S.pick.length > 0;
-  var fs = fwd ? S.pick.map(function(i){ return P.nodes[i].f; }) : null;
   $("#rules").innerHTML = RULES.map(function(r){
     var cls = "rule", live;
     if (S.phase === "done") live = false;
     else if (!n) live = null;
-    else if (fwd) live = !!fwdRoles(r, fs, n.f);
+    else if (fwd) live = !!fwdReady(r, S.pick, n);
     else live = !!(r.back && r.back(n.f));
     if (live !== null) cls += live ? " armed" : " dim";
     var dir = r.back && r.fwd ? "either direction" : r.fwd ? "forwards only" : "backwards only";

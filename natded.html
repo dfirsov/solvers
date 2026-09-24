@@ -597,7 +597,7 @@ function countRules(P, id){
    has to be opened before anything can be derived under it.
 
    Which direction fires is decided by the selection: facts picked out in the
-   panel means forward, nothing picked means backward on the goal. */
+   Derived means forward, nothing picked means backward on the goal. */
 function and_(a, b){ return {k:"and", a:a, b:b}; }
 function iff_(a, b){ return {k:"iff", a:a, b:b}; }
 
@@ -799,8 +799,8 @@ function forward(r, n){
     return;
   }
   if (S.pick.length !== r.fwd.n){
-    say("err", "<b>" + r.code + "</b> takes " + plural(r.fwd.n, "fact") + " going forwards — " +
-        r.law + ". You have " + S.pick.length + " selected.");
+    say("err", "<b>" + r.code + "</b> takes " + plural(r.fwd.n, "tree") + " going forwards — " +
+        r.law + ". You have " + S.pick.length + " selected under Derived.");
     return;
   }
   var stray = S.pick.filter(function(i){ return !inScopeOf(P, i, n); });
@@ -831,7 +831,9 @@ function backward(r, n){
   var P = S.P;
   if (!r.back){
     say("err", "<b>" + r.code + "</b> only runs forwards, out of what you already have — " + r.law +
-        ". Select " + plural(r.fwd.n, "fact") + " in the panel first.");
+        ". Click " + (r.fwd.n === 1 ? "a tree" : plural(r.fwd.n, "tree")) +
+        " under <b>Derived</b> to select " + (r.fwd.n === 1 ? "it" : "them") + " first" +
+        (S.P.frags.length ? "" : " — there is nothing there yet, so write an assumption down") + ".");
     return;
   }
   var subs = r.back(n.f);

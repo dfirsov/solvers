@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Five interactive tools for propositional logic: a semantic tableaux trainer, a BDD builder, an ROBDD constructor, an arithmetic encoder, and an equivalence checker.">
+<meta name="description" content="Six interactive tools for propositional logic: a semantic tableaux trainer, a natural deduction prover, a BDD builder, an ROBDD constructor, an arithmetic encoder, and an equivalence checker.">
 <title>Propositional Logic Solvers</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -133,7 +133,7 @@ header p{
       <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
       <button class="theme" id="themeBtn" type="button">◐</button>
     </div>
-    <p>Five interactive tools for a propositional logic course. Each one takes a
+    <p>Six interactive tools for a propositional logic course. Each one takes a
        formula and works through a method step by step, checking every move rather
        than just handing over an answer.</p>
   </header>
@@ -147,6 +147,19 @@ header p{
            pick the rule its main connective calls for, and close the branches. Every
            step is validated, and every misstep is explained.</p>
         <span class="meta">signed T/F tableaux · α and β rules</span>
+      </span>
+      <span class="arrow" aria-hidden="true">→</span>
+    </a>
+
+    <a class="tool" href="natded.html">
+      <span class="glyph" aria-hidden="true">∴</span>
+      <span class="text">
+        <h2>Natural Deduction</h2>
+        <p>Grow a proof tree from both ends at once: eliminations run forward out of
+           the assumptions, introductions run backward from the goal, and the proof is
+           finished when the two meet. Discharged assumptions are bracketed and
+           numbered, and the verdict says whether you needed the classical rule.</p>
+        <span class="meta">Gentzen trees · intro and elim rules</span>
       </span>
       <span class="arrow" aria-hidden="true">→</span>
     </a>
@@ -204,7 +217,7 @@ header p{
 
   <section class="notation">
     <h3>Notation</h3>
-    <p>All five read the same syntax:
+    <p>All six read the same syntax:
        <span class="sym">¬ ∧ ∨ ⊃ ≡</span>, with <span class="sym">⊃</span> for implication
        and <span class="sym">≡</span> for the biconditional. Variables are letters.</p>
     <p>If those characters are awkward to type, <code>~ &amp; | -&gt; &lt;-&gt;</code> work

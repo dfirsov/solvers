@@ -618,11 +618,17 @@ var RULES = [
   {code:"∧E₂", lbl:"∧E<sub>2</sub>", law:"from A ∧ B take B",
    fwd:{n:1, ok:function(a){ return a.k === "and"; }, out:function(a){ return a.b; }}},
 
-  {code:"∨I₁", lbl:"∨I<sub>1</sub>", law:"to prove A ∨ B, prove the left half A",
-   back:function(g){ return g.k === "or" ? [{f:g.a}] : null; }},
+  {code:"∨I₁", lbl:"∨I<sub>1</sub>",
+   law:"A gives A ∨ B for any B — or, on a goal A ∨ B, prove the left half A",
+   back:function(g){ return g.k === "or" ? [{f:g.a}] : null; },
+   fwd:{n:1, asks:"right", roles:function(){ return [0]; },
+        out:function(a, b, goal, x){ return {k:"or", a:a, b:x}; }}},
 
-  {code:"∨I₂", lbl:"∨I<sub>2</sub>", law:"to prove A ∨ B, prove the right half B",
-   back:function(g){ return g.k === "or" ? [{f:g.b}] : null; }},
+  {code:"∨I₂", lbl:"∨I<sub>2</sub>",
+   law:"B gives A ∨ B for any A — or, on a goal A ∨ B, prove the right half B",
+   back:function(g){ return g.k === "or" ? [{f:g.b}] : null; },
+   fwd:{n:1, asks:"left", roles:function(){ return [0]; },
+        out:function(a, b, goal, x){ return {k:"or", a:x, b:a}; }}},
 
   {code:"∨E", lbl:"∨E", law:"from A ∨ B, prove the goal from A and again from B",
    fwd:{n:1, splits:true, ok:function(a){ return a.k === "or"; }, out:function(a){ return a; }}},
@@ -800,6 +806,7 @@ function forward(r, n){
         "inside that assumption.");
     return;
   }
+  if (r.fwd.asks){ askDisjunct(r, n, pk[0]); return; }
   snapshot();
   if (r.fwd.splits){ splitOnDisjunction(n, pk[0]); return; }
 
@@ -903,31 +910,74 @@ function splitOnDisjunction(n, factId){
 /* Some minor premises are not lying around — they have to be derived first.
    A claim is a second goal in the same scope; once proved it joins the facts,
    and that is how the forward half of the proof gets started from nothing. */
+/* A small prompt for the one thing the tool cannot work out on its own: a
+   formula the rule does not determine. Suggestions come from the goal. */
+function askFormula(prompt, sugg, onOk){
+  var a = $("#ask");
+  a.hidden = false;
+  a.innerHTML = "<p>" + prompt + "</p><div class=\"row\">" +
+    sugg.map(function(f, i){
+      return '<button type="button" class="sug" data-sug="' + i + '">' + fmtHTML(f) + "</button>";
+    }).join("") +
+    '<input type="text" id="askF" spellcheck="false" autocomplete="off" placeholder="a formula">' +
+    '<button type="button" class="sug" id="askGo">OK</button>' +
+    '<button type="button" class="cancel" id="askX">cancel</button></div>';
+  function take(f){
+    var vars = [];
+    atomsOf(f, vars);
+    if (vars.some(function(v){ return S.vars.indexOf(v) < 0; })){
+      say("err", "That brings in a variable the sequent never mentions. A proof can only use " +
+          S.vars.map(function(v){ return "<i>" + v + "</i>"; }).join(", ") + ".");
+      return;
+    }
+    hideAsk();
+    onOk(f);
+  }
+  sugg.forEach(function(f, i){
+    a.querySelector('[data-sug="' + i + '"]').addEventListener("click", function(){ take(f); });
+  });
+  function typed(){
+    var f;
+    try { f = parse($("#askF").value); }
+    catch (e){ say("err", e.message); return; }
+    take(f);
+  }
+  $("#askGo").addEventListener("click", typed);
+  $("#askX").addEventListener("click", function(){ hideAsk(); draw(); });
+  $("#askF").addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); typed(); } });
+  $("#askF").focus();
+}
+
+/* ∨I forward: the other half of the disjunction is the student's to choose */
+function askDisjunct(r, n, fid){
+  var P = S.P, a = P.nodes[fid].f, side = r.fwd.asks, sugg = [];
+  if (n.f.k === "or"){
+    if (side === "right" && eqF(n.f.a, a)) sugg.push(n.f.b);
+    if (side === "left"  && eqF(n.f.b, a)) sugg.push(n.f.a);
+  }
+  var shape = side === "right" ? fmtHTML(a) + " ∨ ?" : "? ∨ " + fmtHTML(a);
+  askFormula("<b>" + r.code + "</b> weakens " + fh(a) + " to <span class=\"f\">" + shape +
+             "</span>. Any formula will do — what should the other half be?" +
+             (sugg.length ? " The goal wants one in particular." : ""),
+             sugg,
+             function(x){
+               snapshot();
+               var got = r.fwd.out(a, null, n.f, x);
+               var id = mk(P, got, r.code, [fid]);
+               P.frags = P.frags.filter(function(y){ return y !== fid; }).concat([id]);
+               S.pick = [];
+               say("ok", "<b>" + r.code + "</b> — " + fh(a) + " weakened to " + fh(got) + "." +
+                   (joinable(P, id, n) ? " That matches the goal — click it to join." : ""));
+               draw();
+             });
+}
+
 function startClaim(){
   if (!guard()) return;
   if (!goalNode()){ say("", "Click an open goal first — a claim is proved in that goal's scope."); return; }
-  var a = $("#ask");
-  a.hidden = false;
-  a.innerHTML = '<p>Derive something first, then use it as a premise. What should it be?</p>' +
-    '<div class="row"><input type="text" id="claimF" spellcheck="false" autocomplete="off" ' +
-    'placeholder="a formula, e.g. p -> q"><button type="button" class="sug" id="claimGo">Add goal</button>' +
-    '<button type="button" class="cancel" id="claimX">cancel</button></div>';
-  $("#claimGo").addEventListener("click", addClaim);
-  $("#claimX").addEventListener("click", function(){ hideAsk(); draw(); });
-  $("#claimF").addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); addClaim(); } });
-  $("#claimF").focus();
+  askFormula("Derive something first, then use it as a premise. What should it be?", [], addClaim);
 }
-function addClaim(){
-  var txt = $("#claimF").value, f;
-  try { f = parse(txt); }
-  catch (e){ say("err", e.message); return; }
-  var vars = [];
-  atomsOf(f, vars);
-  if (vars.some(function(v){ return S.vars.indexOf(v) < 0; })){
-    say("err", "That claim brings in a variable the sequent never mentions. A proof can only ever use " +
-        S.vars.map(function(v){ return "<i>" + v + "</i>"; }).join(", ") + ".");
-    return;
-  }
+function addClaim(f){
   snapshot();
   var P = S.P, n = goalNode();
   var id = mk(P, f, null, []);
@@ -936,7 +986,6 @@ function addClaim(){
   P.nodes[id].claim = true;
   P.claims.push(id);
   S.sel = id; S.pick = [];
-  hideAsk();
   say("ok", "Claim added — a second goal tree, in the same scope. Prove " + fh(f) +
       " and it joins the derived trees." + remaining());
   draw();

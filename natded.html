@@ -605,7 +605,12 @@ var RULES = [
   {code:"∧I", lbl:"∧I",
    law:"A and B give A ∧ B — or, on a goal A ∧ B, prove each half",
    back:function(g){ return g.k === "and" ? [{f:g.a}, {f:g.b}] : null; },
-   fwd:{n:2, ok:function(){ return true; }, out:function(a, b){ return and_(a, b); }}},
+   fwd:{n:2, out:function(a, b){ return and_(a, b); },
+        roles:function(a, b, goal){
+          /* either order builds a conjunction; if one of them is the goal, build that one */
+          if (goal && goal.k === "and" && eqF(goal.a, b) && eqF(goal.b, a)) return [1, 0];
+          return [0, 1];
+        }}},
 
   {code:"∧E₁", lbl:"∧E<sub>1</sub>", law:"from A ∧ B take A",
    fwd:{n:1, ok:function(a){ return a.k === "and"; }, out:function(a){ return a.a; }}},
@@ -626,22 +631,34 @@ var RULES = [
    back:function(g){ return g.k === "imp" ? [{f:g.b, assume:g.a}] : null; }},
 
   {code:"⊃E", lbl:"⊃E", law:"from A ⊃ B and A take B",
-   fwd:{n:2, ok:function(a, b){ return a.k === "imp" && eqF(a.a, b); },
-        out:function(a){ return a.b; }}},
+   fwd:{n:2, out:function(a){ return a.b; },
+        roles:function(a, b){
+          if (a.k === "imp" && eqF(a.a, b)) return [0, 1];
+          if (b.k === "imp" && eqF(b.a, a)) return [1, 0];
+          return null;
+        }}},
 
   {code:"¬I", lbl:"¬I", law:"to prove ¬A, assume A and derive ⊥",
    back:function(g){ return g.k === "not" ? [{f:BOT, assume:g.a}] : null; }},
 
   {code:"¬E", lbl:"¬E", law:"from ¬A and A take ⊥",
-   fwd:{n:2, ok:function(a, b){ return a.k === "not" && eqF(a.a, b); },
-        out:function(){ return BOT; }}},
+   fwd:{n:2, out:function(){ return BOT; },
+        roles:function(a, b){
+          if (a.k === "not" && eqF(a.a, b)) return [0, 1];
+          if (b.k === "not" && eqF(b.a, a)) return [1, 0];
+          return null;
+        }}},
 
   {code:"≡I", lbl:"≡I",
    law:"A ⊃ B and B ⊃ A give A ≡ B — or, on a goal A ≡ B, prove it both ways",
    back:function(g){ return g.k === "iff" ? [{f:imp(g.a, g.b)}, {f:imp(g.b, g.a)}] : null; },
-   fwd:{n:2, ok:function(a, b){ return a.k === "imp" && b.k === "imp" &&
-                                       eqF(a.a, b.b) && eqF(a.b, b.a); },
-        out:function(a){ return iff_(a.a, a.b); }}},
+   fwd:{n:2, out:function(a){ return iff_(a.a, a.b); },
+        roles:function(a, b, goal){
+          if (!(a.k === "imp" && b.k === "imp" && eqF(a.a, b.b) && eqF(a.b, b.a))) return null;
+          /* both orders are legitimate and give A ≡ B or B ≡ A; pick the goal's */
+          if (goal && goal.k === "iff" && eqF(goal.a, b.a) && eqF(goal.b, b.b)) return [1, 0];
+          return [0, 1];
+        }}},
 
   {code:"≡E₁", lbl:"≡E<sub>1</sub>", law:"from A ≡ B take A ⊃ B",
    fwd:{n:1, ok:function(a){ return a.k === "iff"; }, out:function(a){ return imp(a.a, a.b); }}},
@@ -662,6 +679,15 @@ var RULES = [
    back:function(g){ return [{f:BOT, assume:neg(g)}]; }}
 ];
 function ruleOf(code){ return RULES.filter(function(r){ return r.code === code; })[0]; }
+
+/* Null when the rule does not fit the chosen premises; otherwise the order the
+   rule wants them in. Clicking the same two facts the other way round must
+   arm exactly the same rules, so arming and applying both go through here. */
+function fwdRoles(r, fs, goal){
+  if (!r.fwd || r.fwd.n !== fs.length) return null;
+  if (r.fwd.roles) return r.fwd.roles(fs[0], fs[1], goal);
+  return r.fwd.ok(fs[0], fs[1]) ? (r.fwd.n === 2 ? [0, 1] : [0]) : null;
+}
 
 /* ═════════════════════════════════════════════ state */
 var MAXVARS = 8;
@@ -749,23 +775,26 @@ function forward(r, n){
     return;
   }
   var fs = S.pick.map(function(i){ return P.nodes[i].f; });
-  if (!r.fwd.ok(fs[0], fs[1])){ say("err", whyNot(r, fs)); return; }
+  var ord = fwdRoles(r, fs, n.f);
+  if (!ord){ say("err", whyNot(r, fs)); return; }
+  var pk = ord.map(function(i){ return S.pick[i]; });
+  fs = ord.map(function(i){ return fs[i]; });
   /* An ordinary elimination only makes another loose fragment, and its deps
      travel with it, so the join is where scope gets enforced. ∨E is different:
      it grafts the disjunction straight into the tree here, so an out-of-scope
      assumption would end up in a branch with nothing to discharge it. */
-  if (r.fwd.splits && !inScopeOf(P, S.pick[0], n)){
-    say("err", "That tree leans on assumption " + depsOf(P, S.pick[0]).join(", ") +
+  if (r.fwd.splits && !inScopeOf(P, pk[0], n)){
+    say("err", "That tree leans on assumption " + depsOf(P, pk[0]).join(", ") +
         ", which is not in scope at this goal. <b>∨E</b> would plant it in a branch where nothing " +
         "discharges it, so it is refused — derive the disjunction again here, or use it at a goal " +
         "inside that assumption.");
     return;
   }
   snapshot();
-  if (r.fwd.splits){ splitOnDisjunction(n, S.pick[0]); return; }
+  if (r.fwd.splits){ splitOnDisjunction(n, pk[0]); return; }
 
   var got = r.fwd.out(fs[0], fs[1], n.f);
-  var used = S.pick.slice();
+  var used = pk;
   var id = mk(P, got, r.code, used);
   P.frags = P.frags.filter(function(x){ return used.indexOf(x) < 0; }).concat([id]);
   S.pick = [];
@@ -820,15 +849,18 @@ function backward(r, n){
 function whyNot(r, fs){
   var a = fs[0], b = fs[1];
   if (r.code === "⊃E"){
-    if (a.k !== "imp") return "<b>⊃E</b> needs the implication first. " + fh(a) +
-      " is not one — select <i>A ⊃ B</i>, then <i>A</i>.";
-    return "You picked " + fh(a) + " and " + fh(b) + ", but ⊃E needs the second to be exactly its antecedent " +
-      fh(a.a) + ".";
+    if (a.k !== "imp" && b.k !== "imp") return "<b>⊃E</b> needs an implication. Neither " + fh(a) +
+      " nor " + fh(b) + " is one.";
+    var im = a.k === "imp" ? a : b, mi = a.k === "imp" ? b : a;
+    return "⊃E would need " + fh(mi) + " to be exactly the antecedent of " + fh(im) + ", which is " +
+      fh(im.a) + ".";
   }
   if (r.code === "¬E"){
-    if (a.k !== "not") return "<b>¬E</b> needs the negation first. " + fh(a) +
-      " is not one — select <i>¬A</i>, then <i>A</i>.";
-    return "You picked " + fh(a) + " and " + fh(b) + ", but ¬E needs the second to be exactly " + fh(a.a) + ".";
+    if (a.k !== "not" && b.k !== "not") return "<b>¬E</b> needs a negation. Neither " + fh(a) +
+      " nor " + fh(b) + " is one.";
+    var ng = a.k === "not" ? a : b, ot = a.k === "not" ? b : a;
+    return "¬E would need " + fh(ot) + " to be exactly " + fh(ng.a) + ", the formula " + fh(ng) +
+      " denies.";
   }
   if (r.code === "≡I") return "≡I going forwards needs <i>A ⊃ B</i> and <i>B ⊃ A</i>. " +
     fh(a) + " and " + fh(b) + " are not a matching pair.";
@@ -1005,9 +1037,9 @@ function pickMsg(){
   var P = S.P;
   var names = S.pick.map(function(i){ return fh(P.nodes[i].f); }).join(" and ");
   var fs = S.pick.map(function(i){ return P.nodes[i].f; });
-  var live = RULES.filter(function(r){
-    return r.fwd && r.fwd.n === S.pick.length && r.fwd.ok(fs[0], fs[1]);
-  }).map(function(r){ return "<b>" + r.code + "</b>"; });
+  var g = goalNode();
+  var live = RULES.filter(function(r){ return !!fwdRoles(r, fs, g && g.f); })
+                  .map(function(r){ return "<b>" + r.code + "</b>"; });
   return "Selected " + names + " — " +
     (live.length ? live.join(", ") + (live.length === 1 ? " applies" : " apply") + "."
                  : "no elimination fits that selection.");
@@ -1086,7 +1118,7 @@ function drawRules(){
     var cls = "rule", live;
     if (S.phase === "done") live = false;
     else if (!n) live = null;
-    else if (fwd) live = !!(r.fwd && r.fwd.n === S.pick.length && r.fwd.ok(fs[0], fs[1]));
+    else if (fwd) live = !!fwdRoles(r, fs, n.f);
     else live = !!(r.back && r.back(n.f));
     if (live !== null) cls += live ? " armed" : " dim";
     var dir = r.back && r.fwd ? "either direction" : r.fwd ? "forwards only" : "backwards only";

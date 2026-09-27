@@ -1,0 +1,1035 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Build a Gentzen sequent calculus proof: every rule reads bottom-up, left and right rules come in symmetric pairs, and a branch that gets stuck hands you a countermodel.">
+<title>Sequent Calculus</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --open-soft:#FBEEDA;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1500px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strips ───────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap}
+.strip.a{padding-block:2px 6px}
+.strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none; width:5.6em;
+}
+.group{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+.rule{
+  font-family:var(--serif); font-size:15px; line-height:1;
+  min-width:40px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft); border-color:var(--ink-3)}
+.rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.rule.dim{opacity:.32}
+.rule.close{border-color:var(--closed); color:var(--closed)}
+.rule.close.armed{background:var(--closed); border-color:var(--closed); color:var(--paper)}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the ask panel ─────────────────────────────────────── */
+.ask{
+  border:1px solid var(--accent); background:var(--accent-soft);
+  border-radius:9px; padding:11px 13px; margin-bottom:14px;
+}
+.ask p{margin:0 0 9px; font-size:13px}
+.ask .row{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.ask input[type=text]{font-size:14px; padding:6px 10px; flex:1; min-width:140px}
+.ask .sug{
+  font-family:var(--serif); font-size:14.5px; padding:5px 10px; border-radius:6px;
+  border:1px solid var(--accent); background:var(--paper); color:var(--ink);
+}
+.ask .sug:hover{background:var(--accent); color:var(--accent-ink)}
+.ask .cancel{border:0; background:transparent; color:var(--ink-3); text-decoration:underline;
+             text-underline-offset:3px; font-size:12.5px; padding:5px 2px}
+
+/* ── verdict ───────────────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .onote{margin:0; font-size:13px; color:var(--ink-2)}
+.out .onote + .onote{margin-top:9px; border-top:1px solid var(--line); padding-top:9px}
+.out code{font-family:var(--mono); font-size:12px; color:var(--ink)}
+
+/* ── the proof tree ────────────────────────────────────── */
+.board{
+  flex:1; min-height:0; overflow:auto; margin-bottom:18px;
+  padding:26px 22px 30px; background:var(--paper);
+  border:1px solid var(--line); border-radius:10px;
+  /* flex-start, or the root sequent stretches to the panel and drags its
+     inference line the whole way with it */
+  display:flex; flex-direction:column; align-items:flex-start;
+}
+.board > *:first-child{margin-top:auto}
+.pn{display:inline-flex; flex-direction:column; align-items:center; vertical-align:bottom}
+.pn-kids{display:flex; align-items:flex-end; gap:34px}
+.pn-bar{
+  align-self:stretch; height:0; border-top:1.3px solid var(--ink-2);
+  margin:6px 0 4px; position:relative;
+}
+.pn-rule{
+  position:absolute; left:100%; top:-8px; padding-left:8px;
+  font-family:var(--mono); font-size:10px; color:var(--accent); white-space:nowrap;
+}
+/* a sequent */
+.sq{
+  white-space:nowrap; font-family:var(--serif); font-size:16px;
+  padding:3px 7px; border-radius:6px; border:1px solid transparent;
+}
+.sq.leaf{cursor:default}
+.sq.cur{border-color:var(--accent); background:var(--accent-soft)}
+.sq.ax{border-color:var(--closed); background:var(--closed-soft)}
+.sq.stuck{border-color:var(--error); background:var(--error-soft)}
+.sq .turn{color:var(--ink-3); margin:0 .5em; font-family:var(--mono); font-size:13px}
+.sq .comma{color:var(--ink-3); margin-right:.32em}
+.sq .empty{color:var(--ink-3); font-style:italic; font-size:12.5px}
+.fm{
+  display:inline; border-radius:4px; padding:1px 2px; cursor:pointer;
+  font-family:var(--serif); font-size:16px;
+}
+.fm i{font-style:italic}
+.fm .op{margin:0 .24em}
+.fm .op.neg{margin:0 .04em 0 0}
+.fm .pr{color:var(--ink-3)}
+.fm .cst{font-style:normal; color:var(--accent)}
+.sq.leaf .fm:hover{background:var(--soft)}
+.sq .fm.sel{background:var(--accent); color:var(--accent-ink)}
+.sq .fm.sel .pr,.sq .fm.sel .cst,.sq .fm.sel .op{color:var(--accent-ink)}
+.sq .fm.twin{box-shadow:inset 0 0 0 1px var(--closed)}
+.sq.settled .fm{cursor:default}
+.tick{
+  font-family:var(--mono); font-size:10px; margin-left:9px; letter-spacing:.06em;
+}
+.tick.ax{color:var(--closed)}
+.tick.stuck{color:var(--error)}
+
+@media (max-width:820px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  .board{min-height:420px}
+  .wordmark{display:none}
+  .glabel{width:auto}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+}
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>⇒</span> SEQUENT</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Sequent" value="p -> q, q -> r |- p -> r">
+      <button type="submit" class="go">Start</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <button type="button" data-sym="⊢" aria-label="Insert turnstile" title="turnstile — also typed as |-">⊢</button>
+        <span class="padhint">commas on <em>both</em> sides — <code>p, q |- r, s</code></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip a">
+    <span class="glabel" title="Rules acting on a formula left of the turnstile">Left</span>
+    <div class="group" id="leftRules"></div>
+  </div>
+  <div class="strip b">
+    <span class="glabel" title="Rules acting on a formula right of the turnstile">Right</span>
+    <div class="group" id="rightRules"></div>
+    <div class="group" id="closeRules"></div>
+    <button class="done" id="doneBtn" disabled>Done</button>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="ask" id="ask" hidden></div>
+  <div class="out" id="out" hidden></div>
+  <div class="board" id="board"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ logging */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
+var LOG_URL = "log.php";
+var LOG_PAGE = "sequent";
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
+
+function logFormula(data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    var body = JSON.stringify([ev]);
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+
+/* ═════════════════════════════════════════════ formulas */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+
+function show(g, esc, wrap, neg, opw, cst){
+  cst = cst || function(t){ return t; };
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
+    if (pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; });
+}
+function fmtText(g){
+  return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; });
+}
+function evalF(g, v){
+  switch (g.k){
+    case "atom": return !!v[g.n];
+    case "top":  return true;
+    case "bot":  return false;
+    case "not":  return !evalF(g.a, v);
+    case "and":  return evalF(g.a, v) && evalF(g.b, v);
+    case "or":   return evalF(g.a, v) || evalF(g.b, v);
+    case "imp":  return !evalF(g.a, v) || evalF(g.b, v);
+    case "iff":  return evalF(g.a, v) === evalF(g.b, v);
+  }
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* none */ }
+  else if (g.k === "not") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+function eqF(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "atom") return a.n === b.n;
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not") return eqF(a.a, b.a);
+  return eqF(a.a, b.a) && eqF(a.b, b.b);
+}
+function subsOf(g, out){
+  out = out || [];
+  if (!out.some(function(x){ return eqF(x, g); })) out.push(g);
+  if (g.k === "not") subsOf(g.a, out);
+  else if (g.k !== "atom" && g.k !== "top" && g.k !== "bot"){ subsOf(g.a, out); subsOf(g.b, out); }
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"]
+];
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+function parse(src){
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+/* Both sides take a comma-separated list — that is the whole point of a
+   sequent, and the right-hand list is what makes this classical. */
+function parseSequent(src){
+  var parts = src.split(/⊢|\|-/);
+  if (parts.length > 2) throw new Error("Only one ⊢ please — antecedents on the left, succedents on the right.");
+  var l = parts.length === 2 ? parts[0] : "", r = parts.length === 2 ? parts[1] : parts[0];
+  function side(s){
+    return s.split(",").map(function(x){ return x.trim(); })
+            .filter(function(x){ return x.length; }).map(parse);
+  }
+  var L = side(l), R = side(r);
+  if (!L.length && !R.length) throw new Error("Nothing to prove — put a formula on one side of the ⊢.");
+  return {L:L, R:R};
+}
+
+/* ═════════════════════════════════════════════ sequents */
+/* Sides are multisets, so duplicates are dropped as they arise. That is
+   contraction, done silently: in this calculus it is admissible, and keeping
+   it implicit is what makes every rule strictly simplify the sequent. */
+function addTo(list, fs){
+  var out = list.slice();
+  fs.forEach(function(f){
+    if (!out.some(function(x){ return eqF(x, f); })) out.push(f);
+  });
+  return out;
+}
+function without(list, i){ return list.slice(0, i).concat(list.slice(i + 1)); }
+function replaceWith(list, i, fs){ return addTo(without(list, i), fs); }
+function seqText(L, R){
+  return L.map(fmtText).join(", ") + " ⊢ " + R.map(fmtText).join(", ");
+}
+
+/* ═════════════════════════════════════════════ the rules */
+/* Every rule is read bottom-up: it takes the sequent at the node and hands
+   back the premises that have to be proved above it. Left and right rules come
+   in pairs, and each one replaces its principal formula by strict subformulas
+   — which is why the search always terminates. */
+var RULES = [
+  {code:"∧L", lbl:"∧L", side:"L", k:"and", law:"A ∧ B on the left splits into A and B — one premise",
+   go:function(n, i, F){ return [{L:replaceWith(n.L, i, [F.a, F.b]), R:n.R}]; }},
+  {code:"∨L", lbl:"∨L", side:"L", k:"or", law:"A ∨ B on the left branches: prove it from A, and again from B",
+   go:function(n, i, F){ return [{L:replaceWith(n.L, i, [F.a]), R:n.R},
+                                 {L:replaceWith(n.L, i, [F.b]), R:n.R}]; }},
+  {code:"⊃L", lbl:"⊃L", side:"L", k:"imp", law:"A ⊃ B on the left branches: give up A on the right, or take B on the left",
+   go:function(n, i, F){ return [{L:without(n.L, i), R:addTo(n.R, [F.a])},
+                                 {L:replaceWith(n.L, i, [F.b]), R:n.R}]; }},
+  {code:"¬L", lbl:"¬L", side:"L", k:"not", law:"¬A on the left sends A to the right",
+   go:function(n, i, F){ return [{L:without(n.L, i), R:addTo(n.R, [F.a])}]; }},
+  {code:"≡L", lbl:"≡L", side:"L", k:"iff", law:"A ≡ B on the left: either both hold, or neither does",
+   go:function(n, i, F){ return [{L:replaceWith(n.L, i, [F.a, F.b]), R:n.R},
+                                 {L:without(n.L, i), R:addTo(n.R, [F.a, F.b])}]; }},
+  {code:"⊤L", lbl:"⊤L", side:"L", k:"top", law:"⊤ on the left tells you nothing — drop it",
+   go:function(n, i){ return [{L:without(n.L, i), R:n.R}]; }},
+
+  {code:"∧R", lbl:"∧R", side:"R", k:"and", law:"A ∧ B on the right branches: prove A, and prove B",
+   go:function(n, i, F){ return [{L:n.L, R:replaceWith(n.R, i, [F.a])},
+                                 {L:n.L, R:replaceWith(n.R, i, [F.b])}]; }},
+  {code:"∨R", lbl:"∨R", side:"R", k:"or", law:"A ∨ B on the right splits into A and B — one premise",
+   go:function(n, i, F){ return [{L:n.L, R:replaceWith(n.R, i, [F.a, F.b])}]; }},
+  {code:"⊃R", lbl:"⊃R", side:"R", k:"imp", law:"A ⊃ B on the right moves A to the left and keeps B",
+   go:function(n, i, F){ return [{L:addTo(n.L, [F.a]), R:replaceWith(n.R, i, [F.b])}]; }},
+  {code:"¬R", lbl:"¬R", side:"R", k:"not", law:"¬A on the right sends A to the left",
+   go:function(n, i, F){ return [{L:addTo(n.L, [F.a]), R:without(n.R, i)}]; }},
+  {code:"≡R", lbl:"≡R", side:"R", k:"iff", law:"A ≡ B on the right: prove each side from the other",
+   go:function(n, i, F){ return [{L:addTo(n.L, [F.a]), R:replaceWith(n.R, i, [F.b])},
+                                 {L:addTo(n.L, [F.b]), R:replaceWith(n.R, i, [F.a])}]; }},
+  {code:"⊥R", lbl:"⊥R", side:"R", k:"bot", law:"⊥ on the right offers nothing — drop it",
+   go:function(n, i){ return [{L:n.L, R:without(n.R, i)}]; }}
+];
+function ruleFor(side, f){
+  return RULES.filter(function(r){ return r.side === side && r.k === f.k; })[0];
+}
+/* the three ways a leaf closes, and the one rule that is never needed */
+var CLOSERS = [
+  {code:"Ax", lbl:"Ax", law:"the same formula stands on both sides — nothing left to prove"},
+  {code:"⊥L", lbl:"⊥L", law:"⊥ among the antecedents: they cannot all hold"},
+  {code:"⊤R", lbl:"⊤R", law:"⊤ among the succedents: one of them holds outright"}
+];
+
+/* ═════════════════════════════════════════════ proof tree */
+function newProof(){ return {nodes:{}, next:1, root:null}; }
+function mk(P, L, R){
+  var id = P.next++;
+  P.nodes[id] = {id:id, L:L, R:R, rule:null, kids:[], pr:null};
+  return id;
+}
+function openLeaves(P, id, out){
+  out = out || [];
+  var n = P.nodes[id];
+  if (n.rule === null){ out.push(id); return out; }
+  n.kids.forEach(function(k){ openLeaves(P, k, out); });
+  return out;
+}
+function allNodes(P, id, out){
+  out = out || [];
+  out.push(id);
+  P.nodes[id].kids.forEach(function(k){ allNodes(P, k, out); });
+  return out;
+}
+function usesRule(P, id, code){
+  var n = P.nodes[id];
+  if (n.rule === code) return true;
+  return n.kids.some(function(k){ return usesRule(P, k, code); });
+}
+function countRules(P, id){
+  var n = P.nodes[id];
+  return (n.rule ? 1 : 0) + n.kids.reduce(function(a, k){ return a + countRules(P, k); }, 0);
+}
+
+/* ── closing and getting stuck ── */
+/* A leaf where the same formula stands on both sides is an axiom. A leaf with
+   nothing but atoms and no formula in common can never be closed — and it hands
+   over a countermodel directly: everything on the left true, everything on the
+   right false. */
+function axiomPair(n){
+  for (var i = 0; i < n.L.length; i++){
+    for (var j = 0; j < n.R.length; j++){
+      if (eqF(n.L[i], n.R[j])) return {i:i, j:j};
+    }
+  }
+  return null;
+}
+function hasBot(n){ return n.L.some(function(f){ return f.k === "bot"; }); }
+function hasTop(n){ return n.R.some(function(f){ return f.k === "top"; }); }
+function canClose(n){ return !!axiomPair(n) || hasBot(n) || hasTop(n); }
+function atomicOnly(n){
+  return n.L.concat(n.R).every(function(f){ return f.k === "atom"; });
+}
+function isStuck(n){ return n.rule === null && atomicOnly(n) && !canClose(n); }
+function countermodel(n){
+  var v = {};
+  S.vars.forEach(function(x){ v[x] = false; });
+  n.L.forEach(function(f){ v[f.n] = true; });
+  return v;
+}
+
+/* ═════════════════════════════════════════════ state */
+var MAXVARS = 8, MAXNODES = 400;
+var S = {seq:null, vars:[], P:null, sel:null, undo:[], phase:"empty"};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var plural = function(n, w, pl){
+  return n + " " + (n === 1 ? w : (pl || w + "s"));
+};
+
+function say(tone, html){
+  var el = $("#status");
+  el.className = "status " + (tone || "");
+  el.querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({P:S.P, sel:S.sel}));
+  if (S.undo.length > 80) S.undo.shift();
+}
+function curNode(){ return S.sel && S.P ? S.P.nodes[S.sel.node] : null; }
+function selFormula(){
+  var n = curNode();
+  if (!n) return null;
+  return (S.sel.side === "L" ? n.L : n.R)[S.sel.i] || null;
+}
+
+/* ═════════════════════════════════════════════ building */
+function build(src){
+  var sq;
+  try { sq = parseSequent(src); }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
+
+  var vars = [];
+  sq.L.concat(sq.R).forEach(function(f){ atomsOf(f, vars); });
+  if (vars.length > MAXVARS){
+    if (LOG_READY) logFormula({f:src, err:"too-many-vars"});
+    say("err", "That sequent uses " + plural(vars.length, "variable") + ", more than this page checks. Try " +
+        MAXVARS + " or fewer.");
+    return;
+  }
+  if (LOG_READY) logFormula({f:src});
+
+  S.seq = sq; S.vars = vars.sort();
+  S.P = newProof();
+  S.P.root = mk(S.P, sq.L.slice(), sq.R.slice());
+  S.sel = null; S.undo = []; S.phase = "work";
+  hideAsk(); hideOut();
+  pickLeaf();
+  say("", "Every rule here reads <b>bottom-up</b>: click a compound formula in an open leaf and the one rule " +
+      "that takes it apart will light up. A branch closes when the same formula stands on both sides — " +
+      "and one that runs out of rules without closing gives you a countermodel.");
+  draw();
+}
+
+/* put the cursor on the first open leaf that still has something to do */
+function pickLeaf(){
+  var P = S.P, o = openLeaves(P, P.root);
+  var live = o.filter(function(id){ return !isStuck(P.nodes[id]); });
+  var id = (live.length ? live : o)[0];
+  if (id === undefined){ S.sel = null; return; }
+  var n = P.nodes[id];
+  var pick = null;
+  ["L", "R"].forEach(function(side){
+    (side === "L" ? n.L : n.R).forEach(function(f, i){
+      if (!pick && f.k !== "atom") pick = {node:id, side:side, i:i};
+    });
+  });
+  S.sel = pick || {node:id, side:n.L.length ? "L" : "R", i:0};
+}
+
+/* ═════════════════════════════════════════════ applying */
+function guard(){
+  if (!S.P) return false;
+  if (S.phase === "done"){ say("", "This proof is finished. Press Restart, or enter another sequent."); return false; }
+  return true;
+}
+
+function applyRule(code){
+  if (!guard()) return;
+  var n = curNode();
+  if (!n){ say("", "Click a formula in an open leaf first."); return; }
+  if (n.rule !== null){ say("", "That sequent already has a rule above it — click a formula in an open leaf."); return; }
+
+  if (code === "Cut"){ startCut(n); return; }
+  if (code === "Ax" || code === "⊥L" || code === "⊤R"){ closeLeaf(code, n); return; }
+
+  var F = selFormula();
+  if (!F){ say("", "Click a formula in an open leaf first."); return; }
+  var want = ruleFor(S.sel.side, F);
+  var r = RULES.filter(function(x){ return x.code === code; })[0];
+  if (!want || want.code !== code){
+    say("err", "<b>" + code + "</b> does not apply to " + fh(F) + " on the " +
+        (S.sel.side === "L" ? "left" : "right") + ". " +
+        (want ? "That formula is taken apart by <b>" + want.code + "</b> — " + want.law + "."
+              : "It is atomic, so no rule takes it apart; this branch closes by <b>Ax</b> or not at all.") );
+    return;
+  }
+
+  var prem = r.go(n, S.sel.i, F);
+  if (allNodes(S.P, S.P.root).length + prem.length > MAXNODES){
+    say("err", "That would push the proof past " + MAXNODES + " sequents, which is more than this page draws. " +
+        "Try a smaller sequent.");
+    return;
+  }
+  snapshot();
+  n.rule = code;
+  n.pr = {side:S.sel.side, f:F};
+  n.kids = prem.map(function(p){ return mk(S.P, p.L, p.R); });
+  pickLeaf();
+  var closed = n.kids.filter(function(k){ return canClose(S.P.nodes[k]); }).length;
+  var stuck = n.kids.filter(function(k){ return isStuck(S.P.nodes[k]); }).length;
+  say("ok", "<b>" + code + "</b> — " + r.law + "." +
+      (prem.length === 2 ? " Two premises now." : "") +
+      (closed ? (closed === 1 ? " One of them is an axiom." : " Both are axioms.") : "") +
+      (stuck ? " <b>" + plural(stuck, "branch", "branches") + " ran out of rules</b> — " +
+        (stuck === 1 ? "that is a countermodel." : "those are countermodels.") : "") +
+      remaining());
+  draw();
+}
+
+function closeLeaf(code, n){
+  var why = null;
+  if (code === "Ax"){
+    var p = axiomPair(n);
+    if (!p) why = "No formula stands on both sides of this sequent, so <b>Ax</b> does not close it.";
+  } else if (code === "⊥L"){
+    if (!hasBot(n)) why = "There is no ⊥ among the antecedents, so <b>⊥L</b> does not close this.";
+  } else {
+    if (!hasTop(n)) why = "There is no ⊤ among the succedents, so <b>⊤R</b> does not close this.";
+  }
+  if (why){
+    if (isStuck(n)) why += " This leaf has nothing but atoms and no formula in common — it can never be closed. " +
+      "That is not a mistake: it is the countermodel.";
+    say("err", why);
+    return;
+  }
+  snapshot();
+  n.rule = code; n.kids = []; n.pr = null;
+  pickLeaf();
+  say("ok", "<b>" + code + "</b> — this branch is closed." + remaining());
+  draw();
+}
+
+function remaining(){
+  var P = S.P, o = openLeaves(P, P.root);
+  var stuck = o.filter(function(id){ return isStuck(P.nodes[id]); }).length;
+  if (!o.length) return " <b>Every branch is closed</b> — press Done.";
+  return " " + plural(o.length, "leaf", "leaves") + " still open" +
+    (stuck ? ", " + stuck + " of them stuck" : "") + ".";
+}
+
+/* ── Cut, the rule Gentzen proved you never need ── */
+function startCut(n){
+  askFormula("<b>Cut</b> lets you prove any formula A and then assume it: one premise with A on the right, " +
+    "one with A on the left. Gentzen's Hauptsatz says you never need it — try the proof without it and see. " +
+    "What should A be?",
+    function(A){
+      snapshot();
+      n.rule = "Cut"; n.pr = null;
+      n.kids = [mk(S.P, n.L.slice(), addTo(n.R, [A])), mk(S.P, addTo(n.L, [A]), n.R.slice())];
+      pickLeaf();
+      say("ok", "<b>Cut</b> on " + fh(A) + " — prove it on the right, then use it on the left." + remaining());
+      draw();
+    });
+}
+function askFormula(prompt, onOk){
+  var a = $("#ask");
+  a.hidden = false;
+  a.innerHTML = "<p>" + prompt + "</p><div class=\"row\">" +
+    '<input type="text" id="askF" spellcheck="false" autocomplete="off" placeholder="a formula">' +
+    '<button type="button" class="sug" id="askGo">OK</button>' +
+    '<button type="button" class="cancel" id="askX">cancel</button></div>';
+  function go(){
+    var f;
+    try { f = parse($("#askF").value); }
+    catch (e){ say("err", e.message); return; }
+    var vars = [];
+    atomsOf(f, vars);
+    if (vars.some(function(v){ return S.vars.indexOf(v) < 0; })){
+      say("err", "That brings in a variable the sequent never mentions. Use only " +
+          S.vars.map(function(v){ return "<i>" + v + "</i>"; }).join(", ") + ".");
+      return;
+    }
+    hideAsk();
+    onOk(f);
+  }
+  $("#askGo").addEventListener("click", go);
+  $("#askX").addEventListener("click", function(){ hideAsk(); draw(); });
+  $("#askF").addEventListener("keydown", function(e){ if (e.key === "Enter"){ e.preventDefault(); go(); } });
+  $("#askF").focus();
+}
+function hideAsk(){ $("#ask").hidden = true; $("#ask").innerHTML = ""; }
+function hideOut(){ $("#out").hidden = true; $("#out").innerHTML = ""; }
+
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo — you are back at the bare sequent."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.P = s.P; S.sel = s.sel; S.phase = "work";
+  hideOut();
+  say("", "Stepped back one rule.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ finishing */
+function done(){
+  if (!S.P) return;
+  var P = S.P, o = openLeaves(P, P.root);
+  var stuck = o.filter(function(id){ return isStuck(P.nodes[id]); });
+  var live = o.filter(function(id){ return !isStuck(P.nodes[id]); });
+
+  if (live.length){
+    S.sel = null; pickLeaf();
+    say("err", "Not finished — " + plural(live.length, "leaf", "leaves") +
+        (live.length === 1 ? " still has" : " still have") + " a rule waiting. " +
+        (stuck.length ? "(" + plural(stuck.length, "other leaf", "other leaves") +
+          (stuck.length === 1 ? " is" : " are") + " already stuck, so this sequent " +
+          "will not come out valid — but finish the search to see the whole countermodel set.)" : ""));
+    draw();
+    return;
+  }
+
+  S.phase = "done"; S.sel = null;
+  var steps = countRules(P, P.root);
+  var h;
+
+  if (!o.length){
+    var cut = usesRule(P, P.root, "Cut");
+    var subs = [];
+    S.seq.L.concat(S.seq.R).forEach(function(f){ subsOf(f, subs); });
+    var stray = [];
+    allNodes(P, P.root).forEach(function(id){
+      var n = P.nodes[id];
+      n.L.concat(n.R).forEach(function(f){
+        if (!subs.some(function(x){ return eqF(x, f); }) &&
+            !stray.some(function(x){ return eqF(x, f); })) stray.push(f);
+      });
+    });
+    h = '<p class="onote"><b>Proved.</b> ' + seqHTML(S.seq.L, S.seq.R) + " is derivable in " +
+        plural(steps, "rule") + ", every branch closing on an axiom. Since the rules are sound, the sequent " +
+        "is valid: there is no valuation making every antecedent true and every succedent false.</p>";
+    h += '<p class="onote">' + (cut
+      ? "This proof uses <code>Cut</code>. Gentzen's <i>Hauptsatz</i> says it never has to — every sequent " +
+        "provable with cut is provable without. Try it again without and the proof will have the subformula " +
+        "property below."
+      : "No <code>Cut</code>, and " + (stray.length
+          ? "yet " + plural(stray.length, "formula") + " appears that is not a subformula of the goal, which " +
+            "should not happen — please report it."
+          : "every formula anywhere in the proof is a subformula of the goal. That is the <b>subformula " +
+            "property</b>: a cut-free proof never invents anything, which is exactly why searching for one " +
+            "terminates.")) + "</p>";
+  } else {
+    var seen = {}, models = [];
+    stuck.forEach(function(id){
+      var v = countermodel(P.nodes[id]);
+      var key = S.vars.map(function(x){ return v[x] ? "1" : "0"; }).join("");
+      if (!seen[key]){ seen[key] = 1; models.push(v); }
+    });
+    var wrong = models.filter(function(v){ return !holds(v); });
+    h = '<p class="onote"><b>Not provable</b> — and the search says why. ' +
+        plural(stuck.length, "branch", "branches") + " ran out of rules without closing" +
+        (models.length < stuck.length ? ", between them giving " + plural(models.length, "distinct valuation") : "") +
+        " that " + (models.length === 1 ? "makes" : "make") + " every antecedent true and every succedent " +
+        "false:</p>";
+    h += '<p class="onote">' + models.map(function(v){ return valText(v); }).join("<br>") + "</p>";
+    h += '<p class="onote">' + (wrong.length === 0
+      ? "All of that checks out against the original sequent. Every rule was reversible — the premises are " +
+        "valid exactly when the conclusion is — so nothing was lost on the way up, and a stuck leaf is a real " +
+        "countermodel rather than a failure of imagination."
+      : plural(wrong.length, "of those does", "of those do") + " not actually refute the sequent, which should " +
+        "not happen — please report it.") +
+      " Searching bottom-up in this calculus always terminates, so failing to find a proof <i>is</i> a " +
+      "decision procedure.</p>";
+  }
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+  say(o.length ? "err" : "ok",
+      o.length ? "<b>No proof exists</b> — " + plural(stuck.length, "countermodel") + " found."
+               : "<b>Proved</b> in " + plural(steps, "rule") + ".");
+  draw();
+}
+/* does a valuation make every antecedent true and every succedent false? */
+function holds(v){
+  return S.seq.L.every(function(f){ return evalF(f, v); }) &&
+         S.seq.R.every(function(f){ return !evalF(f, v); });
+}
+function valText(v){
+  return '<span class="f">' + S.vars.map(function(x){
+    return "<i>" + x + "</i> = " + (v[x] ? "T" : "F");
+  }).join(", ") + "</span>" + (holds(v) ? " ✓" : " ✗");
+}
+
+/* ═════════════════════════════════════════════ drawing */
+function draw(){
+  drawRules();
+  drawTree();
+  $("#doneBtn").disabled = !S.P;
+}
+
+function drawRules(){
+  var F = selFormula(), n = curNode(), open = n && n.rule === null;
+  function btn(r, close){
+    var cls = "rule" + (close ? " close" : "");
+    if (S.P && S.phase !== "done"){
+      var live;
+      if (close) live = !!(open && (r.code === "Ax" ? axiomPair(n) : r.code === "⊥L" ? hasBot(n) : hasTop(n)));
+      else if (r.code === "Cut") live = !!open;
+      else live = !!(open && F && S.sel.side === r.side && F.k === r.k);
+      cls += live ? " armed" : " dim";
+    }
+    return '<button type="button" class="' + cls + '" data-rule="' + r.code + '" title="' + r.law + '">' +
+      r.lbl + "</button>";
+  }
+  $("#leftRules").innerHTML = RULES.filter(function(r){ return r.side === "L"; }).map(function(r){ return btn(r); }).join("");
+  $("#rightRules").innerHTML = RULES.filter(function(r){ return r.side === "R"; }).map(function(r){ return btn(r); }).join("");
+  $("#closeRules").innerHTML = CLOSERS.map(function(r){ return btn(r, true); }).join("") +
+    btn({code:"Cut", lbl:"Cut", law:"prove a formula, then assume it — never necessary, by Gentzen's Hauptsatz"});
+}
+
+function drawTree(){
+  var b = $("#board");
+  if (!S.P){ b.innerHTML = ""; return; }
+  b.innerHTML = renderNode(S.P, S.P.root);
+}
+function renderNode(P, id){
+  var n = P.nodes[id];
+  var kids = n.kids.map(function(k){ return renderNode(P, k); }).join("");
+  var body = '<span class="pn">' +
+    (kids ? '<span class="pn-kids">' + kids + "</span>" : "") +
+    (n.rule ? '<span class="pn-bar"><span class="pn-rule">' + n.rule + "</span></span>" : "") +
+    sequentHTML(P, id) + "</span>";
+  return body;
+}
+function sequentHTML(P, id){
+  var n = P.nodes[id], open = n.rule === null;
+  var isCur = S.sel && S.sel.node === id;
+  var ax = open ? axiomPair(n) : null;
+  var cls = "sq" + (open ? " leaf" : " settled") +
+    (isCur && open ? " cur" : "") +
+    (open && canClose(n) ? " ax" : "") +
+    (open && isStuck(n) ? " stuck" : "");
+  function part(list, side){
+    if (!list.length) return "";   /* an empty side is just blank, as it is written */
+    return list.map(function(f, i){
+      var c = "fm";
+      if (isCur && open && S.sel.side === side && S.sel.i === i) c += " sel";
+      if (ax && ((side === "L" && i === ax.i) || (side === "R" && i === ax.j))) c += " twin";
+      return (i ? '<span class="comma">,</span>' : "") +
+        '<span class="' + c + '" data-node="' + id + '" data-side="' + side + '" data-i="' + i + '">' +
+        fmtHTML(f) + "</span>";
+    }).join("");
+  }
+  var tick = "";
+  if (open && canClose(n)) tick = '<span class="tick ax">closes</span>';
+  else if (open && isStuck(n)) tick = '<span class="tick stuck">stuck</span>';
+  return '<span class="' + cls + '">' + part(n.L, "L") +
+    '<span class="turn">⊢</span>' + part(n.R, "R") + tick + "</span>";
+}
+function seqHTML(L, R){
+  return '<span class="f">' + (L.map(fmtHTML).join(", ") || "") + " ⊢ " + (R.map(fmtHTML).join(", ") || "") + "</span>";
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ wiring */
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-rule],[data-node]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
+  if (t.hasAttribute("data-node")){ pickFormula(+t.dataset.node, t.dataset.side, +t.dataset.i); return; }
+});
+function pickFormula(node, side, i){
+  if (S.phase === "done"){ say("", "This proof is finished. Press Restart to try another route."); return; }
+  var n = S.P.nodes[node];
+  if (n.rule !== null){ say("", "That sequent is already worked on — pick a formula in a leaf, at the top."); return; }
+  S.sel = {node:node, side:side, i:i};
+  var F = selFormula(), r = ruleFor(side, F);
+  if (F.k === "atom"){
+    say("", fh(F) + " is atomic — no rule takes it apart. A leaf closes when some formula stands on " +
+        "<b>both</b> sides." + (canClose(n) ? " This one does: press <b>Ax</b>." :
+          isStuck(n) ? " This one cannot, and that is the countermodel." : ""));
+  } else {
+    say("", "Selected " + fh(F) + " on the " + (side === "L" ? "left" : "right") + " — <b>" + r.code +
+        "</b> is the rule that takes it apart: " + r.law + ".");
+  }
+  draw();
+}
+
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#doneBtn").addEventListener("click", done);
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){
+  /* a restart re-runs the sequent already in the box; not a submission */
+  var was = LOG_READY; LOG_READY = false;
+  build($("#formula").value);
+  LOG_READY = was;
+});
+document.addEventListener("keydown", function(e){
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+});
+
+build($("#formula").value);
+LOG_READY = true;
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

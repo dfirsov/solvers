@@ -3,18 +3,39 @@
 Interactive tools for a logic course. Each takes a formula and works through a
 method step by step, checking every move rather than handing over an answer.
 
-Everything here is propositional so far; predicate and modal tools are planned,
-which is why the set is not named after propositional logic.
+Propositional, with the first predicate tool alongside; modal is planned, which
+is why the set is not named after propositional logic.
 
-| file            | tool                 | method                                     |
-|-----------------|----------------------|--------------------------------------------|
-| `tableaux.html` | Semantic Tableaux    | signed T/F tableaux, α and β rules          |
-| `natded.html`   | Natural Deduction    | Gentzen trees, intro and elim rules         |
-| `sequent.html`  | Sequent Calculus     | cut-free LK, countermodels from stuck leaves|
-| `bdd.html`      | BDD Builder          | Shannon expansion, unordered diagrams       |
-| `robdd.html`    | ROBDD Constructor    | C1/C2/C3 reduction under a fixed order      |
-| `arith.html`    | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
-| `equiv.html`    | Equivalence Checker  | truth tables, counterexamples               |
+| file             | tool                 | method                                     |
+|------------------|----------------------|--------------------------------------------|
+| `tableaux.html`  | Semantic Tableaux    | signed T/F tableaux, α and β rules          |
+| `natded.html`    | Natural Deduction    | Gentzen trees, intro and elim rules         |
+| `sequent.html`   | Sequent Calculus     | cut-free LK, countermodels from stuck leaves|
+| `bdd.html`       | BDD Builder          | Shannon expansion, unordered diagrams       |
+| `robdd.html`     | ROBDD Constructor    | C1/C2/C3 reduction under a fixed order      |
+| `arith.html`     | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
+| `equiv.html`     | Equivalence Checker  | truth tables, counterexamples               |
+| `predicate.html` | Predicate Deduction  | the same trees plus ∀I ∀E ∃I ∃E             |
+
+### What is different about the predicate page
+
+Syntax: a capital is a predicate and a lowercase name is a term, so `P(x)` and
+`R(x,y)` are formulas and `x`, `a` are not. Quantifiers are written `forall x.`
+and `exists x.` (`all`, `some`, `∀`, `∃` also work) and **their scope runs as
+far right as it can** — `forall x. P(x) -> Q(x)` is `∀x(P(x) ⊃ Q(x))`, and the
+other reading needs brackets.
+
+Two things the propositional pages do, this one cannot:
+
+- **It will not tell you a sequent is provable before you prove it.** First-order
+  validity is undecidable. What it does instead is look for a countermodel in a
+  domain of at most three, which settles the question the *other* way: if one
+  turns up, stop, because no proof exists.
+- **A parameter is not a variable you chose.** `∀I` and `∃E` each mint a fresh
+  name — `a`, then `a2`, and so on — and that freshness is the whole eigenvariable
+  condition. Everything already in scope where a parameter is born was written
+  down before it existed, so nothing in scope can mention it. `Done` re-checks
+  each `∀I` and `∃E` against the finished tree rather than trusting the argument.
 
 Every page is a complete HTML document — no build step and no dependencies beyond
 Google Fonts — so the directory can be uploaded as-is, or opened straight from

@@ -1,4 +1,4 @@
-# Logic Solver
+# Logic Solvers
 
 Interactive tools for a logic course. Each takes a formula and works through a
 method step by step, checking every move rather than handing over an answer.

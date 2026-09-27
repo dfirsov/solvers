@@ -177,11 +177,14 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
   flex:1; min-height:0; overflow:auto; margin-bottom:18px;
   padding:26px 22px 30px; background:var(--paper);
   border:1px solid var(--line); border-radius:10px;
-  /* flex-start, or the root sequent stretches to the panel and drags its
-     inference line the whole way with it */
-  display:flex; flex-direction:column; align-items:flex-start;
+  /* Centred both ways. "safe" matters: once a proof is wider or taller than
+     the panel, plain centring pushes the overflow off the top-left where it
+     cannot be scrolled to, and safe centring falls back to start instead.
+     The unprefixed values are the fallback for engines without it. */
+  display:flex; flex-direction:column;
+  align-items:center;      align-items:safe center;
+  justify-content:center;  justify-content:safe center;
 }
-.board > *:first-child{margin-top:auto}
 .pn{display:inline-flex; flex-direction:column; align-items:center; vertical-align:bottom}
 .pn-kids{display:flex; align-items:flex-end; gap:34px}
 .pn-bar{

@@ -49,7 +49,7 @@ body{
 :focus-visible{outline:2px solid var(--accent); outline-offset:3px; border-radius:6px}
 @media (prefers-reduced-motion:reduce){ *{transition-duration:.01ms!important} }
 
-.page{max-width:680px; margin:0 auto; padding-inline:20px; padding-block:56px 64px}
+.page{max-width:1080px; margin:0 auto; padding-inline:24px; padding-block:56px 64px}
 
 .hrow{display:flex; align-items:flex-start; justify-content:space-between; gap:18px}
 header h1{
@@ -61,34 +61,40 @@ header p{
   margin:10px 0 0; font-size:15px; color:var(--ink-2); max-width:54ch;
 }
 
-.list{display:flex; flex-direction:column; gap:10px; margin-top:34px}
+/* squares that reflow as the window changes, so the row length is never
+   baked in — more tools just fill more of the grid */
+.list{
+  display:grid; margin-top:34px; gap:14px;
+  grid-template-columns:repeat(auto-fill, minmax(212px, 1fr));
+}
 .tool{
-  display:flex; align-items:flex-start; gap:16px;
-  padding:16px 18px; border:1px solid var(--line); border-radius:10px;
+  aspect-ratio:1; display:flex; flex-direction:column;
+  padding:18px 18px 16px; border:1px solid var(--line); border-radius:12px;
   background:var(--paper); text-decoration:none; color:inherit;
-  transition:border-color .13s, background .13s, transform .13s;
+  transition:border-color .13s, background .13s, transform .13s, box-shadow .13s;
 }
-.tool:hover{border-color:var(--accent); background:var(--accent-soft); transform:translateY(-1px)}
+.tool:hover{
+  border-color:var(--accent); background:var(--accent-soft);
+  transform:translateY(-2px); box-shadow:0 6px 18px -12px var(--accent);
+}
 .tool .glyph{
-  font-family:var(--serif); font-size:26px; line-height:1; color:var(--accent);
-  flex:none; width:1.2em; text-align:center; padding-top:4px;
+  font-family:var(--serif); font-size:30px; line-height:1; color:var(--accent);
+  display:block; margin-bottom:16px;
 }
-.tool .text{flex:1; min-width:0}
+.tool .text{display:flex; flex-direction:column; flex:1; min-height:0}
 .tool h2{
-  margin:0; font-family:var(--serif); font-weight:500; font-size:19px;
-  letter-spacing:-.01em;
+  margin:0; font-family:var(--serif); font-weight:500; font-size:18.5px;
+  letter-spacing:-.01em; text-wrap:balance;
 }
-.tool p{margin:5px 0 0; font-size:13.5px; color:var(--ink-2)}
+.tool p{margin:6px 0 0; font-size:13px; color:var(--ink-2); text-wrap:pretty}
 .tool .meta{
-  display:block; margin-top:8px;
-  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  /* pinned to the floor so it lines up across a row whatever the description
+     does above it, and never wrapped — a second line would break that line-up */
+  display:block; margin-top:auto; padding-top:11px;
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.08em;
   text-transform:uppercase; color:var(--ink-3);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
 }
-.tool .arrow{
-  font-family:var(--serif); font-size:19px; color:var(--ink-3);
-  flex:none; align-self:center; transition:color .13s, transform .13s;
-}
-.tool:hover .arrow{color:var(--accent); transform:translateX(2px)}
 
 .notation{
   margin-top:34px; padding-top:20px; border-top:1px solid var(--line);
@@ -98,15 +104,22 @@ header p{
   margin:0 0 9px; font-family:var(--mono); font-size:10px;
   letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3); font-weight:500;
 }
-.notation p{margin:0 0 7px}
+.notation p{margin:0 0 7px; max-width:76ch}
 .notation .sym{font-family:var(--serif); font-size:15px; color:var(--ink)}
 .notation code{font-family:var(--mono); font-size:12px; color:var(--ink)}
 
 @media (max-width:560px){
   .page{padding-block:38px 48px}
   header h1{font-size:25px}
-  .tool{gap:12px; padding:14px}
-  .tool .arrow{display:none}
+  /* two to a row is still square and still legible; below that the squares
+     get too small for the title, so let them be short rectangles instead */
+  .list{grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px}
+  .tool{padding:14px; aspect-ratio:auto; min-height:150px}
+  .tool .glyph{font-size:24px; margin-bottom:12px}
+  .tool h2{font-size:16.5px}
+  /* the tiles grow to fit here, so a second line of meta costs nothing and
+     beats trimming it to an ellipsis */
+  .tool .meta{white-space:normal; overflow:visible}
 }
 .theme{
   border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
@@ -133,9 +146,9 @@ header p{
       <h1><span class="mark">⊢</span>Propositional Logic Solvers</h1>
       <button class="theme" id="themeBtn" type="button">◐</button>
     </div>
-    <p>Seven interactive tools for a propositional logic course. Each one takes a
-       formula and works through a method step by step, checking every move rather
-       than just handing over an answer.</p>
+    <p>Interactive tools for a propositional logic course. Each one takes a formula
+       and works through a method step by step, checking every move rather than just
+       handing over an answer.</p>
   </header>
 
   <nav class="list">
@@ -143,94 +156,69 @@ header p{
       <span class="glyph" aria-hidden="true">⊨</span>
       <span class="text">
         <h2>Semantic Tableaux</h2>
-        <p>Test a formula by hunting for a counterexample. Sign the root, click a line,
-           pick the rule its main connective calls for, and close the branches. Every
-           step is validated, and every misstep is explained.</p>
-        <span class="meta">signed T/F tableaux · α and β rules</span>
+        <p>Break a formula down branch by branch, hunting for a counterexample.</p>
+        <span class="meta">signed T/F · α and β rules</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="natded.html">
       <span class="glyph" aria-hidden="true">∴</span>
       <span class="text">
         <h2>Natural Deduction</h2>
-        <p>Grow a proof tree from both ends at once: eliminations run forward out of
-           the assumptions, introductions run backward from the goal, and the proof is
-           finished when the two meet. Discharged assumptions are bracketed and
-           numbered, and the verdict says whether you needed the classical rule.</p>
-        <span class="meta">Gentzen trees · intro and elim rules</span>
+        <p>Grow a proof tree from both ends at once and join them in the middle.</p>
+        <span class="meta">Gentzen trees · intro and elim</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="sequent.html">
       <span class="glyph" aria-hidden="true">⇒</span>
       <span class="text">
         <h2>Sequent Calculus</h2>
-        <p>Gentzen's LK, read bottom-up. Left and right rules come in symmetric pairs,
-           every rule strictly simplifies the sequent, and a branch that runs out of
-           rules without closing hands you a countermodel &mdash; so the search does not
-           just check proofs, it decides validity.</p>
+        <p>Gentzen’s LK, read bottom-up. A branch that gets stuck hands you a countermodel.</p>
         <span class="meta">cut-free LK · countermodels</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="bdd.html">
       <span class="glyph" aria-hidden="true">◇</span>
       <span class="text">
         <h2>BDD Builder</h2>
-        <p>Grow a decision diagram slot by slot, splitting on whichever variable you
-           like at each node and stopping as soon as a branch is constant. Share
-           subgraphs to make it a DAG, reduce it, and find out whether any variable
-           order fits what you built.</p>
-        <span class="meta">Shannon expansion · unordered diagrams</span>
+        <p>Grow a decision diagram slot by slot, splitting on whichever variable you like.</p>
+        <span class="meta">Shannon expansion · unordered</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="robdd.html">
       <span class="glyph" aria-hidden="true">◆</span>
       <span class="text">
         <h2>ROBDD Constructor</h2>
-        <p>Fix a variable order up front, then reduce the full decision tree with C1, C2
-           and C3 until nothing applies. Drag nodes to untangle the diagram, and read the
-           finished ROBDD back out as a formula.</p>
-        <span class="meta">reduction rules · Shannon expansion</span>
+        <p>Fix a variable order, then reduce the decision tree with C1, C2 and C3.</p>
+        <span class="meta">reduction rules · canonical</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="arith.html">
       <span class="glyph" aria-hidden="true">∑</span>
       <span class="text">
         <h2>Arithmetic Encoding</h2>
-        <p>Turn a formula into ordinary arithmetic over 0 and 1 &mdash; negation becomes
-           1 &minus; <i>p</i>, conjunction becomes multiplication &mdash; then simplify it
-           yourself with the ring laws and <i>x</i>&middot;<i>x</i> = <i>x</i>. Every step is
-           checked, and a tautology ends up as the number 1.</p>
-        <span class="meta">Boolean polynomials · unique normal form</span>
+        <p>Turn a formula into a polynomial over 0 and 1, then simplify it yourself.</p>
+        <span class="meta">polynomials · normal form</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
 
     <a class="tool" href="equiv.html">
       <span class="glyph" aria-hidden="true">≡</span>
       <span class="text">
         <h2>Equivalence Checker</h2>
-        <p>Decide whether two formulas denote the same Boolean function. When they do
-           not, it names a valuation where they disagree and marks the rows of the truth
-           table that split them.</p>
+        <p>Do two formulas denote the same function? If not, which valuation splits them?</p>
         <span class="meta">truth tables · counterexamples</span>
       </span>
-      <span class="arrow" aria-hidden="true">→</span>
     </a>
   </nav>
 
   <section class="notation">
     <h3>Notation</h3>
-    <p>All seven read the same syntax:
+    <p>They all read the same syntax:
        <span class="sym">¬ ∧ ∨ ⊃ ≡</span>, with <span class="sym">⊃</span> for implication
        and <span class="sym">≡</span> for the biconditional. Variables are letters.</p>
     <p>If those characters are awkward to type, <code>~ &amp; | -&gt; &lt;-&gt;</code> work

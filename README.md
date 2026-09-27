@@ -1,16 +1,20 @@
-# Propositional Logic Solvers
+# Logic Solver
 
-Five interactive tools for a propositional logic course. Each takes a formula and
-works through a method step by step, checking every move rather than handing over
-an answer.
+Interactive tools for a logic course. Each takes a formula and works through a
+method step by step, checking every move rather than handing over an answer.
 
-| file            | tool                 | method                                   |
-|-----------------|----------------------|------------------------------------------|
-| `tableaux.html` | Semantic Tableaux    | signed T/F tableaux, α and β rules        |
-| `bdd.html`      | BDD Builder          | Shannon expansion, unordered diagrams     |
-| `robdd.html`    | ROBDD Constructor    | C1/C2/C3 reduction under a fixed order    |
-| `arith.html`    | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`|
-| `equiv.html`    | Equivalence Checker  | truth tables, counterexamples             |
+Everything here is propositional so far; predicate and modal tools are planned,
+which is why the set is not named after propositional logic.
+
+| file            | tool                 | method                                     |
+|-----------------|----------------------|--------------------------------------------|
+| `tableaux.html` | Semantic Tableaux    | signed T/F tableaux, α and β rules          |
+| `natded.html`   | Natural Deduction    | Gentzen trees, intro and elim rules         |
+| `sequent.html`  | Sequent Calculus     | cut-free LK, countermodels from stuck leaves|
+| `bdd.html`      | BDD Builder          | Shannon expansion, unordered diagrams       |
+| `robdd.html`    | ROBDD Constructor    | C1/C2/C3 reduction under a fixed order      |
+| `arith.html`    | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
+| `equiv.html`    | Equivalence Checker  | truth tables, counterexamples               |
 
 Every page is a complete HTML document — no build step and no dependencies beyond
 Google Fonts — so the directory can be uploaded as-is, or opened straight from

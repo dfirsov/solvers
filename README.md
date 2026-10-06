@@ -15,27 +15,54 @@ is why the set is not named after propositional logic.
 | `robdd.html`     | ROBDD Constructor    | C1/C2/C3 reduction under a fixed order      |
 | `arith.html`     | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
 | `equiv.html`     | Equivalence Checker  | truth tables, counterexamples               |
-| `predicate.html` | Predicate Deduction  | the same trees plus ∀I ∀E ∃I ∃E             |
+| `predicate.html` | Predicate Deduction  | ∀I ∀E ∃I ∃E, function symbols, Dilemma      |
 
 ### What is different about the predicate page
 
-Syntax: a capital is a predicate and a lowercase name is a term, so `P(x)` and
-`R(x,y)` are formulas and `x`, `a` are not. Quantifiers are written `forall x.`
-and `exists x.` (`all`, `some`, `∀`, `∃` also work) and **their scope runs as
-far right as it can** — `forall x. P(x) -> Q(x)` is `∀x(P(x) ⊃ Q(x))`, and the
-other reading needs brackets.
+**Nothing is decided by the case of a name.** `p(x)` and `P(x)` are both
+predicates; `f(a)` and `F(a)` are both terms. What decides is where the name
+stands: at a formula position it is a predicate, inside a term's brackets it is
+a function symbol, and a bare name is a propositional letter or a constant by
+the same test. So `∀x p(x, f(x))` reads the way it looks, and each name keeps
+one job and one arity throughout — mixing them is reported, not guessed at.
+
+**A quantifier reaches over one unit, and the dot widens it.** `∃x p(x) ∨ ∃x q(x)`
+is two separate scopes, as it is on paper. Church's dot takes the scope to the
+end instead, so `∀x. p(x) ⊃ q(x)` is `∀x (p(x) ⊃ q(x))` while `∀x p(x) ⊃ q(x)`
+is `(∀x p(x)) ⊃ q(x)`. Brackets always decide, and the tree shows you the
+reading immediately. Quantifiers are written `forall`/`exists` or `∀`/`∃`;
+`all` and `some` work too.
+
+**Terms are terms, not just names.** `∀E` and `∃I` take any term you can build
+from the function symbols in play, so `∀x p(x) ⊢ p(f(f(a)))` is one step. A
+brand-new *constant* is accepted as well — a domain is never empty, so naming a
+fresh thing is sound, and `⊢ ∃x (p(x) ⊃ ∀y p(y))` cannot be started without it,
+there being no term in that sequent at all. A brand-new *function symbol* is
+refused, because at that point it is a typo far more often than an intention.
 
 Two things the propositional pages do, this one cannot:
 
 - **It will not tell you a sequent is provable before you prove it.** First-order
   validity is undecidable. What it does instead is look for a countermodel in a
-  domain of at most three, which settles the question the *other* way: if one
-  turns up, stop, because no proof exists.
+  domain of at most three — interpreting every function symbol as well as every
+  predicate — which settles the question the *other* way: if one turns up, stop,
+  because no proof exists.
 - **A parameter is not a variable you chose.** `∀I` and `∃E` each mint a fresh
   name — `a`, then `a2`, and so on — and that freshness is the whole eigenvariable
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Dilemma
+
+Alongside `RAA` there is `Dilemma`: pick any formula *A*, prove the goal once
+with *A* assumed and once with *¬A* assumed, and the goal follows outright. It
+is excluded middle in rule form, so a proof using it is classical and the
+closing note says so.
+
+It is not a convenience. `⊢ ∃x p(x) ∨ ∀x ¬p(x)` splits open the moment you take
+*A* to be `∃x p(x)`, and `⊢ ∃x ¬p(x) ∨ ∀x p(x)` wants it twice over; with `RAA`
+alone both are a slog.
 
 Every page is a complete HTML document — no build step and no dependencies beyond
 Google Fonts — so the directory can be uploaded as-is, or opened straight from

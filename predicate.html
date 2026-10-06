@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Natural deduction for predicate logic: the quantifier rules with their eigenvariable conditions, eliminations running forward and introductions backward until the two halves meet.">
+<meta name="description" content="Natural deduction for predicate logic with function symbols: the quantifier rules with their eigenvariable conditions, the classical Dilemma rule, and proof trees grown from both ends at once.">
 <title>Predicate Natural Deduction</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -102,7 +102,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .padhint code{font-family:var(--mono); font-size:11.5px}
 
 /* ── rule strip ────────────────────────────────────────── */
-.strip{display:flex; align-items:center; gap:8px 18px; flex-wrap:wrap}
+.strip{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap}
 .strip.a{padding-block:2px 7px}
 .strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
 .glabel{
@@ -110,10 +110,10 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
   text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none;
 }
 .glabel i{font-style:normal; color:var(--ink-3); opacity:.7}
-.group{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+.group{display:flex; align-items:center; gap:4px; flex-wrap:wrap}
 .rule{
   font-family:var(--serif); font-size:15px; line-height:1;
-  min-width:34px; padding:6px 7px; border-radius:6px;
+  min-width:32px; padding:6px 5px; border-radius:6px;
   border:1px solid var(--line); background:var(--paper); color:var(--ink);
   transition:background .1s, border-color .1s, opacity .1s;
 }
@@ -121,7 +121,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
 .rule.dim{opacity:.32}
 .rule sub{font-size:.7em}
-.rsep{width:1px; align-self:stretch; min-height:18px; background:var(--line); margin-inline:5px; flex:none}
+.rsep{width:1px; align-self:stretch; min-height:18px; background:var(--line); margin-inline:4px; flex:none}
 .done{
   border:1px solid var(--closed); background:transparent; color:var(--closed);
   border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
@@ -290,7 +290,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
     <button class="theme" id="themeBtn" type="button">◐</button>
     <form id="entry">
       <input type="text" id="formula" spellcheck="false" autocomplete="off"
-             aria-label="Sequent or formula" value="forall x. (P(x) -> Q(x)), exists x. P(x) |- exists x. Q(x)">
+             aria-label="Sequent or formula" value="|- forall x p(x) -> forall x p(f(x))">
       <button type="submit" class="go">Start proof</button>
       <div class="pad" id="pad" role="group" aria-label="Insert a connective">
         <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
@@ -304,7 +304,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
         <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
         <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
         <button type="button" data-sym="⊢" aria-label="Insert turnstile" title="turnstile — also typed as |-">⊢</button>
-        <span class="padhint">capitals are predicates, lowercase are terms — <code>forall x. P(x) -&gt; Q(x)</code></span>
+        <span class="padhint">position decides: <code>p(…)</code> is a predicate, <code>f(…)</code> in the brackets a function. A quantifier reaches over one unit; the dot in <code>forall x.</code> widens it</span>
       </div>
     </form>
   </div>
@@ -361,44 +361,43 @@ function logFormula(data){
 }
 
 /* ═════════════════════════════════════════════ formulas */
-/* First order. A term is a lowercase name; a predicate is an uppercase name
-   with a fixed arity, nullary ones being ordinary propositional letters.
-   Whether a name is a variable or a constant is not spelled — it is decided
-   by whether a quantifier binds it, which is how a logician reads it. */
+/* First order with function symbols. Nothing is decided by the case of a
+   name — `p(x)` and `P(x)` are both predicates, `f(a)` and `F(a)` both terms.
+   What decides is where the name stands: at a formula position it is a
+   predicate, inside a term's brackets it is a function, and a bare name is a
+   propositional letter or a constant by the same test. Whether a term name is
+   a variable or a constant is likewise not spelled: it is a variable exactly
+   when a quantifier binds it, which is how a logician reads it. */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 var QCH = {all:"∀", ex:"∃"};
 
-function tm(n){ return {k:"tm", n:n}; }
+function tm(n, args){ return {k:"tm", n:n, args:args || []}; }
 function pred(n, args){ return {k:"pred", n:n, args:args || []}; }
 
-function show(g, esc, wrap, neg, opw, cst, prd, qnt){
+function show(g, esc, wrap, neg, opw, cst, prd, qnt, trm){
   cst = cst || function(t){ return t; };
-  /* "tail" is: nothing can follow this subformula inside its brackets. A
-     quantifier's scope runs as far right as it can, so it only needs brackets
-     when something *does* follow — ¬∃xP(x) is unambiguous, ¬(∃xP(x))∧Q is not. */
-  function needs(c, pk, left, tail){
+  trm = trm || function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); };
+  function term(t){ return trm(t.n, t.args.map(term), t.args.length === 0); }
+  /* A quantifier reaches over exactly one unit, so it never needs brackets of
+     its own: ∃x p(x) ∨ ∃x q(x) is two scopes, and a wider one shows as the
+     brackets round its body — ∃x (p(x) ∨ q(x)). pk === null is that body. */
+  function needs(c, pk, left){
     if (c.k === "pred" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
-    if (c.k === "all" || c.k === "ex") return pk !== null && !tail;
-    if (pk === "not") return true;
+    if (c.k === "all" || c.k === "ex") return false;
+    if (pk === null || pk === "not") return true;
     if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
     return true;
   }
-  function go(h, pk, left, tail){
-    var w = needs(h, pk, left, tail);
-    var s = body(h, w || tail);      /* inside brackets, the child is at the end again */
-    return w ? wrap(s) : s;
-  }
-  function body(h, tail){
-    if (h.k === "pred") return prd(h.n, h.args.map(function(t){ return t.n; }));
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "pred") return prd(h.n, h.args.map(term));
     if (h.k === "top") return cst("⊤");
     if (h.k === "bot") return cst("⊥");
-    if (h.k === "not") return neg() + go(h.a, "not", false, tail);
-    /* the body of a quantifier is always bracketed unless it is atomic or
-       another quantifier — the scope is the thing students get wrong */
-    if (h.k === "all" || h.k === "ex") return qnt(QCH[h.k], h.v) + go(h.a, null, false, true);
-    return go(h.a, h.k, true, false) + opw(OPCH[h.k]) + go(h.b, h.k, false, tail);
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    if (h.k === "all" || h.k === "ex") return qnt(QCH[h.k], h.v) + go(h.a, null, false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
   }
-  return body(g, true);
+  return body(g);
 }
 function fmtHTML(g){
   return show(g,
@@ -409,25 +408,44 @@ function fmtHTML(g){
     function(t){ return '<span class="cst">' + t + "</span>"; },
     function(n, as){
       return "<b>" + n + "</b>" + (as.length ? '<span class="pr">(</span>' +
-        as.map(function(t){ return "<i>" + t + "</i>"; }).join('<span class="pr">,</span>') +
-        '<span class="pr">)</span>' : "");
+        as.join('<span class="pr">,</span>') + '<span class="pr">)</span>' : "");
     },
-    function(q, v){ return '<span class="qu">' + q + "</span><i>" + v + "</i>"; });
+    /* a space after the bound variable: ∀x p(x) reads back, ∀xp(x) does not */
+    function(q, v){ return '<span class="qu">' + q + "</span><i>" + v + "</i>&thinsp;"; },
+    function(n, as, bare){
+      return bare ? "<i>" + n + "</i>"
+                  : "<i>" + n + "</i>" + '<span class="pr">(</span>' +
+                    as.join('<span class="pr">,</span>') + '<span class="pr">)</span>';
+    });
 }
 function fmtText(g){
   return show(g, null, function(s){ return "(" + s + ")"; },
     function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
     function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); },
-    function(q, v){ return q + v; });
+    function(q, v){ return q + v + " "; },
+    function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); });
+}
+function fmtTerm(t){ return t.n + (t.args.length ? "(" + t.args.map(fmtTerm).join(",") + ")" : ""); }
+function termHTML(t){
+  return "<i>" + t.n + "</i>" + (t.args.length ? '<span class="pr">(</span>' +
+    t.args.map(termHTML).join('<span class="pr">,</span>') + '<span class="pr">)</span>' : "");
 }
 
 /* ── binding ── */
+/* A name is free when no quantifier above it binds it. With function symbols
+   a name can sit any depth down inside a term, so both walks recurse. */
+function freeInT(t, out, bound){
+  if (!t.args.length){
+    if (bound.indexOf(t.n) < 0 && out.indexOf(t.n) < 0) out.push(t.n);
+    return out;
+  }
+  t.args.forEach(function(a){ freeInT(a, out, bound); });
+  return out;
+}
 function freeIn(g, out, bound){
   out = out || []; bound = bound || [];
   if (g.k === "pred"){
-    g.args.forEach(function(t){
-      if (bound.indexOf(t.n) < 0 && out.indexOf(t.n) < 0) out.push(t.n);
-    });
+    g.args.forEach(function(t){ freeInT(t, out, bound); });
     return out;
   }
   if (g.k === "top" || g.k === "bot") return out;
@@ -436,12 +454,15 @@ function freeIn(g, out, bound){
   freeIn(g.a, out, bound); freeIn(g.b, out, bound);
   return out;
 }
+/* every name written anywhere, bound variables and function symbols included */
+function namesInT(t, out){
+  if (out.indexOf(t.n) < 0) out.push(t.n);
+  t.args.forEach(function(a){ namesInT(a, out); });
+  return out;
+}
 function namesIn(g, out){
   out = out || [];
-  if (g.k === "pred"){
-    g.args.forEach(function(t){ if (out.indexOf(t.n) < 0) out.push(t.n); });
-    return out;
-  }
+  if (g.k === "pred"){ g.args.forEach(function(t){ namesInT(t, out); }); return out; }
   if (g.k === "top" || g.k === "bot") return out;
   if (g.k === "not") return namesIn(g.a, out);
   if (g.k === "all" || g.k === "ex"){
@@ -459,33 +480,46 @@ function fresh(avoid, hint){
   }
   return base + "_" + Math.random().toString(36).slice(2, 5);
 }
-/* substitution that renames a binder rather than letting it capture */
-function subst(g, x, t){
-  if (g.k === "pred"){
-    return pred(g.n, g.args.map(function(a){ return a.n === x ? tm(t) : tm(a.n); }));
-  }
-  if (g.k === "top" || g.k === "bot") return g;
-  if (g.k === "not") return {k:"not", a:subst(g.a, x, t)};
-  if (g.k === "all" || g.k === "ex"){
-    if (g.v === x) return g;                       /* shadowed: nothing free to replace */
-    if (g.v === t){                                /* would capture — rename the binder */
-      var v2 = fresh(namesIn(g).concat([t, x]), g.v);
-      return {k:g.k, v:v2, a:subst(subst(g.a, g.v, v2), x, t)};
-    }
-    return {k:g.k, v:g.v, a:subst(g.a, x, t)};
-  }
-  return {k:g.k, a:subst(g.a, x, t), b:subst(g.b, x, t)};
+
+/* ── substitution ── */
+/* Replaces a variable by a whole term, so ∀x p(x) can be instantiated at
+   f(f(a)) and not only at a name. A binder in the way is renamed rather than
+   allowed to capture a variable the incoming term carries. */
+function substT(t, x, s){
+  if (!t.args.length) return t.n === x ? s : t;
+  return tm(t.n, t.args.map(function(a){ return substT(a, x, s); }));
 }
-/* equality up to the names of bound variables */
+function subst(g, x, s){
+  if (g.k === "pred") return pred(g.n, g.args.map(function(t){ return substT(t, x, s); }));
+  if (g.k === "top" || g.k === "bot") return g;
+  if (g.k === "not") return {k:"not", a:subst(g.a, x, s)};
+  if (g.k === "all" || g.k === "ex"){
+    if (g.v === x) return g;                            /* shadowed: nothing free to replace */
+    if (freeInT(s, [], []).indexOf(g.v) >= 0){          /* would capture — rename the binder */
+      var v2 = fresh(namesIn(g).concat(namesInT(s, [])).concat([x]), g.v);
+      return {k:g.k, v:v2, a:subst(subst(g.a, g.v, tm(v2)), x, s)};
+    }
+    return {k:g.k, v:g.v, a:subst(g.a, x, s)};
+  }
+  return {k:g.k, a:subst(g.a, x, s), b:subst(g.b, x, s)};
+}
+
+/* ── equality up to the names of bound variables ── */
+function eqT(a, b, la, lb){
+  if (a.args.length !== b.args.length) return false;
+  if (!a.args.length){
+    var ia = la.indexOf(a.n), ib = lb.indexOf(b.n);
+    return ia < 0 && ib < 0 ? a.n === b.n : ia === ib;
+  }
+  if (a.n !== b.n) return false;
+  return a.args.every(function(t, i){ return eqT(t, b.args[i], la, lb); });
+}
 function eqF(a, b, la, lb){
   la = la || []; lb = lb || [];
   if (a.k !== b.k) return false;
   if (a.k === "pred"){
     if (a.n !== b.n || a.args.length !== b.args.length) return false;
-    return a.args.every(function(t, i){
-      var ia = la.indexOf(t.n), ib = lb.indexOf(b.args[i].n);
-      return ia < 0 && ib < 0 ? t.n === b.args[i].n : ia === ib;
-    });
+    return a.args.every(function(t, i){ return eqT(t, b.args[i], la, lb); });
   }
   if (a.k === "top" || a.k === "bot") return true;
   if (a.k === "not") return eqF(a.a, b.a, la, lb);
@@ -493,17 +527,63 @@ function eqF(a, b, la, lb){
     return eqF(a.a, b.a, [a.v].concat(la), [b.v].concat(lb));
   return eqF(a.a, b.a, la, lb) && eqF(a.b, b.b, la, lb);
 }
+
+/* ── the inverse question: is F the instance A[t/x], and if so at which t? ── */
+/* Enumerating candidate terms is hopeless once there are function symbols —
+   there are infinitely many — so this matches the two formulas against each
+   other instead and reads the witness off wherever x stood. Returns the term,
+   or true when x does not occur and any term would do, or null for no match. */
+function matchInst(A, x, F, la, lb){
+  var found = null, ok = true;
+  function failT(){ ok = false; }
+  function mT(a, b, la, lb){
+    if (!ok) return;
+    if (!a.args.length && a.n === x && la.indexOf(x) < 0){
+      /* b must not use a variable bound inside A, or it could not have come
+         from substituting a term written outside */
+      if (namesInT(b, []).some(function(n){ return lb.indexOf(n) >= 0; })) return failT();
+      if (found === null) found = b;
+      else if (!eqT(found, b, [], [])) return failT();
+      return;
+    }
+    if (a.args.length !== b.args.length) return failT();
+    if (!a.args.length){
+      var ia = la.indexOf(a.n), ib = lb.indexOf(b.n);
+      if (!(ia < 0 && ib < 0 ? a.n === b.n : ia === ib)) return failT();
+      return;
+    }
+    if (a.n !== b.n) return failT();
+    a.args.forEach(function(t, i){ mT(t, b.args[i], la, lb); });
+  }
+  function mF(a, b, la, lb){
+    if (!ok) return;
+    if (a.k !== b.k) return failT();
+    if (a.k === "pred"){
+      if (a.n !== b.n || a.args.length !== b.args.length) return failT();
+      a.args.forEach(function(t, i){ mT(t, b.args[i], la, lb); });
+      return;
+    }
+    if (a.k === "top" || a.k === "bot") return;
+    if (a.k === "not") return mF(a.a, b.a, la, lb);
+    if (a.k === "all" || a.k === "ex")
+      return mF(a.a, b.a, [a.v].concat(la), [b.v].concat(lb));
+    mF(a.a, b.a, la, lb); mF(a.b, b.b, la, lb);
+  }
+  mF(A, F, la || [], lb || []);
+  if (!ok) return null;
+  return found === null ? true : found;
+}
+
 var BOT = {k:"bot"}, TOP = {k:"top"};
 function neg(f){ return {k:"not", a:f}; }
 function imp(a, b){ return {k:"imp", a:a, b:b}; }
-
 /* ═════════════════════════════════════════════ parser */
 var SYMS = [
-  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
-  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
-  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
-  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
-  ["¬","not"], ["~","not"], ["!","not"],
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"], ["==","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"], ["⇒","imp"],
+  ["/\\","and"], ["&&","and"], ["&","and"], ["∧","and"], ["·","and"],
+  ["\\/","or"], ["||","or"], ["|","or"], ["∨","or"], ["+","or"],
+  ["~","not"], ["!","not"], ["¬","not"], ["-","not"],
   ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
   ["∀","all"], ["∃","ex"],
   ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"], [",","comma"], [".","dot"]
@@ -516,15 +596,11 @@ function tokenize(src){
     var c = src[i];
     if (/\s/.test(c)){ i++; continue; }
     if (/[A-Za-z]/.test(c)){
-      /* A capital always starts a predicate, so a lowercase run stops before one:
-         that is what lets ∀xP(x) be read without a separator, rather than as a
-         variable called xP. */
-      var run = /[a-z]/.test(c) ? /[a-z0-9_]/ : /[A-Za-z0-9_]/;
       var j = i + 1;
-      while (j < src.length && run.test(src[j])) j++;
+      while (j < src.length && /[A-Za-z0-9_']/.test(src[j])) j++;
       var w = src.slice(i, j);
       if (WORDS[w]) t.push({t:WORDS[w], v:w, i:i});
-      else t.push({t:/[A-Z]/.test(w[0]) ? "P" : "x", v:w, i:i});
+      else t.push({t:"name", v:w, i:i, end:j});
       i = j; continue;
     }
     for (var k = 0; k < SYMS.length; k++){
@@ -545,33 +621,48 @@ function parse(src){
   function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
   function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
   function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  /* terms: a name, or a name applied to terms. Nothing else can appear here,
+     which is exactly what tells a function symbol from a predicate. */
+  function term(){
+    var n = eat("name");
+    if (!n) throw new Error(peek() === "end"
+      ? "A term is missing — brackets after a name hold terms, as in p(x) or f(a)."
+      : "“" + t[p].v + "” is not a term. A term is a name, or a name applied to terms like f(x).");
+    if (!eat("lp")) return tm(n.v, []);
+    var args = [term()];
+    while (eat("comma")) args.push(term());
+    if (!eat("rp")) throw new Error("The brackets after “" + n.v + "” are never closed.");
+    return tm(n.v, args);
+  }
   function un(){
     if (peek() === "not"){ p++; return {k:"not", a:un()}; }
     if (peek() === "all" || peek() === "ex"){
       var q = t[p++].t;
-      var v = eat("x");
-      if (!v) throw new Error("A quantifier needs a variable after it — a lowercase name, as in ∀x.");
-      eat("dot");
-      /* the scope runs as far right as it can, the usual reading */
-      return {k:q, v:v.v, a:iff()};
+      var v = eat("name");
+      if (!v) throw new Error("A quantifier needs a variable after it — a name, as in ∀x.");
+      /* ∀xp(x) is genuinely ambiguous now that a predicate can be lowercase:
+         the name runs together, so say so rather than guess */
+      if (peek() === "lp" && t[p].i === v.end)
+        throw new Error("“" + v.v + "(” does not say where the variable ends — a predicate can be " +
+          "lowercase too, so this could bind " + v.v[0] + " and apply " + v.v.slice(1) + ", or bind " +
+          v.v + " itself. Put a space or a dot in: ∀" + v.v[0] + " " + v.v.slice(1) + "(…).");
+      /* Church's dot. Without it a quantifier reaches over one unit only, so
+         ∃x p(x) ∨ ∃x q(x) is two separate scopes, which is how the formula is
+         meant to be read. The dot widens the scope to everything that follows,
+         so ∀x. p(x) ⊃ q(x) is ∀x (p(x) ⊃ q(x)). Brackets always decide. */
+      return {k:q, v:v.v, a:eat("dot") ? iff() : un()};
     }
     if (eat("top")) return TOP;
     if (eat("bot")) return BOT;
     if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
-    var a = eat("P");
+    var a = eat("name");
     if (a){
       if (!eat("lp")) return pred(a.v, []);
-      var args = [];
-      do {
-        var x = eat("x");
-        if (!x) throw new Error("“" + a.v + "” takes terms in its brackets — lowercase names like x or a.");
-        args.push(tm(x.v));
-      } while (eat("comma"));
+      var args = [term()];
+      while (eat("comma")) args.push(term());
       if (!eat("rp")) throw new Error("The brackets after “" + a.v + "” are never closed.");
       return pred(a.v, args);
     }
-    if (peek() === "x") throw new Error("“" + t[p].v + "” is a term, not a formula. Predicates start with a " +
-      "capital letter, as in P(" + t[p].v + ").");
     if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
     if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
     throw new Error("Expected a predicate or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
@@ -580,23 +671,65 @@ function parse(src){
   if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
   return f;
 }
-/* every predicate must be used at one arity throughout */
+/* a term on its own, for the ∀E and ∃I prompts */
+function parseTerm(src){
+  var t = tokenize(src), p = 0;
+  function go(){
+    if (t[p].t !== "name") throw new Error("A term is a name, or a name applied to terms like f(x) — not “" +
+      (t[p].v || "nothing") + "”.");
+    var n = t[p++];
+    if (t[p].t !== "lp") return tm(n.v, []);
+    p++;
+    var args = [go()];
+    while (t[p].t === "comma"){ p++; args.push(go()); }
+    if (t[p].t !== "rp") throw new Error("The brackets after “" + n.v + "” are never closed.");
+    p++;
+    return tm(n.v, args);
+  }
+  var r = go();
+  if (t[p].t !== "end") throw new Error("“" + src.trim() + "” is more than one term.");
+  return r;
+}
+
+/* Every name is used in one role at one arity throughout: a predicate stays a
+   predicate, a function stays a function, and neither changes how many
+   arguments it takes. Catching this here is what keeps p(x) and p(x,y) in the
+   same sequent from quietly meaning two different things. */
 function checkArity(fs){
-  var seen = {};
-  function walk(g){
+  var role = {}, ar = {};
+  function fix(n, r, k, where){
+    if (role[n] === undefined){ role[n] = r; ar[n] = k; return; }
+    if (role[n] !== r)
+      throw new Error("“" + n + "” is used as a " + role[n] + " in one place and as a " + r +
+        " in another. Each name has one job: predicates stand where a formula does, " +
+        "function symbols and constants stand inside the brackets.");
+    if (ar[n] !== k)
+      throw new Error("“" + n + "” is used with " + ar[n] + " argument" + (ar[n] === 1 ? "" : "s") +
+        " in one place and " + k + " in another. A " + r + " keeps one arity throughout.");
+  }
+  function walkT(t, bound){
+    if (!t.args.length){
+      if (bound.indexOf(t.n) < 0) fix(t.n, "constant or function symbol", 0);
+      return;
+    }
+    if (bound.indexOf(t.n) >= 0)
+      throw new Error("“" + t.n + "” is a bound variable, so it cannot be applied to arguments.");
+    fix(t.n, "constant or function symbol", t.args.length);
+    t.args.forEach(function(x){ walkT(x, bound); });
+  }
+  function walk(g, bound){
     if (g.k === "pred"){
-      if (seen[g.n] === undefined) seen[g.n] = g.args.length;
-      else if (seen[g.n] !== g.args.length)
-        throw new Error("“" + g.n + "” is used with " + seen[g.n] + " argument" + (seen[g.n] === 1 ? "" : "s") +
-          " in one place and " + g.args.length + " in another. A predicate keeps one arity throughout.");
+      fix(g.n, "predicate", g.args.length);
+      g.args.forEach(function(t){ walkT(t, bound); });
       return;
     }
     if (g.k === "top" || g.k === "bot") return;
-    if (g.k === "not" || g.k === "all" || g.k === "ex") return walk(g.a);
-    walk(g.a); walk(g.b);
+    if (g.k === "not") return walk(g.a, bound);
+    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
+    walk(g.a, bound); walk(g.b, bound);
   }
-  fs.forEach(walk);
-  return seen;
+  fs.forEach(function(f){ walk(f, []); });
+  return {role:role, ar:ar};
 }
 /* "A, B |- C" — premises before the turnstile, or just a formula to prove */
 function parseSequent(src){
@@ -622,23 +755,49 @@ function parseSequent(src){
   checkArity(prems.concat([concl]));
   return {prems:prems, concl:concl};
 }
-
 /* ═════════════════════════════════════════════ small models */
 /* Validity is undecidable here, so nothing can confirm a sequent is provable.
    A countermodel in a small domain is still decisive the other way, and that
    is worth having: it is what turns "I cannot find a proof" into "there is
-   none". Domains up to MAXDOM elements, every interpretation of every
-   predicate tried. */
+   none". Domains up to MAXDOM elements; every interpretation of every
+   predicate and every function symbol is tried, within a budget. */
 var MAXDOM = 3;
+var MAXTRIES = 400000;
 
+function signature(fs){
+  var preds = {}, funcs = {};
+  function walkT(t, bound){
+    if (!t.args.length){ if (bound.indexOf(t.n) < 0) funcs[t.n] = 0; return; }
+    funcs[t.n] = t.args.length;
+    t.args.forEach(function(x){ walkT(x, bound); });
+  }
+  function walk(g, bound){
+    if (g.k === "pred"){
+      preds[g.n] = g.args.length;
+      g.args.forEach(function(t){ walkT(t, bound); });
+      return;
+    }
+    if (g.k === "top" || g.k === "bot") return;
+    if (g.k === "not") return walk(g.a, bound);
+    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
+    walk(g.a, bound); walk(g.b, bound);
+  }
+  fs.forEach(function(f){ walk(f, []); });
+  return {preds:preds, funcs:funcs};
+}
+/* a term's value: look a variable up in the assignment, otherwise apply the
+   function symbol's table to the values of its arguments */
+function evalT(t, M, env){
+  if (!t.args.length && env[t.n] !== undefined) return env[t.n];
+  var idx = 0;
+  for (var i = 0; i < t.args.length; i++) idx = idx * M.n + evalT(t.args[i], M, env);
+  return M.F[t.n][idx];
+}
 function holdsIn(g, M, env){
   switch (g.k){
     case "pred": {
       var idx = 0;
-      for (var i = 0; i < g.args.length; i++){
-        var a = g.args[i];
-        idx = idx * M.n + (env[a.n] !== undefined ? env[a.n] : M.c[a.n]);
-      }
+      for (var i = 0; i < g.args.length; i++) idx = idx * M.n + evalT(g.args[i], M, env);
       return !!M.I[g.n][idx];
     }
     case "top": return true;
@@ -649,63 +808,48 @@ function holdsIn(g, M, env){
     case "imp": return !holdsIn(g.a, M, env) || holdsIn(g.b, M, env);
     case "iff": return holdsIn(g.a, M, env) === holdsIn(g.b, M, env);
     case "all": case "ex": {
-      var any = false, all = true;
+      var want = g.k === "all";
       for (var d = 0; d < M.n; d++){
-        var e2 = {};
-        Object.keys(env).forEach(function(k){ e2[k] = env[k]; });
+        var e2 = {}, k;
+        for (k in env) e2[k] = env[k];
         e2[g.v] = d;
-        var r = holdsIn(g.a, M, e2);
-        any = any || r; all = all && r;
+        if (holdsIn(g.a, M, e2) !== want) return !want;
       }
-      return g.k === "all" ? all : any;
+      return want;
     }
   }
+  return false;
 }
-/* the predicates and the free names a set of formulas mentions */
-function signature(fs){
-  var preds = {}, consts = [];
-  function walk(g, bound){
-    if (g.k === "pred"){
-      preds[g.n] = g.args.length;
-      g.args.forEach(function(t){
-        if (bound.indexOf(t.n) < 0 && consts.indexOf(t.n) < 0) consts.push(t.n);
-      });
-      return;
-    }
-    if (g.k === "top" || g.k === "bot") return;
-    if (g.k === "not") return walk(g.a, bound);
-    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
-    walk(g.a, bound); walk(g.b, bound);
-  }
-  fs.forEach(function(f){ walk(f, []); });
-  return {preds:preds, consts:consts};
-}
+/* Every interpretation is a reading of one counter: each predicate table is a
+   run of bits, each function symbol a run of base-n digits. */
 function smallCountermodel(prems, concl){
   var fs = prems.concat([concl]), sig = signature(fs);
-  var pnames = Object.keys(sig.preds);
+  var pnames = Object.keys(sig.preds), fnames = Object.keys(sig.funcs);
   for (var n = 1; n <= MAXDOM; n++){
-    /* how many bits each predicate's table needs, and each constant's value */
-    var sizes = pnames.map(function(q){ return Math.pow(n, sig.preds[q]); });
-    var bits = sizes.reduce(function(a, b){ return a + b; }, 0);
-    if (bits > 20) break;                       /* 2^20 tables is plenty far */
-    var tables = 1 << bits, worlds = Math.pow(n, sig.consts.length);
-    if (tables * worlds > 400000) break;
-    for (var t = 0; t < tables; t++){
-      var I = {}, at = 0;
-      pnames.forEach(function(q, qi){
-        var arr = [];
-        for (var b = 0; b < sizes[qi]; b++) arr.push((t >> (at + b)) & 1);
-        at += sizes[qi];
-        I[q] = arr;
-      });
-      for (var w = 0; w < worlds; w++){
-        var c = {}, rest = w;
-        sig.consts.forEach(function(nm){ c[nm] = rest % n; rest = Math.floor(rest / n); });
-        var M = {n:n, I:I, c:c, preds:sig.preds, consts:sig.consts};
-        if (prems.every(function(f){ return holdsIn(f, M, {}); }) && !holdsIn(concl, M, {})){
-          return M;
-        }
+    var slots = [];                                  /* {name, kind, size, base} */
+    var total = 1, over = false;
+    pnames.forEach(function(q){
+      var sz = Math.pow(n, sig.preds[q]);
+      slots.push({name:q, kind:"P", size:sz, base:2});
+      total *= Math.pow(2, sz);
+      if (total > MAXTRIES) over = true;
+    });
+    fnames.forEach(function(q){
+      var sz = Math.pow(n, sig.funcs[q]);
+      slots.push({name:q, kind:"F", size:sz, base:n});
+      total *= Math.pow(n, sz);
+      if (total > MAXTRIES) over = true;
+    });
+    if (over) break;
+    for (var c = 0; c < total; c++){
+      var rest = c, I = {}, F = {}, bad = false;
+      for (var si = 0; si < slots.length; si++){
+        var sl = slots[si], arr = [];
+        for (var b = 0; b < sl.size; b++){ arr.push(rest % sl.base); rest = Math.floor(rest / sl.base); }
+        if (sl.kind === "P") I[sl.name] = arr; else F[sl.name] = arr;
       }
+      var M = {n:n, I:I, F:F, preds:sig.preds, funcs:sig.funcs};
+      if (prems.every(function(f){ return holdsIn(f, M, {}); }) && !holdsIn(concl, M, {})) return M;
     }
   }
   return null;
@@ -714,21 +858,34 @@ function modelText(M){
   var dom = [];
   for (var i = 0; i < M.n; i++) dom.push(i + 1);
   var bits = ["a domain of " + M.n + " (" + dom.join(", ") + ")"];
-  M.consts.forEach(function(nm){ bits.push("<i>" + nm + "</i> = " + (M.c[nm] + 1)); });
+  function tuples(ar){
+    var out = [[]];
+    for (var d = 0; d < ar; d++){
+      var next = [];
+      out.forEach(function(t){ for (var v = 0; v < M.n; v++) next.push(t.concat([v])); });
+      out = next;
+    }
+    return out;
+  }
+  Object.keys(M.funcs).forEach(function(q){
+    var ar = M.funcs[q];
+    if (!ar){ bits.push("<i>" + q + "</i> = " + (M.F[q][0] + 1)); return; }
+    bits.push("<i>" + q + "</i> sends " + tuples(ar).map(function(t, idx){
+      return (ar === 1 ? t[0] + 1 : "(" + t.map(function(v){ return v + 1; }).join(",") + ")") +
+             " to " + (M.F[q][idx] + 1);
+    }).join(", "));
+  });
   Object.keys(M.preds).forEach(function(q){
     var ar = M.preds[q], holds = [];
-    for (var idx = 0; idx < M.I[q].length; idx++){
-      if (!M.I[q][idx]) continue;
-      if (!ar){ holds.push("true"); continue; }
-      var tuple = [], rest = idx;
-      for (var d = ar - 1; d >= 0; d--){ tuple[d] = (rest % M.n) + 1; rest = Math.floor(rest / M.n); }
-      holds.push(ar === 1 ? String(tuple[0]) : "(" + tuple.join(",") + ")");
-    }
+    if (!ar){ bits.push("<b>" + q + "</b> is " + (M.I[q][0] ? "true" : "false")); return; }
+    tuples(ar).forEach(function(t, idx){
+      if (!M.I[q][idx]) return;
+      holds.push(ar === 1 ? String(t[0] + 1) : "(" + t.map(function(v){ return v + 1; }).join(",") + ")");
+    });
     bits.push("<b>" + q + "</b> holds of " + (holds.length ? holds.join(", ") : "nothing"));
   });
   return '<span class="f">' + bits.join("; ") + "</span>";
 }
-
 /* ═════════════════════════════════════════════ proof nodes */
 /* Every node carries the formula standing at that point in the tree.
      rule === null   an open goal, still to be proved
@@ -739,6 +896,19 @@ function modelText(M){
    while the goals grow up from the conclusion. */
 function newProof(){ return {nodes:{}, next:1, root:null, nextLab:1, claims:[], frags:[], params:[]}; }
 
+/* A rule inside a fragment may have discharged the very assumption a leaf
+   below it rests on — that one is paid off and is not a dependency. Which
+   labels count depends on the branch: ∨E's and Dilemma's two labels belong to
+   their two cases, not to the derivation of the disjunction they split on. */
+function dischFor(n, i){
+  var all = [];
+  if (n.disch != null) all.push(n.disch);
+  if (n.disch2 != null) all.push(n.disch2);
+  if (n.rule === "∨E" && n.kids.length === 3) return i === 0 ? [] : [all[i - 1]];
+  if (n.rule === "Dilemma" && n.kids.length === 2) return [all[i]];
+  if (n.rule === "∃E" && n.kids.length === 2) return i === 0 ? [] : all;
+  return all;
+}
 /* Which undischarged assumptions a finished fragment leans on. A fragment can
    only be joined to a goal that has all of them in scope — that is the whole
    bookkeeping behind "joinable where". Premises carry no label and are free. */
@@ -749,20 +919,7 @@ function depsOf(P, id, out, disch){
     if (n.lab !== null && disch.indexOf(n.lab) < 0 && out.indexOf(n.lab) < 0) out.push(n.lab);
     return out;
   }
-  /* a rule inside the fragment may have discharged the very assumption a leaf
-     below it rests on — that one is paid off and is not a dependency.
-     ∨E is the awkward one: its two labels belong to the two case branches,
-     not to the derivation of the disjunction itself. */
-  if (n.rule === "∨E" && n.kids.length === 3){
-    depsOf(P, n.kids[0], out, disch);
-    depsOf(P, n.kids[1], out, disch.concat(n.disch != null ? [n.disch] : []));
-    depsOf(P, n.kids[2], out, disch.concat(n.disch2 != null ? [n.disch2] : []));
-    return out;
-  }
-  var d = disch;
-  if (n.disch != null) d = d.concat([n.disch]);
-  if (n.disch2 != null) d = d.concat([n.disch2]);
-  n.kids.forEach(function(k){ depsOf(P, k, out, d); });
+  n.kids.forEach(function(k, i){ depsOf(P, k, out, disch.concat(dischFor(n, i))); });
   return out;
 }
 function joinable(P, fid, g){
@@ -783,16 +940,7 @@ function openAss(P, id, out, disch){
     if (n.lab !== null && disch.indexOf(n.lab) < 0) out.push({lab:n.lab, f:n.f});
     return out;
   }
-  if (n.rule === "∨E" && n.kids.length === 3){
-    openAss(P, n.kids[0], out, disch);
-    openAss(P, n.kids[1], out, disch.concat(n.disch != null ? [n.disch] : []));
-    openAss(P, n.kids[2], out, disch.concat(n.disch2 != null ? [n.disch2] : []));
-    return out;
-  }
-  var d = disch;
-  if (n.disch != null) d = d.concat([n.disch]);
-  if (n.disch2 != null) d = d.concat([n.disch2]);
-  n.kids.forEach(function(k){ openAss(P, k, out, d); });
+  n.kids.forEach(function(k, i){ openAss(P, k, out, disch.concat(dischFor(n, i))); });
   return out;
 }
 
@@ -815,18 +963,79 @@ function scanNames(how){
 }
 /* the names that can stand as a term: free ones, never a bound variable */
 function knownNames(){ return scanNames(function(g, out){ freeIn(g, out); }); }
-/* a new parameter dodges bound names too — legal either way, but ∃a2R(a,a2)
+/* a new parameter dodges bound names too — legal either way, but ∃a2 r(a,a2)
    is easier to read than watching a binder get renamed under you */
 function freshParam(){ return fresh(scanNames(namesIn), "a"); }
 
-/* ∃I forwards: the goal ∃x A says what to abstract, so the witness can be
-   looked for rather than asked about. Only finitely many names are in play. */
+/* the function symbols in play, with their arities, so a typed term can be
+   checked against them rather than against a bare list of names */
+function knownFuncs(){
+  var P = S.P, out = {};
+  function walkT(t, bound){
+    if (bound.indexOf(t.n) < 0) out[t.n] = t.args.length;
+    t.args.forEach(function(x){ walkT(x, bound); });
+  }
+  function walk(g, bound){
+    if (g.k === "pred"){ g.args.forEach(function(t){ walkT(t, bound); }); return; }
+    if (g.k === "top" || g.k === "bot") return;
+    if (g.k === "not") return walk(g.a, bound);
+    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
+    walk(g.a, bound); walk(g.b, bound);
+  }
+  if (P) Object.keys(P.nodes).forEach(function(k){
+    var n = P.nodes[k];
+    walk(n.f, []);
+    (n.ctx || []).forEach(function(e){ walk(e.f, []); });
+  });
+  (P ? P.params : []).forEach(function(p){ if (out[p] === undefined) out[p] = 0; });
+  return out;
+}
+/* A term the student typed must use the function symbols the proof already
+   knows, at the arity it knows them by — a new one would be a typo far more
+   often than an intention. A new *constant* is a different matter and is let
+   through: a domain is never empty, so naming a fresh thing and reasoning
+   about it is sound, and ⊢ ∃x (p(x) ⊃ ∀y p(y)) cannot be started without it,
+   there being no term in that sequent at all. */
+function checkTerm(t){
+  var fn = knownFuncs(), bad = null;
+  (function walk(x){
+    if (bad) return;
+    if (fn[x.n] === undefined){
+      if (x.args.length) bad = "“" + x.n + "” is not a function symbol this proof knows";
+    } else if (fn[x.n] !== x.args.length){
+      bad = "“" + x.n + "” takes " + plural(fn[x.n], "argument") + ", not " + x.args.length;
+    }
+    x.args.forEach(walk);
+  })(t);
+  if (!bad) return null;
+  var fs = Object.keys(fn).filter(function(k){ return fn[k]; }).map(function(k){
+    return "<i>" + k + "</i>(" + new Array(fn[k] + 1).join("·,").slice(0, -1) + ")";
+  });
+  return bad + ". " + (fs.length ? "The symbols in play are " + fs.join(", ") + "."
+                                 : "This sequent has no function symbols.") +
+    " A plain new name is fine — that just gives the thing a name.";
+}
+/* the terms worth offering in a prompt: the names in play, one layer of each
+   function symbol applied to them, and — when the sequent names nothing at
+   all — a fresh constant to get started with */
+function termSuggestions(limit){
+  var fn = knownFuncs(), base = Object.keys(fn).filter(function(k){ return !fn[k]; });
+  var out = base.map(function(b){ return tm(b, []); });
+  Object.keys(fn).forEach(function(k){
+    if (fn[k] !== 1) return;
+    base.forEach(function(b){ out.push(tm(k, [tm(b, [])])); });
+  });
+  if (!out.length) out.push(tm(freshParam(), []));
+  return out.slice(0, limit || 8);
+}
+
+/* ∃I forwards: the goal ∃x A says what to abstract. With function symbols
+   there are infinitely many candidate witnesses, so this matches A against
+   the fact and reads the witness off instead of guessing. */
 function witnessFor(g, f){
-  var cand = knownNames();
-  if (!cand.length) cand = ["a"];
-  for (var i = 0; i < cand.length; i++)
-    if (eqF(subst(g.a, g.v, cand[i]), f)) return cand[i];
-  return null;
+  var w = matchInst(g.a, g.v, f);
+  if (w === null) return null;
+  return w === true ? tm(freeIn(f)[0] || knownNames()[0] || "a", []) : w;
 }
 
 /* a claim that has just been finished stops being a goal and becomes a fact */
@@ -953,7 +1162,7 @@ var RULES = [
    back:function(g){
      if (g.k !== "all") return null;
      var p = freshParam();
-     return [{f:subst(g.a, g.v, p), param:p}];
+     return [{f:subst(g.a, g.v, tm(p, [])), param:p}];
    }},
 
   {code:"∀E", lbl:"∀E", law:"from ∀x A take A with any term you like put for x",
@@ -981,7 +1190,12 @@ var RULES = [
    back:function(g){ return g.k === "top" ? [] : null; }},
 
   {code:"RAA", lbl:"RAA", law:"to prove A, assume ¬A and derive ⊥ — the classical rule",
-   back:function(g){ return [{f:BOT, assume:neg(g)}]; }}
+   back:function(g){ return [{f:BOT, assume:neg(g)}]; }},
+
+  {code:"Dilemma", lbl:"Dilemma",
+   law:"pick any formula A: prove the goal from A, and again from ¬A",
+   back:function(g){ return [{f:g}, {f:g}]; },
+   asksFormula:true}
 ];
 function ruleOf(code){ return RULES.filter(function(r){ return r.code === code; })[0]; }
 
@@ -1023,6 +1237,7 @@ var S = {seq:null, vars:[], P:null, sel:null, pick:[], undo:[], phase:"empty"};
 
 var $ = function(s){ return document.querySelector(s); };
 var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var ft = function(t){ return '<span class="f">' + termHTML(t) + "</span>"; };
 var plural = function(n, w){ return n + " " + w + (n === 1 ? "" : "s"); };
 
 function say(tone, html){
@@ -1141,6 +1356,7 @@ function backward(r, n){
     return;
   }
   if (r.term){ askWitness(r, n); return; }
+  if (r.asksFormula){ askDilemma(r, n); return; }
   snapshot();
   var kids = [];
   subs.forEach(function(sub){
@@ -1152,7 +1368,7 @@ function backward(r, n){
       var lab = P.nextLab++;
       kid.ctx = kid.ctx.concat([{f:sub.assume, lab:lab}]);
       kid.scope = kid.scope.concat([lab]);
-      n.disch = lab;
+      if (n.disch == null) n.disch = lab; else n.disch2 = lab;
     }
     if (sub.param){ n.par = sub.param; P.params.push(sub.param); }
     kids.push(id);
@@ -1232,7 +1448,7 @@ function splitOnExists(n, factId){
   var lab = P.nextLab++;
   var id = mk(P, n.f, null, []);
   var kid = P.nodes[id];
-  kid.ctx = n.ctx.concat([{f:subst(d.a, d.v, p), lab:lab}]);
+  kid.ctx = n.ctx.concat([{f:subst(d.a, d.v, tm(p, [])), lab:lab}]);
   kid.scope = n.scope.concat([lab]);
   n.rule = "∃E"; n.kids = [factId, id]; n.disch = lab; n.par = p;
   n.ctx = null; n.scope = null;
@@ -1297,21 +1513,24 @@ function askTerm(prompt, sugg, onOk){
   a.hidden = false;
   a.innerHTML = "<p>" + prompt + "</p><div class=\"row\">" +
     sugg.map(function(t, i){
-      return '<button type="button" class="sug" data-sug="' + i + '"><i>' + t + "</i></button>";
+      return '<button type="button" class="sug" data-sug="' + i + '"><span class="f">' +
+        termHTML(t) + "</span></button>";
     }).join("") +
-    '<input type="text" id="askF" spellcheck="false" autocomplete="off" placeholder="a term">' +
+    '<input type="text" id="askF" spellcheck="false" autocomplete="off" placeholder="a term, like f(a)">' +
     '<button type="button" class="sug" id="askGo">OK</button>' +
     '<button type="button" class="cancel" id="askX">cancel</button></div>';
-  function take(t){ hideAsk(); onOk(t); }
+  function take(t){
+    var why = checkTerm(t);
+    if (why){ say("err", why); return; }
+    hideAsk(); onOk(t);
+  }
   sugg.forEach(function(t, i){
     a.querySelector('[data-sug="' + i + '"]').addEventListener("click", function(){ take(t); });
   });
   function typed(){
-    var v = $("#askF").value.trim();
-    if (!/^[a-z][a-z0-9_]*$/.test(v)){
-      say("err", "A term is a lowercase name, like <i>x</i> or <i>a</i> — not a formula.");
-      return;
-    }
+    var v;
+    try { v = parseTerm($("#askF").value); }
+    catch (e){ say("err", e.message); return; }
     take(v);
   }
   $("#askGo").addEventListener("click", typed);
@@ -1336,7 +1555,7 @@ function askExists(r, n, fid){
                }
                var w = witnessFor(g, a);
                if (w === null){
-                 say("err", fh(a) + " is not " + fh(g.a) + " with a single name put for <i>" + g.v +
+                 say("err", fh(a) + " is not " + fh(g.a) + " with one term put for <i>" + g.v +
                      "</i>, so ∃I cannot take it to " + fh(g) + ".");
                  askExists(r, n, fid); return;
                }
@@ -1345,7 +1564,7 @@ function askExists(r, n, fid){
                P.nodes[id].par = w;
                P.frags = P.frags.filter(function(y){ return y !== fid; }).concat([id]);
                S.pick = [];
-               say("ok", "<b>∃I</b> with witness <i>" + w + "</i> — " + fh(a) + " gives " + fh(g) + "." +
+               say("ok", "<b>∃I</b> with witness " + ft(w) + " — " + fh(a) + " gives " + fh(g) + "." +
                    (joinable(P, id, n) ? " That matches the goal — click it to join." : ""));
                draw();
              });
@@ -1353,14 +1572,15 @@ function askExists(r, n, fid){
 
 /* ∀E forward: ∀x A holds of everything, so which instance is wanted? */
 function askInstance(r, n, fid){
-  var P = S.P, a = P.nodes[fid].f, sugg = knownNames();
-  /* if the goal is an instance of it, that is almost certainly the one */
-  var want = null;
-  sugg.forEach(function(t){ if (want === null && eqF(subst(a.a, a.v, t), n.f)) want = t; });
-  if (want) sugg = [want].concat(sugg.filter(function(t){ return t !== want; }));
+  var P = S.P, a = P.nodes[fid].f, sugg = termSuggestions();
+  /* if the goal is an instance of it, that is almost certainly the one, and
+     matching reads the term straight off rather than guessing at a list */
+  var want = matchInst(a.a, a.v, n.f);
+  if (want === true) want = null;
+  if (want) sugg = [want].concat(sugg.filter(function(t){ return !eqT(t, want, [], []); }));
   askTerm("<b>∀E</b> takes " + fh(a) + " down to <span class=\"f\">" +
           fmtHTML(a.a) + "</span> with a term for <i>" + a.v +
-          "</i>. Which term?" + (want ? " The goal is the instance at <i>" + want + "</i>." : ""),
+          "</i>. Which term?" + (want ? " The goal is the instance at " + ft(want) + "." : ""),
           sugg,
           function(t){
             snapshot();
@@ -1369,15 +1589,48 @@ function askInstance(r, n, fid){
             P.nodes[id].par = t;
             P.frags = P.frags.filter(function(y){ return y !== fid; }).concat([id]);
             S.pick = [];
-            say("ok", "<b>∀E</b> at <i>" + t + "</i> — " + fh(a) + " gives " + fh(got) + "." +
+            say("ok", "<b>∀E</b> at " + ft(t) + " — " + fh(a) + " gives " + fh(got) + "." +
                 (joinable(P, id, n) ? " That matches the goal — click it to join." : ""));
             draw();
           });
 }
 
+/* Dilemma: the classical case split, with the formula to split on left open.
+   It is the rule that makes ∃x p(x) ∨ ∀x ¬p(x) reachable — split on
+   ∃x p(x) and each half falls out, where RAA alone leaves you flailing. */
+function askDilemma(r, n){
+  var P = S.P, sugg = [];
+  /* a disjunct of the goal is the usual thing to split on */
+  if (n.f.k === "or"){ sugg.push(n.f.a); if (n.f.b.k !== "not") sugg.push(n.f.b); }
+  askFormula("<b>Dilemma</b> proves " + fh(n.f) + " twice over: once with some formula <i>A</i> " +
+             "assumed, once with <i>A</i> denied. Between them the cases are exhaustive, so the " +
+             "goal follows outright. Which <i>A</i>?" + (sugg.length ? " A disjunct of the goal " +
+             "is the usual choice." : ""),
+             sugg,
+             function(A){
+               snapshot();
+               var kids = [A, neg(A)].map(function(h){
+                 var lab = P.nextLab++;
+                 var id = mk(P, n.f, null, []);
+                 P.nodes[id].ctx = n.ctx.concat([{f:h, lab:lab}]);
+                 P.nodes[id].scope = n.scope.concat([lab]);
+                 return id;
+               });
+               n.rule = "Dilemma"; n.kids = kids;
+               n.disch = P.nextLab - 2; n.disch2 = P.nextLab - 1;
+               n.ctx = null; n.scope = null;
+               S.pick = [];
+               S.sel = firstOpenIn(kids) || firstOpen();
+               say("ok", "<b>Dilemma</b> on " + fh(A) + " — prove " + fh(n.f) + " with " + fh(A) +
+                   " assumed (" + n.disch + "), then again with " + fh(neg(A)) + " assumed (" +
+                   n.disch2 + ")." + remaining());
+               draw();
+             });
+}
+
 /* ∃I backward: the goal says what to prove, but not of what */
 function askWitness(r, n){
-  var P = S.P, g = n.f, sugg = knownNames();
+  var P = S.P, g = n.f, sugg = termSuggestions();
   askTerm("<b>∃I</b> proves " + fh(g) + " by proving it of one particular thing. " +
           "Which term should stand in for <i>" + g.v + "</i>?", sugg,
           function(t){
@@ -1387,7 +1640,7 @@ function askWitness(r, n){
             P.nodes[id].scope = n.scope.slice();
             n.rule = "∃I"; n.kids = [id]; n.par = t; n.ctx = null; n.scope = null;
             S.pick = []; S.sel = id;
-            say("ok", "<b>∃I</b> with witness <i>" + t + "</i> — it is enough to prove " +
+            say("ok", "<b>∃I</b> with witness " + ft(t) + " — it is enough to prove " +
                 fh(P.nodes[id].f) + "." + remaining());
             draw();
           });
@@ -1575,7 +1828,10 @@ function done(){
     return;
   }
   S.phase = "done";
-  var classical = usesRule(P, P.root, "RAA");
+  /* Dilemma is excluded middle in rule form, so it is every bit as classical
+     as RAA — a proof using it is not an intuitionistic one. */
+  var cl = ["RAA", "Dilemma"].filter(function(c){ return usesRule(P, P.root, c); });
+  var classical = cl.length > 0;
   var steps = countRules(P, P.root);
   var h = '<p class="onote"><b>Proof complete.</b> ' + seqText() + " is derived in " +
     plural(steps, "rule application") + ". ";
@@ -1583,11 +1839,12 @@ function done(){
   if (qs.length) h += "The quantifier rules used are <code>" + qs.join("</code>, <code>") +
     "</code>, and every eigenvariable condition on them checks out. ";
   h += classical
-    ? "It uses <code>RAA</code>, so this is a <b>classical</b> proof — the law of excluded middle is doing " +
-      "work somewhere. Some sequents need it; if yours does not, try again without RAA and the proof will be " +
+    ? "It uses <code>" + cl.join("</code> and <code>") + "</code>, so this is a <b>classical</b> proof — the " +
+      "law of excluded middle is doing work somewhere. Some sequents need it; if yours does not, try again " +
+      "without " + (cl.length === 1 ? "that rule" : "those rules") + " and the proof will be " +
       "intuitionistically valid too."
-    : "It uses no <code>RAA</code>, so the proof is <b>intuitionistically</b> valid as well as classically — " +
-      "everything was built constructively out of the assumptions.";
+    : "It uses neither <code>RAA</code> nor <code>Dilemma</code>, so the proof is <b>intuitionistically</b> " +
+      "valid as well as classically — everything was built constructively out of the assumptions.";
   h += "</p>";
   $("#out").innerHTML = h;
   $("#out").hidden = false;
@@ -1726,7 +1983,7 @@ function renderNode(P, id){
     return '<span class="pn"><span class="pn-f pn-ass">' + inner + "</span></span>";
   }
   var kids = n.kids.map(function(k){ return renderNode(P, k); }).join("");
-  var tag = n.rule + (n.par ? " " + n.par : "") +
+  var tag = n.rule + (n.par ? " " + (typeof n.par === "string" ? n.par : fmtTerm(n.par)) : "") +
             (n.disch != null ? "," + n.disch + (n.disch2 != null ? "," + n.disch2 : "") : "");
   return '<span class="pn">' +
     (kids ? '<span class="pn-kids">' + kids + "</span>" : "") +

@@ -19,6 +19,7 @@ is why the set is not named after propositional logic.
 | `predseq.html`   | Predicate Sequents   | cut-free LK with ∀L ∀R ∃L ∃R                |
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
 | `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions|
+| `modaltab.html`  | Modal Tableaux       | labelled tableaux, K through S5             |
 
 ### What is different about the predicate page
 
@@ -55,6 +56,39 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Modal tableaux
+
+`modaltab.html` is the propositional tableaux page with worlds. A line is
+either a signed formula *at a world*, `w0: T □p`, or an accessibility atom,
+`w0 R w1`. Writing the relation down rather than hiding it inside the shape of
+the prefixes is the whole point: an open branch then **is** a Kripke structure,
+and the page hands it to `kripke.html` through the link in the verdict.
+
+The modal rules come in two kinds, which is the thing to learn:
+
+- `□T` and `◇F` say *every successor*, so they fire once per arrow and can fire
+  again when a new arrow turns up. They are never finished.
+- `□F` and `◇T` say *some successor*, so they make one new world and are done.
+
+The logic is chosen by switching frame conditions on — the row of `D T 4 B 5`
+toggles — and each has a button that adds the arrows it demands. A branch
+cannot be called open until the conditions are met, because a countermodel has
+to be a frame of the logic. `K4` and `B` are what harjutus 6 asks for; the
+usual names (`K`, `D`, `T`, `S4`, `B`, `S5`) appear automatically when the
+switches match one.
+
+Every structure read off a branch is checked before it is offered: it has to
+satisfy the frame conditions and actually refute the formula. A tool that hands
+you a countermodel should have looked at it first.
+
+**A known limit.** With **transitivity** or **euclideanness** on, the search
+need not terminate: a `◇` demands a fresh world, the closure draws an arrow
+that reaches it, and that wakes the `◇` again. Proofs still close — it is the
+*countermodels* that can run away — and K, D, T, KB and B are unaffected.
+Making S4 and S5 terminate needs a loop check (blocking) that this page does
+not do. Instead it stops at forty worlds and explains what it is looking at:
+the formulas repeating at the last few worlds are the countermodel.
 
 #### Kripke models
 

@@ -1086,6 +1086,16 @@ document.addEventListener("keydown", function(e){
 });
 window.addEventListener("resize", function(){ drawGraph(); });
 
+/* A structure can arrive in the URL — that is how the tableaux page hands
+   over the countermodel it found, so the two tools join up. */
+function fromHash(){
+  var h = "";
+  try { h = decodeURIComponent((location.hash || "").replace(/^#/, "")); } catch (e){ return false; }
+  if (!/^\s*W\s*=/.test(h)) return false;
+  loadModel(h);          /* which reports its own trouble if the text is bad */
+  return true;
+}
+
 /* the structure of harj6 question 1, as a place to start from */
 S.M = newModel(5);
 [[0,1],[0,2],[1,0],[1,3],[2,1],[2,3],[2,4],[3,2]].forEach(function(e){ S.M.R[e[0]][e[1]] = true; });
@@ -1094,6 +1104,12 @@ S.M.V.p = [true, false, true, false, true];
 S.M.V.q = [true, true, false, true, true];
 draw();
 build($("#formula").value);
+if (fromHash()){
+  var was = $("#status .msg").innerHTML;
+  say("ok", was + " Enter the formula it was a countermodel for and press <b>Evaluate</b>.");
+  draw();
+}
+window.addEventListener("hashchange", function(){ if (fromHash()) draw(); });
 LOG_READY = true;
 
 /* ── theme toggle ─────────────────────────────────────── */

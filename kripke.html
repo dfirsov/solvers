@@ -1,0 +1,1048 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A Kripke model lab: draw worlds and accessibility arrows, set the valuation, and watch a modal formula light up world by world, with the frame conditions named as you go.">
+<title>Kripke Models</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --open-soft:#FBEEDA;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1500px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strips ───────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap}
+.strip.a{padding-block:2px 6px}
+.strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none; width:5.6em;
+}
+.group{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+.rule{
+  font-family:var(--serif); font-size:15px; line-height:1;
+  min-width:40px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft); border-color:var(--ink-3)}
+.rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.rule.dim{opacity:.32}
+.rule.close{border-color:var(--closed); color:var(--closed)}
+.rule.close.armed{background:var(--closed); border-color:var(--closed); color:var(--paper)}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the board ─────────────────────────────────────────── */
+.board{
+  flex:1; min-height:0; margin-bottom:18px; display:flex; gap:14px; align-items:stretch;
+}
+.pane{
+  background:var(--paper); border:1px solid var(--line); border-radius:10px;
+  display:flex; flex-direction:column; min-height:0;
+}
+.pane.graph{flex:1.45; min-width:0}
+.pane.side{flex:1; min-width:0; overflow:auto; padding:13px 15px}
+.pane .ph{
+  display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); padding:12px 15px 0;
+}
+.pane.side .ph{padding:0 0 9px}
+.pane.side .ph + .ph{padding-top:16px}
+#svg{flex:1; min-height:0; width:100%; display:block; touch-action:none}
+.hint{font-size:12.5px; color:var(--ink-3); font-style:italic; padding:4px 15px 12px}
+
+/* worlds and arrows */
+.wbox{cursor:pointer}
+.wbox > rect{fill:var(--paper); stroke:var(--line); stroke-width:1.2}
+.wbox:hover > rect{stroke:var(--ink-3)}
+.wbox.sel > rect{stroke:var(--accent); stroke-width:2; fill:var(--accent-soft)}
+.wbox.yes > rect{stroke:var(--closed); fill:var(--closed-soft)}
+.wbox.no > rect{stroke:var(--error); fill:var(--error-soft)}
+.wbox g rect{fill:transparent; stroke:none}
+.wbox .wn{font-family:var(--mono); font-size:11px; fill:var(--ink-2)}
+.wbox.sel .wn{fill:var(--accent)}
+.atom{font-family:var(--serif); font-size:14px; cursor:pointer}
+.atom.on{fill:var(--ink); font-weight:500}
+.atom.off{fill:var(--ink-3); opacity:.45; text-decoration:line-through}
+.edge{fill:none; stroke:var(--ink-2); stroke-width:1.3}
+.edge.hot{stroke:var(--accent); stroke-width:2}
+.verd{font-family:var(--mono); font-size:10px; letter-spacing:.06em}
+.verd.yes{fill:var(--closed)} .verd.no{fill:var(--error)}
+
+/* side panel */
+.chips{display:flex; gap:6px; flex-wrap:wrap}
+.chip2{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+  padding:3px 8px; border-radius:20px; border:1px solid var(--line); color:var(--ink-3);
+  white-space:nowrap; cursor:help;
+}
+.chip2.on{border-color:var(--closed); color:var(--closed); background:var(--closed-soft)}
+.sub{width:100%; border-collapse:collapse; font-size:13px}
+.sub td{padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:baseline}
+.sub tr:last-child td{border-bottom:0}
+.sub td.v{width:1px; text-align:right; font-family:var(--mono); font-size:11px; white-space:nowrap}
+.sub td.v.t{color:var(--closed)} .sub td.v.f{color:var(--error)}
+.sub tr.top td{font-weight:500}
+.note{font-size:12.5px; color:var(--ink-2); margin:0 0 8px}
+.note b{color:var(--ink); font-weight:500}
+.none2{font-size:12.5px; color:var(--ink-3); font-style:italic}
+.srow{display:flex; gap:6px; align-items:center; margin-top:10px}
+.srow input{font-family:var(--mono); font-size:12px; padding:5px 8px; flex:1; min-width:0}
+
+/* ── the ask panel ─────────────────────────────────────── */
+.ask{
+  border:1px solid var(--accent); background:var(--accent-soft);
+  border-radius:9px; padding:11px 13px; margin-bottom:14px;
+}
+.ask p{margin:0 0 9px; font-size:13px}
+.ask .row{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.ask input[type=text]{font-size:14px; padding:6px 10px; flex:1; min-width:140px}
+.ask .sug{
+  font-family:var(--serif); font-size:14.5px; padding:5px 10px; border-radius:6px;
+  border:1px solid var(--accent); background:var(--paper); color:var(--ink);
+}
+.ask .sug:hover{background:var(--accent); color:var(--accent-ink)}
+.ask .cancel{border:0; background:transparent; color:var(--ink-3); text-decoration:underline;
+             text-underline-offset:3px; font-size:12.5px; padding:5px 2px}
+
+/* ── verdict ───────────────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .onote{margin:0; font-size:13px; color:var(--ink-2)}
+.out .onote + .onote{margin-top:9px; border-top:1px solid var(--line); padding-top:9px}
+.out code{font-family:var(--mono); font-size:12px; color:var(--ink)}
+
+@media (max-width:860px){
+  /* side by side, the graph gets too narrow to read; stack it instead */
+  .board{flex-direction:column; min-height:0}
+  .pane.graph{flex:none; height:360px}
+  .pane.side{flex:none; max-height:none; overflow:visible}
+  #app{height:auto; min-height:100%}
+}
+@media (max-width:820px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  .board{min-height:420px}
+  .wordmark{display:none}
+  .glabel{width:auto}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+}
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}
+.f .md{font-family:var(--serif); margin-right:.08em}
+.fml .md{margin-right:.08em}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>◇</span> KRIPKE</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Modal formula" value="[](<>p | q)">
+      <button type="submit" class="go">Evaluate</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="□" aria-label="Insert box" title="necessarily — also typed as []">□</button>
+        <button type="button" data-sym="◇" aria-label="Insert diamond" title="possibly — also typed as &lt;&gt;">◇</button>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint"><code>[]</code> is □ and <code>&lt;&gt;</code> is ◇; a modality binds tighter than ∧ ∨ ⊃ ≡</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip b">
+    <span class="glabel">Structure</span>
+    <div class="group">
+      <button type="button" class="rule" data-act="add" title="Add a world to the structure">+ world</button>
+      <button type="button" class="rule" data-act="del" title="Remove the selected world">− world</button>
+      <button type="button" class="rule" data-act="noedge" title="Remove every arrow">no arrows</button>
+      <button type="button" class="rule" data-act="refl" title="Add an arrow from every world to itself">+ loops</button>
+      <button type="button" class="rule" data-act="close4" title="Add whatever arrows transitivity demands">make transitive</button>
+      <button type="button" class="rule" data-act="closeB" title="Add whatever arrows symmetry demands">make symmetric</button>
+    </div>
+    <span class="glabel">Ask</span>
+    <div class="group">
+      <button type="button" class="rule" data-act="findval" title="Search the valuations for one that makes the formula true at the selected world">find a valuation…</button>
+      <button type="button" class="rule" data-act="frame" title="Is the formula true at every world under every valuation of this frame?">valid on this frame?</button>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="out" id="out" hidden></div>
+
+  <div class="board">
+    <div class="pane graph">
+      <span class="ph">The structure <i id="mdesc"></i></span>
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <span class="hint" id="ghint"></span>
+    </div>
+    <div class="pane side" id="side"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ logging */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
+var LOG_URL = "log.php";
+var LOG_PAGE = "kripke";
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
+
+function logFormula(data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    var body = JSON.stringify([ev]);
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+
+/* ═════════════════════════════════════════════ formulas */
+/* Propositional, plus the two modalities. □ and ◇ bind as tightly as ¬ does,
+   so □p ∧ q is (□p) ∧ q and the other reading needs brackets. */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+var MDCH = {box:"□", dia:"◇"};
+
+function show(g, esc, wrap, neg, opw, cst, mod){
+  cst = cst || function(t){ return t; };
+  mod = mod || function(m){ return m; };
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" ||
+        c.k === "box" || c.k === "dia") return false;
+    if (pk === "not" || pk === "box" || pk === "dia") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    if (h.k === "box" || h.k === "dia") return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; },
+    function(m){ return '<span class="md">' + m + "</span>"; });
+}
+function fmtText(g){
+  return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
+    function(m){ return m; });
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* none */ }
+  else if (g.k === "not" || g.k === "box" || g.k === "dia") atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+function eqF(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "atom") return a.n === b.n;
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not" || a.k === "box" || a.k === "dia") return eqF(a.a, b.a);
+  return eqF(a.a, b.a) && eqF(a.b, b.b);
+}
+/* every subformula, innermost first, which is the order they get evaluated in */
+function subsOf(g, out){
+  out = out || [];
+  if (g.k === "not" || g.k === "box" || g.k === "dia") subsOf(g.a, out);
+  else if (g.k !== "atom" && g.k !== "top" && g.k !== "bot"){ subsOf(g.a, out); subsOf(g.b, out); }
+  if (!out.some(function(x){ return eqF(x, g); })) out.push(g);
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["[]","box"], ["□","box"], ["<>","dia"], ["◇","dia"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], [")","rp"]
+];
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+      t.push({t:"atom", v:src.slice(i, j), i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+function parse(src){
+  if (!src.trim()) throw new Error("Nothing to evaluate — type a formula.");
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (peek() === "box"){ p++; return {k:"box", a:un()}; }
+    if (peek() === "dia"){ p++; return {k:"dia", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter, a modality or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ structures */
+/* A Kripke structure is worlds 0…n−1, a relation as a boolean matrix, and a
+   valuation giving every atom a truth value in every world. */
+function newModel(n){
+  var R = [];
+  for (var i = 0; i < n; i++){ R.push([]); for (var j = 0; j < n; j++) R[i].push(false); }
+  return {n:n, R:R, V:{}};
+}
+function holdsAt(g, M, w){
+  switch (g.k){
+    case "atom": return !!(M.V[g.n] && M.V[g.n][w]);
+    case "top":  return true;
+    case "bot":  return false;
+    case "not":  return !holdsAt(g.a, M, w);
+    case "and":  return holdsAt(g.a, M, w) && holdsAt(g.b, M, w);
+    case "or":   return holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
+    case "imp":  return !holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
+    case "iff":  return holdsAt(g.a, M, w) === holdsAt(g.b, M, w);
+    case "box":
+      for (var u = 0; u < M.n; u++) if (M.R[w][u] && !holdsAt(g.a, M, u)) return false;
+      return true;
+    case "dia":
+      for (var v = 0; v < M.n; v++) if (M.R[w][v] && holdsAt(g.a, M, v)) return true;
+      return false;
+  }
+  return false;
+}
+function succ(M, w){
+  var out = [];
+  for (var u = 0; u < M.n; u++) if (M.R[w][u]) out.push(u);
+  return out;
+}
+var WN = function(i){ return "w" + i; };
+
+/* ── the frame conditions of lecture 10, each with a witness when it fails ── */
+var FRAMES = [
+  {k:"serial", law:"every world has a successor — the axiom D, □A ⊃ ◇A",
+   test:function(M){
+     for (var w = 0; w < M.n; w++) if (!succ(M, w).length) return WN(w) + " has no successor";
+     return null; }},
+  {k:"reflexive", law:"every world sees itself — the axiom T, □A ⊃ A",
+   test:function(M){
+     for (var w = 0; w < M.n; w++) if (!M.R[w][w]) return WN(w) + " does not see itself";
+     return null; }},
+  {k:"transitive", law:"two steps are one — the axiom 4, □A ⊃ □□A",
+   test:function(M){
+     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
+       if (M.R[a][b] && M.R[b][c] && !M.R[a][c])
+         return WN(a) + "→" + WN(b) + "→" + WN(c) + " but not " + WN(a) + "→" + WN(c);
+     return null; }},
+  {k:"symmetric", law:"arrows come in pairs — the axiom B, A ⊃ □◇A",
+   test:function(M){
+     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++)
+       if (M.R[a][b] && !M.R[b][a]) return WN(a) + "→" + WN(b) + " but not back";
+     return null; }},
+  {k:"euclidean", law:"anything seen from one world sees the rest — the axiom 5, ◇A ⊃ □◇A",
+   test:function(M){
+     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
+       if (M.R[a][b] && M.R[a][c] && !M.R[b][c])
+         return WN(a) + "→" + WN(b) + " and " + WN(a) + "→" + WN(c) + " but not " + WN(b) + "→" + WN(c);
+     return null; }}
+];
+/* which of the named logics this frame belongs to */
+function logicsOf(M){
+  var has = {};
+  FRAMES.forEach(function(f){ has[f.k] = f.test(M) === null; });
+  var out = ["K"];
+  if (has.serial) out.push("D");
+  if (has.reflexive) out.push("T");
+  if (has.reflexive && has.transitive) out.push("S4");
+  if (has.reflexive && has.symmetric) out.push("B");
+  if (has.reflexive && has.transitive && has.symmetric) out.push("S5");
+  return out;
+}
+
+/* ── searching the valuations of a fixed frame ── */
+/* 2^(worlds × atoms) of them, which is nothing at the sizes drawn here, and
+   is exactly what "for every valuation" in the exercises means. */
+var MAXBITS = 20;
+function putVal(M, atoms, mask){
+  atoms.forEach(function(a, ai){
+    var row = [];
+    for (var w = 0; w < M.n; w++) row.push(!!(mask & (1 << (ai * M.n + w))));
+    M.V[a] = row;
+  });
+}
+function grabVal(M, atoms){
+  var mask = 0;
+  atoms.forEach(function(a, ai){
+    for (var w = 0; w < M.n; w++) if (M.V[a] && M.V[a][w]) mask |= (1 << (ai * M.n + w));
+  });
+  return mask;
+}
+function searchVals(M, atoms, each){
+  var bits = atoms.length * M.n;
+  if (bits > MAXBITS) return {toobig:bits};
+  var keep = grabVal(M, atoms), total = 1 << bits, hit = null;
+  for (var m = 0; m < total && !hit; m++){
+    putVal(M, atoms, m);
+    if (each(M, m)) hit = m;
+  }
+  putVal(M, atoms, keep);
+  return {hit:hit, total:total};
+}
+
+/* ═════════════════════════════════════════════ state */
+var MAXW = 8, MAXA = 5;
+var S = {f:null, M:newModel(3), atoms:["p"], sel:0, undo:[], msg:""};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var plural = function(n, w, pl){ return n + " " + (n === 1 ? w : (pl || w + "s")); };
+
+function say(tone, html){
+  $("#status").className = "status" + (tone ? " " + tone : "");
+  $("#status").querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({M:S.M, atoms:S.atoms, sel:S.sel}));
+  if (S.undo.length > 120) S.undo.shift();
+}
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.M = s.M; S.atoms = s.atoms; S.sel = s.sel;
+  say("", "Stepped back.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ the formula */
+function build(src){
+  var f;
+  try { f = parse(src); }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
+  if (LOG_READY) logFormula({f:src});
+  S.f = f;
+  atomsOf(f).forEach(function(a){
+    if (S.atoms.indexOf(a) < 0 && S.atoms.length < MAXA){ S.atoms.push(a); S.M.V[a] = null; }
+  });
+  S.atoms.forEach(function(a){
+    if (!S.M.V[a]){ var r = []; for (var w = 0; w < S.M.n; w++) r.push(false); S.M.V[a] = r; }
+  });
+  var yes = [];
+  for (var w = 0; w < S.M.n; w++) if (holdsAt(f, S.M, w)) yes.push(WN(w));
+  say(yes.length ? "ok" : "", fh(f) + " is true " +
+      (yes.length === S.M.n ? "in <b>every</b> world, so the structure satisfies it"
+       : yes.length ? "in " + yes.map(function(x){ return "<b>" + x + "</b>"; }).join(", ")
+       : "in <b>no</b> world") + ". Drag between worlds to change the arrows, click a letter to flip it.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ editing the structure */
+function reshape(n){
+  var M = S.M, old = M.R;
+  var R = [];
+  for (var i = 0; i < n; i++){
+    R.push([]);
+    for (var j = 0; j < n; j++) R[i].push(i < M.n && j < M.n ? old[i][j] : false);
+  }
+  M.R = R; M.n = n;
+  S.atoms.forEach(function(a){
+    var row = M.V[a] || [];
+    while (row.length < n) row.push(false);
+    M.V[a] = row.slice(0, n);
+  });
+  if (S.sel >= n) S.sel = n - 1;
+}
+function act(what){
+  var M = S.M;
+  if (what === "add"){
+    if (M.n >= MAXW){ say("err", "That is as many worlds as this page draws — " + MAXW + "."); return; }
+    snapshot(); reshape(M.n + 1); S.sel = M.n - 1;
+    say("ok", "World <b>" + WN(M.n - 1) + "</b> added, with no arrows and every letter false.");
+  } else if (what === "del"){
+    if (M.n <= 1){ say("err", "A frame needs at least one world."); return; }
+    snapshot();
+    var d = S.sel;
+    M.R.splice(d, 1);
+    M.R.forEach(function(row){ row.splice(d, 1); });
+    S.atoms.forEach(function(a){ M.V[a].splice(d, 1); });
+    M.n--;
+    if (S.sel >= M.n) S.sel = M.n - 1;
+    say("ok", "World removed. The rest keep their arrows, renumbered.");
+  } else if (what === "noedge"){
+    snapshot();
+    for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++) M.R[i][j] = false;
+    say("ok", "Every arrow removed — the frame is now empty, so □A holds everywhere and ◇A nowhere.");
+  } else if (what === "refl"){
+    snapshot();
+    for (var k = 0; k < M.n; k++) M.R[k][k] = true;
+    say("ok", "A loop at every world. The frame is now <b>reflexive</b>, so T (□A ⊃ A) holds on it.");
+  } else if (what === "close4"){
+    snapshot();
+    var added = 0;
+    for (var g = 0; g < M.n; g++)
+      for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
+        if (M.R[a][b] && M.R[b][c] && !M.R[a][c]){ M.R[a][c] = true; added++; }
+    say("ok", added ? plural(added, "arrow") + " added — the frame is now <b>transitive</b>, so 4 (□A ⊃ □□A) holds."
+                    : "Nothing to add: the frame was already transitive.");
+  } else if (what === "closeB"){
+    snapshot();
+    var n2 = 0;
+    for (var x = 0; x < M.n; x++) for (var y = 0; y < M.n; y++)
+      if (M.R[x][y] && !M.R[y][x]){ M.R[y][x] = true; n2++; }
+    say("ok", n2 ? plural(n2, "arrow") + " added — the frame is now <b>symmetric</b>, so B (A ⊃ □◇A) holds."
+                 : "Nothing to add: the frame was already symmetric.");
+  } else if (what === "findval"){ findVal(); return; }
+  else if (what === "frame"){ frameValid(); return; }
+  draw();
+}
+function toggleEdge(a, b){
+  snapshot();
+  S.M.R[a][b] = !S.M.R[a][b];
+  say("ok", (S.M.R[a][b] ? "Arrow " : "Arrow removed: ") + "<b>" + WN(a) + " → " + WN(b) + "</b>" +
+      (a === b ? " — a loop, so " + WN(a) + " is among its own successors." : "."));
+  draw();
+}
+function toggleAtom(w, a){
+  snapshot();
+  S.M.V[a][w] = !S.M.V[a][w];
+  say("ok", "<i>" + a + "</i> is now <b>" + (S.M.V[a][w] ? "true" : "false") + "</b> at " + WN(w) + ".");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ the two questions */
+function findVal(){
+  if (!S.f){ say("err", "Enter a formula first."); return; }
+  var at = atomsOf(S.f);
+  if (!at.length){
+    say(holdsAt(S.f, S.M, S.sel) ? "ok" : "err", fh(S.f) + " has no letters in it, so the valuation " +
+        "cannot matter: it is " + (holdsAt(S.f, S.M, S.sel) ? "true" : "false") + " at " + WN(S.sel) +
+        " on this frame whatever you do.");
+    return;
+  }
+  var w = S.sel;
+  var r = searchVals(S.M, at, function(M){ return holdsAt(S.f, M, w); });
+  if (r.toobig){ say("err", tooBig(r.toobig)); return; }
+  if (r.hit === null){
+    say("err", "<b>No valuation works.</b> Over this frame, " + fh(S.f) + " is false at " + WN(w) +
+        " under all " + r.total + " valuations of " + at.map(function(a){ return "<i>" + a + "</i>"; }).join(", ") +
+        ". So ¬" + fmtText(S.f) + " is valid at " + WN(w) + " on this frame — change the arrows, not the letters.");
+    return;
+  }
+  snapshot();
+  putVal(S.M, at, r.hit);
+  say("ok", "<b>Found one.</b> With this valuation " + fh(S.f) + " is true at " + WN(w) +
+      ". It is the first of " + r.total + " tried; others may work too.");
+  draw();
+}
+function frameValid(){
+  if (!S.f){ say("err", "Enter a formula first."); return; }
+  var at = atomsOf(S.f), bad = null;
+  var r = searchVals(S.M, at, function(M, m){
+    for (var w = 0; w < M.n; w++) if (!holdsAt(S.f, M, w)){ bad = {m:m, w:w}; return true; }
+    return false;
+  });
+  if (r.toobig){ say("err", tooBig(r.toobig)); return; }
+  if (!bad){
+    say("ok", "<b>Valid on this frame.</b> " + fh(S.f) + " is true in every world under every one of the " +
+        r.total + " valuation" + (r.total === 1 ? "" : "s") + " of " +
+        (at.length ? at.map(function(a){ return "<i>" + a + "</i>"; }).join(", ") : "no letters") +
+        ". The frame is " + logicsOf(S.M).join(", ") + ".");
+    return;
+  }
+  /* Validity on a frame is "every world, every valuation", but an exercise
+     often asks only about one world. Both answers are worth having, and the
+     second is the interesting one when the first is no. */
+  var here = null, w0 = S.sel;
+  searchVals(S.M, at, function(M, m){ if (!holdsAt(S.f, M, w0)){ here = m; return true; } return false; });
+  snapshot();
+  putVal(S.M, at, here === null ? bad.m : here);
+  if (here === null){
+    say("", "<b>Not valid on this frame</b> — it fails at " + WN(bad.w) + " under some valuation. But it " +
+        "<b>is</b> true at <b>" + WN(w0) + "</b> under every one of the " + r.total +
+        " valuations, which is what an exercise about one world is asking.");
+  } else {
+    S.sel = bad.w;
+    say("err", "<b>Not valid on this frame.</b> This valuation makes " + fh(S.f) + " false at <b>" +
+        WN(bad.w) + "</b> — it is loaded now, so you can see why in the panel.");
+  }
+  draw();
+}
+function tooBig(bits){
+  return "That is 2<sup>" + bits + "</sup> valuations to try, past what this page will sit through. " +
+    "Use fewer worlds or fewer letters — " + MAXBITS + " bits is the limit.";
+}
+
+/* ═════════════════════════════════════════════ drawing */
+var BW = 76, BH = 50;
+function boxW(){ return Math.max(BW, 22 + 15 * S.atoms.length); }
+function layout(n, W, H){
+  var cx = W / 2, cy = H / 2;
+  if (n === 1) return [{x:cx, y:cy}];
+  var r = Math.max(60, Math.min(W - boxW() - 36, H - BH - 36) / 2);
+  var out = [];
+  for (var i = 0; i < n; i++){
+    var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    out.push({x:cx + r * Math.cos(a), y:cy + r * Math.sin(a)});
+  }
+  return out;
+}
+/* where the straight line from p towards (dx,dy) leaves p's box */
+function rim(p, dx, dy){
+  var w = boxW() / 2 + 4, h = BH / 2 + 4;
+  var sx = dx === 0 ? Infinity : w / Math.abs(dx);
+  var sy = dy === 0 ? Infinity : h / Math.abs(dy);
+  var s = Math.min(sx, sy);
+  return {x:p.x + dx * s, y:p.y + dy * s};
+}
+function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function draw(){
+  drawGraph();
+  drawSide();
+}
+function drawGraph(){
+  var svg = $("#svg"), M = S.M;
+  var W = svg.clientWidth || 520, H = svg.clientHeight || 400;
+  var pos = layout(M.n, W, H), bw = boxW();
+  var hot = S.f ? null : null;
+  var out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" ' +
+    'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/>' +
+    '</marker><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
+    'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker></defs>';
+  /* arrows first, so the boxes sit on top of them */
+  for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++){
+    if (!M.R[a][b]) continue;
+    var live = a === S.sel;
+    var cls = "edge" + (live ? " hot" : ""), mk = live ? "ah2" : "ah";
+    if (a === b){
+      var p = pos[a], top = p.y - BH / 2 - 2;
+      out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + (p.x - 13) + "," + top +
+        " C" + (p.x - 24) + "," + (top - 34) + " " + (p.x + 24) + "," + (top - 34) + " " +
+        (p.x + 11) + "," + top + '"/>';
+      continue;
+    }
+    var pa = pos[a], pb = pos[b];
+    var vx = pb.x - pa.x, vy = pb.y - pa.y, L = Math.sqrt(vx * vx + vy * vy) || 1;
+    var ux = vx / L, uy = vy / L;
+    var bow = M.R[b][a] ? 20 : 0;                /* bow the pair apart when both ways exist */
+    var s = rim(pa, ux, uy), e = rim(pb, -ux, -uy);
+    var mx = (s.x + e.x) / 2 - uy * bow, my = (s.y + e.y) / 2 + ux * bow;
+    out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + s.x + "," + s.y +
+      " Q" + mx + "," + my + " " + e.x + "," + e.y + '"/>';
+  }
+  for (var i = 0; i < M.n; i++){
+    var p = pos[i], val = S.f ? holdsAt(S.f, M, i) : null;
+    var cls2 = "wbox" + (i === S.sel ? " sel" : "") + (val === true ? " yes" : val === false ? " no" : "");
+    out += '<g class="' + cls2 + '" data-w="' + i + '">' +
+      '<rect x="' + (p.x - bw / 2) + '" y="' + (p.y - BH / 2) + '" width="' + bw + '" height="' + BH +
+      '" rx="9"/>' +
+      '<text class="wn" x="' + (p.x - bw / 2 + 8) + '" y="' + (p.y - BH / 2 + 15) + '">' + WN(i) + "</text>";
+    if (val !== null)
+      out += '<text class="verd ' + (val ? "yes" : "no") + '" x="' + (p.x + bw / 2 - 8) + '" y="' +
+        (p.y - BH / 2 + 15) + '" text-anchor="end">' + (val ? "T" : "F") + "</text>";
+    S.atoms.forEach(function(at, ai){
+      var ax = p.x - bw / 2 + 13 + ai * 15, on = !!(M.V[at] && M.V[at][i]);
+      out += '<g data-atom="' + esc(at) + '" data-w="' + i + '">' +
+        '<rect x="' + (ax - 7) + '" y="' + (p.y - 2) + '" width="14" height="19" fill="transparent"/>' +
+        '<text class="atom ' + (on ? "on" : "off") + '" x="' + ax + '" y="' + (p.y + 13) +
+        '" text-anchor="middle">' + esc(at) + "</text></g>";
+    });
+    out += "</g>";
+  }
+  svg.innerHTML = out;
+  $("#mdesc").textContent = "— " + plural(M.n, "world") + ", " +
+    plural(M.R.reduce(function(t, r){ return t + r.filter(Boolean).length; }, 0), "arrow");
+  $("#ghint").innerHTML = "Drag from one world to another to add or remove an arrow — onto itself for a loop. " +
+    "Click a world to inspect it, a letter to flip it.";
+}
+function drawSide(){
+  var M = S.M, h = "", w = S.sel;
+  h += '<span class="ph">Frame conditions</span><div class="chips">';
+  FRAMES.forEach(function(F){
+    var bad = F.test(M);
+    h += '<span class="chip2' + (bad ? "" : " on") + '" title="' + esc(F.law) +
+      (bad ? " — fails: " + esc(bad) : "") + '">' + F.k + "</span>";
+  });
+  h += "</div>";
+  h += '<p class="note" style="margin-top:9px">This frame is a frame of <b>' + logicsOf(M).join(", ") +
+    "</b>. Hover a condition that is off to see which worlds break it.</p>";
+
+  h += '<span class="ph">' + WN(w) + "</span>";
+  var sc = succ(M, w);
+  h += '<p class="note">Sees ' + (sc.length ? sc.map(WN).join(", ") : "<b>nothing</b> — so □A is true here " +
+    "for every A, and ◇A false for every A") + ".</p>";
+
+  if (!S.f){ h += '<p class="none2">Enter a formula to see it evaluated here.</p>'; }
+  else {
+    h += '<span class="ph">Why, at ' + WN(w) + "</span><table class=\"sub\">";
+    var subs = subsOf(S.f);
+    subs.forEach(function(g, i){
+      var v = holdsAt(g, M, w);
+      h += '<tr' + (i === subs.length - 1 ? ' class="top"' : "") + '><td><span class="f">' +
+        fmtHTML(g) + '</span></td><td class="v ' + (v ? "t" : "f") + '">' + (v ? "true" : "false") + "</td></tr>";
+      if (g.k === "box" || g.k === "dia"){
+        var ss = succ(M, w);
+        h += '<tr><td colspan="2" class="none2" style="padding-left:14px">' +
+          (ss.length
+            ? (g.k === "box" ? "every" : "some") + " successor: " + ss.map(function(u){
+                return WN(u) + " " + (holdsAt(g.a, M, u) ? "✓" : "✗"); }).join(", ")
+            : "no successors, so " + (g.k === "box" ? "vacuously true" : "nothing to witness it")) +
+          "</td></tr>";
+      }
+    });
+    h += "</table>";
+  }
+  h += '<span class="ph">This structure, in text</span>' +
+    '<div class="srow"><input type="text" id="mtext" spellcheck="false" autocomplete="off" value="' +
+    esc(modelText()) + '"><button type="button" class="rule" data-act="load">load</button></div>' +
+    '<p class="none2" style="margin-top:6px">Paste a structure here to set it up at once.</p>';
+  $("#side").innerHTML = h;
+}
+/* a compact, pasteable form of the structure */
+function modelText(){
+  var M = S.M, es = [];
+  for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) if (M.R[a][b]) es.push(a + ">" + b);
+  var vs = S.atoms.map(function(at){
+    var ws = [];
+    for (var w = 0; w < M.n; w++) if (M.V[at] && M.V[at][w]) ws.push(w);
+    return at + "=" + ws.join(",");
+  });
+  return "W=" + M.n + "; R=" + es.join(",") + (vs.length ? "; " + vs.join("; ") : "");
+}
+function loadModel(src){
+  try {
+    var parts = src.split(";").map(function(s){ return s.trim(); }).filter(Boolean);
+    var n = null, es = [], vs = {};
+    parts.forEach(function(p){
+      var m = p.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!m) throw new Error("“" + p + "” is not a <i>name</i>=<i>value</i> part.");
+      var key = m[1], val = m[2].trim();
+      if (key === "W"){ n = parseInt(val, 10); if (!(n >= 1 && n <= MAXW)) throw new Error("W must be between 1 and " + MAXW + "."); }
+      else if (key === "R"){
+        val.split(",").map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(e){
+          var q = e.split(">");
+          if (q.length !== 2) throw new Error("“" + e + "” is not an arrow — write it as 0&gt;1.");
+          es.push([parseInt(q[0], 10), parseInt(q[1], 10)]);
+        });
+      } else {
+        vs[key] = val.split(",").map(function(s){ return s.trim(); }).filter(Boolean)
+                     .map(function(s){ return parseInt(s, 10); });
+      }
+    });
+    if (n === null) throw new Error("Say how many worlds, as W=3.");
+    var M = newModel(n);
+    es.forEach(function(e){
+      if (!(e[0] >= 0 && e[0] < n && e[1] >= 0 && e[1] < n))
+        throw new Error("Arrow " + e[0] + "&gt;" + e[1] + " mentions a world outside 0…" + (n - 1) + ".");
+      M.R[e[0]][e[1]] = true;
+    });
+    var atoms = S.atoms.slice();
+    Object.keys(vs).forEach(function(a){ if (atoms.indexOf(a) < 0 && atoms.length < MAXA) atoms.push(a); });
+    atoms.forEach(function(a){
+      var row = [];
+      for (var w = 0; w < n; w++) row.push((vs[a] || []).indexOf(w) >= 0);
+      M.V[a] = row;
+    });
+    snapshot();
+    S.M = M; S.atoms = atoms; S.sel = 0;
+    say("ok", "Structure loaded: " + plural(n, "world") + ", " + plural(es.length, "arrow") + ".");
+    draw();
+  } catch (e){ say("err", e.message); }
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ wiring */
+/* Dragging between worlds edits the relation; a click that did not travel far
+   selects instead. Keeping those apart is what lets one gesture do both. */
+var drag = null;
+function worldUnder(e){
+  var t = e.target.closest ? e.target.closest("[data-w]") : null;
+  return t ? +t.getAttribute("data-w") : null;
+}
+$("#svg").addEventListener("pointerdown", function(e){
+  var atom = e.target.closest("[data-atom]");
+  if (atom){ toggleAtom(+atom.getAttribute("data-w"), atom.getAttribute("data-atom")); e.preventDefault(); return; }
+  var w = worldUnder(e);
+  if (w === null) return;
+  drag = {from:w, x:e.clientX, y:e.clientY};
+  e.preventDefault();
+});
+$("#svg").addEventListener("pointerup", function(e){
+  if (!drag) return;
+  var to = worldUnder(e), from = drag.from;
+  var moved = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6;
+  drag = null;
+  if (to === null) return;
+  if (!moved && to === from){ S.sel = from; say("", "Looking at " + WN(from) + "."); draw(); return; }
+  toggleEdge(from, to);
+});
+$("#svg").addEventListener("pointerleave", function(){ drag = null; });
+
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-act]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.dataset.act === "load"){ loadModel($("#mtext").value); return; }
+  act(t.dataset.act);
+});
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){
+  snapshot();
+  S.M = newModel(3); S.atoms = ["p"]; S.M.V.p = [false, false, false]; S.sel = 0; S.f = null;
+  say("", "Back to three worlds, no arrows, everything false.");
+  draw();
+});
+document.addEventListener("keydown", function(e){
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+});
+window.addEventListener("resize", function(){ drawGraph(); });
+
+/* the structure of harj6 question 1, as a place to start from */
+S.M = newModel(5);
+[[0,1],[0,2],[1,0],[1,3],[2,1],[2,3],[2,4],[3,2]].forEach(function(e){ S.M.R[e[0]][e[1]] = true; });
+S.atoms = ["p", "q"];
+S.M.V.p = [true, false, true, false, true];
+S.M.V.q = [true, true, false, true, true];
+draw();
+build($("#formula").value);
+LOG_READY = true;
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

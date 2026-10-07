@@ -18,6 +18,7 @@ is why the set is not named after propositional logic.
 | `predicate.html` | Predicate Deduction  | ∀I ∀E ∃I ∃E, function symbols, Dilemma      |
 | `predseq.html`   | Predicate Sequents   | cut-free LK with ∀L ∀R ∃L ∃R                |
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
+| `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions|
 
 ### What is different about the predicate page
 
@@ -54,6 +55,36 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Kripke models
+
+`kripke.html` is a laboratory rather than a solver: you build the structure and
+it tells you what is true where. Drag from one world to another to add or
+remove an arrow, drag onto a world for a loop, click a letter to flip it. Every
+world then carries a T or an F for the formula, and the panel shows the whole
+subformula chain at the selected world — including, for each `□` and `◇`, which
+successors made it come out that way. That last line is the "justify" the
+exercises keep asking for.
+
+Alongside it the five frame conditions of lecture 10 — serial, reflexive,
+transitive, symmetric, euclidean — each lit when it holds and naming a
+witnessing triple when it does not, plus which of K, D, T, B, S4, S5 the frame
+belongs to.
+
+Two questions it will answer outright, both by exhausting the valuations of the
+frame you have drawn, which is small enough to be instant at these sizes:
+
+- **find a valuation** making the formula true at the selected world, and load it;
+- **valid on this frame?** — true in every world under every valuation. When the
+  answer is no it also says whether the formula is nonetheless valid at the
+  *selected* world, because that is what an exercise about one world is asking.
+
+The structure has a text form (`W=3; R=0>1,0>2,2>0; p=1,2`) which can be pasted
+in, so a structure given in an exercise takes seconds to set up.
+
+What it deliberately does not do is decide validity in a *logic* — that is
+quantifying over all frames of a class, and belongs to a tableaux tool rather
+than to a model editor.
 
 #### Predicate sequents
 

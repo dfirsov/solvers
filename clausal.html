@@ -1,0 +1,1342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Take a predicate formula to clausal form a step at a time: prenex form by the quantifier laws, the matrix to conjunctive normal form, then skolemisation — which buys equisatisfiability, not equivalence.">
+<title>Clausal Form</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --open-soft:#FBEEDA;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1400px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strip ────────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:8px 14px; flex-wrap:wrap}
+.strip.a{padding-block:2px 7px}
+.strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none;
+}
+.glabel i{font-style:normal; color:var(--ink-3); opacity:.7}
+.group{display:flex; align-items:center; gap:4px; flex-wrap:wrap}
+.rule{
+  font-family:var(--serif); font-size:15px; line-height:1;
+  min-width:32px; padding:6px 5px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft); border-color:var(--ink-3)}
+.rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.rule.dim{opacity:.32}
+.rule sub{font-size:.7em}
+.rsep{width:1px; align-self:stretch; min-height:18px; background:var(--line); margin-inline:4px; flex:none}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the board ─────────────────────────────────────────── */
+.board{
+  flex:1; min-height:0; overflow:auto; margin-bottom:18px; padding:14px 16px 18px;
+  background:var(--paper); border:1px solid var(--line); border-radius:10px;
+}
+
+/* ── the chain of rewrites ─────────────────────────────── */
+.chain{display:table; border-collapse:collapse}
+.step{display:table-row}
+.step > *{display:table-cell; vertical-align:baseline; padding:3px 0}
+.step .con{
+  font-family:var(--serif); font-size:14px; color:var(--ink-3);
+  white-space:nowrap; padding-right:16px; text-align:right; width:1px;
+}
+.step .con.sat{font-family:var(--mono); font-size:10px; letter-spacing:.06em;
+               text-transform:uppercase; color:var(--open)}
+.step .fml{font-family:var(--serif); font-size:17px; white-space:nowrap; padding-right:26px}
+.step .why{
+  font-family:var(--mono); font-size:10.5px; color:var(--ink-3);
+  white-space:nowrap; width:1px; text-align:left;
+}
+.step.live .fml{padding-block:7px}
+.step.live .con{color:var(--accent)}
+
+/* subformula picking, on the live line only */
+.nd{border-radius:4px; padding:1px 0}
+.step.live .nd{cursor:pointer}
+.step.live .nd:hover{background:var(--soft); box-shadow:0 0 0 2px var(--soft)}
+.step.live .nd.sel{background:var(--accent-soft); box-shadow:0 0 0 2px var(--accent-soft)}
+.step.live .nd.sel:hover{background:var(--accent-soft)}
+
+.fml i{font-style:italic}
+.fml .op{margin:0 .26em}
+.fml .op.neg{margin:0 .04em 0 0}
+.fml .pr{color:var(--ink-3)}
+.fml .cst{font-style:normal; color:var(--accent)}
+
+/* ── milestones ────────────────────────────────────────── */
+.miles{display:flex; gap:7px; flex-wrap:wrap; align-items:center; padding-block:0 13px}
+.mile{
+  font-family:var(--mono); font-size:9.5px; letter-spacing:.07em; text-transform:uppercase;
+  padding:3px 8px; border-radius:20px; border:1px solid var(--line); color:var(--ink-3);
+  white-space:nowrap;
+}
+.mile.on{border-color:var(--closed); color:var(--closed); background:var(--closed-soft)}
+.mile .tick{margin-right:4px}
+
+.clauses{margin:10px 0 0; padding:0; list-style:none}
+.clauses li{
+  font-family:var(--serif); font-size:15.5px; padding:3px 0;
+}
+.clauses li .n{font-family:var(--mono); font-size:10px; color:var(--ink-3); margin-right:10px}
+.clauses li .brace{color:var(--ink-3)}
+/* ── the ask panel ─────────────────────────────────────── */
+.ask{
+  border:1px solid var(--accent); background:var(--accent-soft);
+  border-radius:9px; padding:11px 13px; margin-bottom:14px;
+}
+.ask p{margin:0 0 9px; font-size:13px}
+.ask .row{display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+.ask input[type=text]{font-size:14px; padding:6px 10px; flex:1; min-width:140px}
+.ask .sug{
+  font-family:var(--serif); font-size:14.5px; padding:5px 10px; border-radius:6px;
+  border:1px solid var(--accent); background:var(--paper); color:var(--ink);
+}
+.ask .sug:hover{background:var(--accent); color:var(--accent-ink)}
+.ask .sug:hover i{color:var(--accent-ink)}
+.ask .cancel{border:0; background:transparent; color:var(--ink-3); text-decoration:underline;
+             text-underline-offset:3px; font-size:12.5px; padding:5px 2px}
+
+/* ── verdict ───────────────────────────────────────────── */
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:9px; padding:13px 15px; margin-bottom:14px;
+}
+.out .onote{margin:0; font-size:13px; color:var(--ink-2)}
+.out .onote code{font-family:var(--mono); font-size:12px; color:var(--ink)}
+
+@media (max-width:980px){
+  #app{height:auto; min-height:100%; padding-inline:16px}
+  /* the law each step used is the first thing to go when space is short —
+     the formulas are what has to stay readable */
+  .step .why{display:none}
+  .step .fml{padding-right:0}
+  .board{min-height:420px}
+  .wordmark{display:none}
+  .pad button{min-width:34px; padding:6px 7px; font-size:16px}
+  .padhint{flex-basis:100%; margin:2px 0 0}
+}
+.theme{
+  border:1px solid var(--line); background:var(--paper); color:var(--ink-2);
+  border-radius:6px; padding:3px 9px; font-size:14px; line-height:1.35;
+  cursor:pointer; flex:none;
+}
+.theme:hover{border-color:var(--accent); color:var(--accent)}</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>⋀</span> CLAUSAL</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="Formula" value="~(p(x) & ~forall x ~forall y q(f(x), y))">
+      <button type="submit" class="go">Start</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp; or /\">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as | or \/">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;, =&gt; or →">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;, &lt;=&gt; or ↔">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="∀" aria-label="Insert universal quantifier" title="for all — also typed as forall or all">∀</button>
+        <button type="button" data-sym="∃" aria-label="Insert existential quantifier" title="there exists — also typed as exists or some">∃</button>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint">position decides: <code>p(…)</code> is a predicate, <code>f(…)</code> in the brackets a function. A quantifier reaches over one unit; the dot in <code>forall x.</code> widens it</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip b">
+    <span class="glabel" title="Each rule rewrites the part of the formula you have selected">Rules
+      <i>on the selected part</i></span>
+    <div class="group" id="rules"></div>
+    <button class="done" id="doneBtn">Done</button>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="miles" id="miles"></div>
+  <div class="out" id="out" hidden></div>
+  <div class="board" id="board"></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ logging */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
+var LOG_URL = "log.php";
+var LOG_PAGE = "clausal";
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
+
+function logFormula(data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    var body = JSON.stringify([ev]);
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+
+/* ═════════════════════════════════════════════ formulas */
+/* First order with function symbols. Nothing is decided by the case of a
+   name — `p(x)` and `P(x)` are both predicates, `f(a)` and `F(a)` both terms.
+   What decides is where the name stands: at a formula position it is a
+   predicate, inside a term's brackets it is a function, and a bare name is a
+   propositional letter or a constant by the same test. Whether a term name is
+   a variable or a constant is likewise not spelled: it is a variable exactly
+   when a quantifier binds it, which is how a logician reads it. */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+var QCH = {all:"∀", ex:"∃"};
+
+function tm(n, args){ return {k:"tm", n:n, args:args || []}; }
+function pred(n, args){ return {k:"pred", n:n, args:args || []}; }
+
+function show(g, esc, wrap, neg, opw, cst, prd, qnt, trm, nodeW){
+  cst = cst || function(t){ return t; };
+  trm = trm || function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); };
+  function term(t){ return trm(t.n, t.args.map(term), t.args.length === 0); }
+  /* A quantifier reaches over exactly one unit, so it never needs brackets of
+     its own: ∃x p(x) ∨ ∃x q(x) is two scopes, and a wider one shows as the
+     brackets round its body — ∃x (p(x) ∨ q(x)). pk === null is that body. */
+  function needs(c, pk, left){
+    if (c.k === "pred" || c.k === "not" || c.k === "top" || c.k === "bot") return false;
+    if (c.k === "all" || c.k === "ex") return false;
+    if (pk === null || pk === "not") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  /* nodeW, when given, wraps each subformula with its path from the root —
+     that is what makes a subformula clickable. */
+  function go(h, pk, left, path){
+    var s = body(h, path);
+    if (needs(h, pk, left)) s = wrap(s);
+    return nodeW ? nodeW(s, path, h) : s;
+  }
+  function body(h, path){
+    if (h.k === "pred") return prd(h.n, h.args.map(term));
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false, path.concat("a"));
+    if (h.k === "all" || h.k === "ex") return qnt(QCH[h.k], h.v) + go(h.a, null, false, path.concat("a"));
+    return go(h.a, h.k, true, path.concat("a")) + opw(OPCH[h.k]) +
+           go(h.b, h.k, false, path.concat("b"));
+  }
+  var root = body(g, []);
+  return nodeW ? nodeW(root, [], g) : root;
+}
+function fmtHTML(g){
+  return show(g,
+    null,
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; },
+    function(n, as){
+      return "<b>" + n + "</b>" + (as.length ? '<span class="pr">(</span>' +
+        as.join('<span class="pr">,</span>') + '<span class="pr">)</span>' : "");
+    },
+    /* a space after the bound variable: ∀x p(x) reads back, ∀xp(x) does not */
+    function(q, v){ return '<span class="qu">' + q + "</span><i>" + v + "</i>&thinsp;"; },
+    function(n, as, bare){
+      return bare ? "<i>" + n + "</i>"
+                  : "<i>" + n + "</i>" + '<span class="pr">(</span>' +
+                    as.join('<span class="pr">,</span>') + '<span class="pr">)</span>';
+    });
+}
+function fmtText(g){
+  return show(g, null, function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
+    function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); },
+    function(q, v){ return q + v + " "; },
+    function(n, as){ return n + (as.length ? "(" + as.join(",") + ")" : ""); });
+}
+function fmtTerm(t){ return t.n + (t.args.length ? "(" + t.args.map(fmtTerm).join(",") + ")" : ""); }
+function termHTML(t){
+  return "<i>" + t.n + "</i>" + (t.args.length ? '<span class="pr">(</span>' +
+    t.args.map(termHTML).join('<span class="pr">,</span>') + '<span class="pr">)</span>' : "");
+}
+
+/* ── binding ── */
+/* A name is free when no quantifier above it binds it. With function symbols
+   a name can sit any depth down inside a term, so both walks recurse. */
+function freeInT(t, out, bound){
+  if (!t.args.length){
+    if (bound.indexOf(t.n) < 0 && out.indexOf(t.n) < 0) out.push(t.n);
+    return out;
+  }
+  t.args.forEach(function(a){ freeInT(a, out, bound); });
+  return out;
+}
+function freeIn(g, out, bound){
+  out = out || []; bound = bound || [];
+  if (g.k === "pred"){
+    g.args.forEach(function(t){ freeInT(t, out, bound); });
+    return out;
+  }
+  if (g.k === "top" || g.k === "bot") return out;
+  if (g.k === "not") return freeIn(g.a, out, bound);
+  if (g.k === "all" || g.k === "ex") return freeIn(g.a, out, bound.concat([g.v]));
+  freeIn(g.a, out, bound); freeIn(g.b, out, bound);
+  return out;
+}
+/* every name written anywhere, bound variables and function symbols included */
+function namesInT(t, out){
+  if (out.indexOf(t.n) < 0) out.push(t.n);
+  t.args.forEach(function(a){ namesInT(a, out); });
+  return out;
+}
+function namesIn(g, out){
+  out = out || [];
+  if (g.k === "pred"){ g.args.forEach(function(t){ namesInT(t, out); }); return out; }
+  if (g.k === "top" || g.k === "bot") return out;
+  if (g.k === "not") return namesIn(g.a, out);
+  if (g.k === "all" || g.k === "ex"){
+    if (out.indexOf(g.v) < 0) out.push(g.v);
+    return namesIn(g.a, out);
+  }
+  namesIn(g.a, out); namesIn(g.b, out);
+  return out;
+}
+function fresh(avoid, hint){
+  var base = hint || "a";
+  for (var i = 0; i < 400; i++){
+    var n = i === 0 ? base : base + (i + 1);
+    if (avoid.indexOf(n) < 0) return n;
+  }
+  return base + "_" + Math.random().toString(36).slice(2, 5);
+}
+
+/* ── substitution ── */
+/* Replaces a variable by a whole term, so ∀x p(x) can be instantiated at
+   f(f(a)) and not only at a name. A binder in the way is renamed rather than
+   allowed to capture a variable the incoming term carries. */
+function substT(t, x, s){
+  if (!t.args.length) return t.n === x ? s : t;
+  return tm(t.n, t.args.map(function(a){ return substT(a, x, s); }));
+}
+function subst(g, x, s){
+  if (g.k === "pred") return pred(g.n, g.args.map(function(t){ return substT(t, x, s); }));
+  if (g.k === "top" || g.k === "bot") return g;
+  if (g.k === "not") return {k:"not", a:subst(g.a, x, s)};
+  if (g.k === "all" || g.k === "ex"){
+    if (g.v === x) return g;                            /* shadowed: nothing free to replace */
+    if (freeInT(s, [], []).indexOf(g.v) >= 0){          /* would capture — rename the binder */
+      var v2 = fresh(namesIn(g).concat(namesInT(s, [])).concat([x]), g.v);
+      return {k:g.k, v:v2, a:subst(subst(g.a, g.v, tm(v2)), x, s)};
+    }
+    return {k:g.k, v:g.v, a:subst(g.a, x, s)};
+  }
+  return {k:g.k, a:subst(g.a, x, s), b:subst(g.b, x, s)};
+}
+
+/* ── equality up to the names of bound variables ── */
+function eqT(a, b, la, lb){
+  if (a.args.length !== b.args.length) return false;
+  if (!a.args.length){
+    var ia = la.indexOf(a.n), ib = lb.indexOf(b.n);
+    return ia < 0 && ib < 0 ? a.n === b.n : ia === ib;
+  }
+  if (a.n !== b.n) return false;
+  return a.args.every(function(t, i){ return eqT(t, b.args[i], la, lb); });
+}
+function eqF(a, b, la, lb){
+  la = la || []; lb = lb || [];
+  if (a.k !== b.k) return false;
+  if (a.k === "pred"){
+    if (a.n !== b.n || a.args.length !== b.args.length) return false;
+    return a.args.every(function(t, i){ return eqT(t, b.args[i], la, lb); });
+  }
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not") return eqF(a.a, b.a, la, lb);
+  if (a.k === "all" || a.k === "ex")
+    return eqF(a.a, b.a, [a.v].concat(la), [b.v].concat(lb));
+  return eqF(a.a, b.a, la, lb) && eqF(a.b, b.b, la, lb);
+}
+
+var BOT = {k:"bot"}, TOP = {k:"top"};
+function neg(f){ return {k:"not", a:f}; }
+function imp(a, b){ return {k:"imp", a:a, b:b}; }
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"], ["==","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"], ["⇒","imp"],
+  ["/\\","and"], ["&&","and"], ["&","and"], ["∧","and"], ["·","and"],
+  ["\\/","or"], ["||","or"], ["|","or"], ["∨","or"], ["+","or"],
+  ["~","not"], ["!","not"], ["¬","not"], ["-","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["∀","all"], ["∃","ex"],
+  ["(","lp"], ["[","lp"], [")","rp"], ["]","rp"], [",","comma"], [".","dot"]
+];
+var WORDS = {forall:"all", all:"all", exists:"ex", some:"ex", "∀":"all", "∃":"ex"};
+
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_']/.test(src[j])) j++;
+      var w = src.slice(i, j);
+      if (WORDS[w]) t.push({t:WORDS[w], v:w, i:i});
+      else t.push({t:"name", v:w, i:i, end:j});
+      i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+function parse(src){
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  /* terms: a name, or a name applied to terms. Nothing else can appear here,
+     which is exactly what tells a function symbol from a predicate. */
+  function term(){
+    var n = eat("name");
+    if (!n) throw new Error(peek() === "end"
+      ? "A term is missing — brackets after a name hold terms, as in p(x) or f(a)."
+      : "“" + t[p].v + "” is not a term. A term is a name, or a name applied to terms like f(x).");
+    if (!eat("lp")) return tm(n.v, []);
+    var args = [term()];
+    while (eat("comma")) args.push(term());
+    if (!eat("rp")) throw new Error("The brackets after “" + n.v + "” are never closed.");
+    return tm(n.v, args);
+  }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (peek() === "all" || peek() === "ex"){
+      var q = t[p++].t;
+      var v = eat("name");
+      if (!v) throw new Error("A quantifier needs a variable after it — a name, as in ∀x.");
+      /* ∀xp(x) is genuinely ambiguous now that a predicate can be lowercase:
+         the name runs together, so say so rather than guess */
+      if (peek() === "lp" && t[p].i === v.end)
+        throw new Error("“" + v.v + "(” does not say where the variable ends — a predicate can be " +
+          "lowercase too, so this could bind " + v.v[0] + " and apply " + v.v.slice(1) + ", or bind " +
+          v.v + " itself. Put a space or a dot in: ∀" + v.v[0] + " " + v.v.slice(1) + "(…).");
+      /* Church's dot. Without it a quantifier reaches over one unit only, so
+         ∃x p(x) ∨ ∃x q(x) is two separate scopes, which is how the formula is
+         meant to be read. The dot widens the scope to everything that follows,
+         so ∀x. p(x) ⊃ q(x) is ∀x (p(x) ⊃ q(x)). Brackets always decide. */
+      return {k:q, v:v.v, a:eat("dot") ? iff() : un()};
+    }
+    if (eat("top")) return TOP;
+    if (eat("bot")) return BOT;
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("name");
+    if (a){
+      if (!eat("lp")) return pred(a.v, []);
+      var args = [term()];
+      while (eat("comma")) args.push(term());
+      if (!eat("rp")) throw new Error("The brackets after “" + a.v + "” are never closed.");
+      return pred(a.v, args);
+    }
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a predicate or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+/* a term on its own, for the ∀E and ∃I prompts */
+function parseTerm(src){
+  var t = tokenize(src), p = 0;
+  function go(){
+    if (t[p].t !== "name") throw new Error("A term is a name, or a name applied to terms like f(x) — not “" +
+      (t[p].v || "nothing") + "”.");
+    var n = t[p++];
+    if (t[p].t !== "lp") return tm(n.v, []);
+    p++;
+    var args = [go()];
+    while (t[p].t === "comma"){ p++; args.push(go()); }
+    if (t[p].t !== "rp") throw new Error("The brackets after “" + n.v + "” are never closed.");
+    p++;
+    return tm(n.v, args);
+  }
+  var r = go();
+  if (t[p].t !== "end") throw new Error("“" + src.trim() + "” is more than one term.");
+  return r;
+}
+
+/* Every name is used in one role at one arity throughout: a predicate stays a
+   predicate, a function stays a function, and neither changes how many
+   arguments it takes. Catching this here is what keeps p(x) and p(x,y) in the
+   same sequent from quietly meaning two different things. */
+function checkArity(fs){
+  var role = {}, ar = {};
+  function fix(n, r, k, where){
+    if (role[n] === undefined){ role[n] = r; ar[n] = k; return; }
+    if (role[n] !== r)
+      throw new Error("“" + n + "” is used as a " + role[n] + " in one place and as a " + r +
+        " in another. Each name has one job: predicates stand where a formula does, " +
+        "function symbols and constants stand inside the brackets.");
+    if (ar[n] !== k)
+      throw new Error("“" + n + "” is used with " + ar[n] + " argument" + (ar[n] === 1 ? "" : "s") +
+        " in one place and " + k + " in another. A " + r + " keeps one arity throughout.");
+  }
+  function walkT(t, bound){
+    if (!t.args.length){
+      if (bound.indexOf(t.n) < 0) fix(t.n, "constant or function symbol", 0);
+      return;
+    }
+    if (bound.indexOf(t.n) >= 0)
+      throw new Error("“" + t.n + "” is a bound variable, so it cannot be applied to arguments.");
+    fix(t.n, "constant or function symbol", t.args.length);
+    t.args.forEach(function(x){ walkT(x, bound); });
+  }
+  function walk(g, bound){
+    if (g.k === "pred"){
+      fix(g.n, "predicate", g.args.length);
+      g.args.forEach(function(t){ walkT(t, bound); });
+      return;
+    }
+    if (g.k === "top" || g.k === "bot") return;
+    if (g.k === "not") return walk(g.a, bound);
+    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
+    walk(g.a, bound); walk(g.b, bound);
+  }
+  fs.forEach(function(f){ walk(f, []); });
+  return {role:role, ar:ar};
+}
+/* ═════════════════════════════════════════════ small models */
+/* Validity is undecidable here, so nothing can confirm a sequent is provable.
+   A countermodel in a small domain is still decisive the other way, and that
+   is worth having: it is what turns "I cannot find a proof" into "there is
+   none". Domains up to MAXDOM elements; every interpretation of every
+   predicate and every function symbol is tried, within a budget. */
+var MAXDOM = 3;
+var MAXTRIES = 400000;
+
+function signature(fs){
+  var preds = {}, funcs = {};
+  function walkT(t, bound){
+    if (!t.args.length){ if (bound.indexOf(t.n) < 0) funcs[t.n] = 0; return; }
+    funcs[t.n] = t.args.length;
+    t.args.forEach(function(x){ walkT(x, bound); });
+  }
+  function walk(g, bound){
+    if (g.k === "pred"){
+      preds[g.n] = g.args.length;
+      g.args.forEach(function(t){ walkT(t, bound); });
+      return;
+    }
+    if (g.k === "top" || g.k === "bot") return;
+    if (g.k === "not") return walk(g.a, bound);
+    if (g.k === "all" || g.k === "ex") return walk(g.a, bound.concat([g.v]));
+    walk(g.a, bound); walk(g.b, bound);
+  }
+  fs.forEach(function(f){ walk(f, []); });
+  return {preds:preds, funcs:funcs};
+}
+/* a term's value: look a variable up in the assignment, otherwise apply the
+   function symbol's table to the values of its arguments */
+function evalT(t, M, env){
+  if (!t.args.length && env[t.n] !== undefined) return env[t.n];
+  var idx = 0;
+  for (var i = 0; i < t.args.length; i++) idx = idx * M.n + evalT(t.args[i], M, env);
+  return M.F[t.n][idx];
+}
+function holdsIn(g, M, env){
+  switch (g.k){
+    case "pred": {
+      var idx = 0;
+      for (var i = 0; i < g.args.length; i++) idx = idx * M.n + evalT(g.args[i], M, env);
+      return !!M.I[g.n][idx];
+    }
+    case "top": return true;
+    case "bot": return false;
+    case "not": return !holdsIn(g.a, M, env);
+    case "and": return holdsIn(g.a, M, env) && holdsIn(g.b, M, env);
+    case "or":  return holdsIn(g.a, M, env) || holdsIn(g.b, M, env);
+    case "imp": return !holdsIn(g.a, M, env) || holdsIn(g.b, M, env);
+    case "iff": return holdsIn(g.a, M, env) === holdsIn(g.b, M, env);
+    case "all": case "ex": {
+      var want = g.k === "all";
+      for (var d = 0; d < M.n; d++){
+        var e2 = {}, k;
+        for (k in env) e2[k] = env[k];
+        e2[g.v] = d;
+        if (holdsIn(g.a, M, e2) !== want) return !want;
+      }
+      return want;
+    }
+  }
+  return false;
+}
+/* Every interpretation is a reading of one counter: each predicate table is a
+   run of bits, each function symbol a run of base-n digits. */
+function smallCountermodel(prems, concl){
+  var fs = prems.concat([concl]), sig = signature(fs);
+  var pnames = Object.keys(sig.preds), fnames = Object.keys(sig.funcs);
+  for (var n = 1; n <= MAXDOM; n++){
+    var slots = [];                                  /* {name, kind, size, base} */
+    var total = 1, over = false;
+    pnames.forEach(function(q){
+      var sz = Math.pow(n, sig.preds[q]);
+      slots.push({name:q, kind:"P", size:sz, base:2});
+      total *= Math.pow(2, sz);
+      if (total > MAXTRIES) over = true;
+    });
+    fnames.forEach(function(q){
+      var sz = Math.pow(n, sig.funcs[q]);
+      slots.push({name:q, kind:"F", size:sz, base:n});
+      total *= Math.pow(n, sz);
+      if (total > MAXTRIES) over = true;
+    });
+    if (over) break;
+    for (var c = 0; c < total; c++){
+      var rest = c, I = {}, F = {}, bad = false;
+      for (var si = 0; si < slots.length; si++){
+        var sl = slots[si], arr = [];
+        for (var b = 0; b < sl.size; b++){ arr.push(rest % sl.base); rest = Math.floor(rest / sl.base); }
+        if (sl.kind === "P") I[sl.name] = arr; else F[sl.name] = arr;
+      }
+      var M = {n:n, I:I, F:F, preds:sig.preds, funcs:sig.funcs};
+      if (prems.every(function(f){ return holdsIn(f, M, {}); }) && !holdsIn(concl, M, {})) return M;
+    }
+  }
+  return null;
+}
+function modelText(M){
+  var dom = [];
+  for (var i = 0; i < M.n; i++) dom.push(i + 1);
+  var bits = ["a domain of " + M.n + " (" + dom.join(", ") + ")"];
+  function tuples(ar){
+    var out = [[]];
+    for (var d = 0; d < ar; d++){
+      var next = [];
+      out.forEach(function(t){ for (var v = 0; v < M.n; v++) next.push(t.concat([v])); });
+      out = next;
+    }
+    return out;
+  }
+  Object.keys(M.funcs).forEach(function(q){
+    var ar = M.funcs[q];
+    if (!ar){ bits.push("<i>" + q + "</i> = " + (M.F[q][0] + 1)); return; }
+    bits.push("<i>" + q + "</i> sends " + tuples(ar).map(function(t, idx){
+      return (ar === 1 ? t[0] + 1 : "(" + t.map(function(v){ return v + 1; }).join(",") + ")") +
+             " to " + (M.F[q][idx] + 1);
+    }).join(", "));
+  });
+  Object.keys(M.preds).forEach(function(q){
+    var ar = M.preds[q], holds = [];
+    if (!ar){ bits.push("<b>" + q + "</b> is " + (M.I[q][0] ? "true" : "false")); return; }
+    tuples(ar).forEach(function(t, idx){
+      if (!M.I[q][idx]) return;
+      holds.push(ar === 1 ? String(t[0] + 1) : "(" + t.map(function(v){ return v + 1; }).join(",") + ")");
+    });
+    bits.push("<b>" + q + "</b> holds of " + (holds.length ? holds.join(", ") : "nothing"));
+  });
+  return '<span class="f">' + bits.join("; ") + "</span>";
+}
+/* ═════════════════════════════════════════════ shapes */
+/* The milestones on the way to clausal form. Each is a plain question about
+   the formula as it stands, and the strip under the rules answers all five
+   after every step, so the next thing to do is never a mystery. */
+function hasKind(g, k){
+  if (g.k === k) return true;
+  if (g.k === "pred" || g.k === "top" || g.k === "bot") return false;
+  if (g.k === "not" || g.k === "all" || g.k === "ex") return hasKind(g.a, k);
+  return hasKind(g.a, k) || hasKind(g.b, k);
+}
+function isAtom(g){ return g.k === "pred" || g.k === "top" || g.k === "bot"; }
+/* negation normal form: no ⊃, no ≡, and every ¬ sitting on an atom */
+function isNNF(g){
+  if (isAtom(g)) return true;
+  if (g.k === "not") return isAtom(g.a);
+  if (g.k === "imp" || g.k === "iff") return false;
+  if (g.k === "all" || g.k === "ex") return isNNF(g.a);
+  return isNNF(g.a) && isNNF(g.b);
+}
+function quantFree(g){ return !hasKind(g, "all") && !hasKind(g, "ex"); }
+/* a prenex formula is a run of quantifiers over a quantifier-free matrix */
+function prenexParts(g){
+  var qs = [];
+  while (g.k === "all" || g.k === "ex"){ qs.push({k:g.k, v:g.v}); g = g.a; }
+  return {qs:qs, m:g};
+}
+function isPrenex(g){ return quantFree(prenexParts(g).m); }
+function isLiteral(g){ return isAtom(g) || (g.k === "not" && isAtom(g.a)); }
+function isClause(g){ return g.k === "or" ? isClause(g.a) && isClause(g.b) : isLiteral(g); }
+function isCNF(g){ return g.k === "and" ? isCNF(g.a) && isCNF(g.b) : isClause(g); }
+function flat(g, k, out){
+  out = out || [];
+  if (g.k === k){ flat(g.a, k, out); flat(g.b, k, out); } else out.push(g);
+  return out;
+}
+
+/* ═════════════════════════════════════════════ positions */
+/* A rule rewrites the subformula the student has picked, so every step needs
+   an address. A path is the list of "a"/"b" turns taken from the root. */
+function at(g, path){
+  for (var i = 0; i < path.length; i++) g = g[path[i]];
+  return g;
+}
+function putAt(g, path, h){
+  if (!path.length) return h;
+  var k = path[0], c = {};
+  for (var p in g) c[p] = g[p];
+  c[k] = putAt(g[k], path.slice(1), h);
+  return c;
+}
+function livePath(g, path){
+  var h = g;
+  for (var i = 0; i < path.length; i++){
+    if (!h || !h.k || h[path[i]] === undefined) return false;
+    h = h[path[i]];
+  }
+  return !!(h && h.k);
+}
+function readPath(s){ return s ? s.split(".") : []; }
+
+/* ═════════════════════════════════════════════ fresh names */
+function freshVar(base, avoid){
+  for (var i = 1; i <= 3; i++){
+    var n = base + new Array(i + 1).join("'");     /* a plain prime, so it parses back */
+    if (avoid.indexOf(n) < 0) return n;
+  }
+  return fresh(avoid, base);
+}
+/* a nullary Skolem symbol is a constant and should read like one */
+var FNPOOL = ["f", "g", "h", "k", "l", "m", "n", "s", "t", "u", "v", "w"];
+var CNPOOL = ["c", "d", "e", "b", "i", "j", "o", "r"];
+function freshFn(avoid, arity){
+  var pool = arity ? FNPOOL : CNPOOL;
+  for (var i = 0; i < pool.length; i++) if (avoid.indexOf(pool[i]) < 0) return pool[i];
+  return fresh(avoid, arity ? "f" : "c");
+}
+
+/* ═════════════════════════════════════════════ the rules */
+/* Each one rewrites the selected subformula. go() returns {f, why} when it
+   applies, {err} when the shape is right but a side condition is not, and
+   null when the shape is simply wrong — so a button that lights up always
+   works, and a dim one still explains itself when pressed. */
+function qch(k){ return k === "all" ? "∀" : "∃"; }
+
+var RULES = [
+  {code:"⊃", lbl:"⊃", law:"A ⊃ B ⇔ ¬A ∨ B",
+   go:function(g){ return g.k === "imp" ? {f:{k:"or", a:neg(g.a), b:g.b}} : null; }},
+
+  {code:"≡", lbl:"≡", law:"A ≡ B ⇔ (A ⊃ B) ∧ (B ⊃ A)",
+   go:function(g){ return g.k === "iff"
+     ? {f:{k:"and", a:imp(g.a, g.b), b:imp(g.b, g.a)}} : null; }},
+
+  {code:"¬¬", lbl:"¬¬", law:"¬¬A ⇔ A",
+   go:function(g){ return g.k === "not" && g.a.k === "not" ? {f:g.a.a} : null; }},
+
+  {code:"¬∧", lbl:"¬∧", law:"¬(A ∧ B) ⇔ ¬A ∨ ¬B",
+   go:function(g){ return g.k === "not" && g.a.k === "and"
+     ? {f:{k:"or", a:neg(g.a.a), b:neg(g.a.b)}} : null; }},
+
+  {code:"¬∨", lbl:"¬∨", law:"¬(A ∨ B) ⇔ ¬A ∧ ¬B",
+   go:function(g){ return g.k === "not" && g.a.k === "or"
+     ? {f:{k:"and", a:neg(g.a.a), b:neg(g.a.b)}} : null; }},
+
+  {code:"¬⊤⊥", lbl:"¬⊤", law:"¬⊤ ⇔ ⊥ and ¬⊥ ⇔ ⊤",
+   go:function(g){
+     if (g.k !== "not") return null;
+     if (g.a.k === "top") return {f:BOT, why:"¬⊤ ⇔ ⊥"};
+     if (g.a.k === "bot") return {f:TOP, why:"¬⊥ ⇔ ⊤"};
+     return null; }},
+
+  {code:"¬Q", lbl:"¬∀ ¬∃", law:"¬∀x A ⇔ ∃x ¬A, and ¬∃x A ⇔ ∀x ¬A",
+   go:function(g){
+     if (g.k !== "not") return null;
+     var i = g.a;
+     if (i.k !== "all" && i.k !== "ex") return null;
+     var o = i.k === "all" ? "ex" : "all";
+     return {f:{k:o, v:i.v, a:neg(i.a)},
+             why:"¬" + qch(i.k) + "x A ⇔ " + qch(o) + "x ¬A"}; }},
+
+  {code:"∧Q", lbl:"∧ out", law:"(Qx A) ∧ B ⇔ Qx (A ∧ B), when x is not free in B",
+   go:function(g){ return pullOut(g, "and"); }},
+
+  {code:"∨Q", lbl:"∨ out", law:"(Qx A) ∨ B ⇔ Qx (A ∨ B), when x is not free in B",
+   go:function(g){ return pullOut(g, "or"); }},
+
+  {code:"α", lbl:"rename", law:"Qx A ⇔ Qy A[y/x] for a fresh y — a bound name carries no meaning",
+   go:function(g){
+     if (g.k !== "all" && g.k !== "ex") return null;
+     var y = freshVar(g.v, namesIn(S.chain[S.chain.length - 1].f, []));
+     return {f:{k:g.k, v:y, a:subst(g.a, g.v, tm(y, []))},
+             why:"bound " + g.v + " renamed " + y}; }},
+
+  {code:"dist", lbl:"∨/∧", law:"A ∨ (B ∧ C) ⇔ (A ∨ B) ∧ (A ∨ C) — the step that builds the clauses",
+   go:function(g){
+     if (g.k !== "or") return null;
+     if (g.b.k === "and")
+       return {f:{k:"and", a:{k:"or", a:g.a, b:g.b.a}, b:{k:"or", a:g.a, b:g.b.b}},
+               why:"A ∨ (B ∧ C) ⇔ (A ∨ B) ∧ (A ∨ C)"};
+     if (g.a.k === "and")
+       return {f:{k:"and", a:{k:"or", a:g.a.a, b:g.b}, b:{k:"or", a:g.a.b, b:g.b}},
+               why:"(A ∧ B) ∨ C ⇔ (A ∨ C) ∧ (B ∨ C)"};
+     return null; }},
+
+  {code:"Skolem", lbl:"Skolemise", whole:true, kind:"sat",
+   law:"drop the quantifiers: each ∃-bound variable becomes a new function of the ∀-bound ones before it",
+   go:function(g){ return strip(g, false); }},
+
+  {code:"Herbrand", lbl:"Herbrandise", whole:true, kind:"val",
+   law:"the mirror image: each ∀-bound variable becomes a new function of the ∃-bound ones before it",
+   go:function(g){ return strip(g, true); }}
+];
+function ruleOf(code){ return RULES.filter(function(r){ return r.code === code; })[0]; }
+
+/* Pulling a quantifier out of a conjunction or a disjunction. Either side may
+   carry it; the side condition is that the bound variable is not free in the
+   other side, and when it is, renaming it first is exactly the cure. */
+function pullOut(g, op){
+  if (g.k !== op) return null;
+  var sym = op === "and" ? "∧" : "∨", blocked = null;
+  for (var i = 0; i < 2; i++){
+    var qs = i ? "b" : "a", os = i ? "a" : "b";
+    var q = g[qs], other = g[os];
+    if (q.k !== "all" && q.k !== "ex") continue;
+    if (freeIn(other).indexOf(q.v) >= 0){
+      if (!blocked) blocked = {err:"<i>" + q.v + "</i> occurs free in " + fh(other) +
+        ", so pulling " + qch(q.k) + "<i>" + q.v + "</i> out past it would capture that occurrence. " +
+        "Rename the bound <i>" + q.v + "</i> first — that is what <b>rename</b> is for."};
+      continue;
+    }
+    var inner = i ? {k:op, a:other, b:q.a} : {k:op, a:q.a, b:other};
+    return {f:{k:q.k, v:q.v, a:inner},
+            why: i ? "B " + sym + " " + qch(q.k) + "x A ⇔ " + qch(q.k) + "x (B " + sym + " A)"
+                   : qch(q.k) + "x A " + sym + " B ⇔ " + qch(q.k) + "x (A " + sym + " B)"};
+  }
+  return blocked;
+}
+
+/* ═════════════════════════════════════════════ skolemisation */
+/* Skolemisation and herbrandisation are the same walk with the quantifiers
+   swapped. Neither is an equivalence: skolemisation keeps satisfiability,
+   herbrandisation keeps validity, and the chain says which. */
+function strip(g, dual){
+  if (quantFree(g)) return {err:"There are no quantifiers left to remove."};
+  if (!isPrenex(g))
+    return {err:"This is defined on <b>prenex form</b> — all the quantifiers in front, nothing but " +
+      "connectives behind them. Pull the remaining quantifiers to the front first."};
+  var keep = dual ? "ex" : "all", kill = dual ? "all" : "ex";
+  var avoid = namesIn(g, []), held = [], notes = [];
+  function go(h){
+    if (h.k === keep){ held.push(h.v); return go(h.a); }
+    if (h.k === kill){
+      var fn = freshFn(avoid, held.length);
+      avoid.push(fn);
+      var t = tm(fn, held.map(function(u){ return tm(u, []); }));
+      notes.push("<i>" + h.v + "</i> ↦ " + termHTML(t));
+      return go(subst(h.a, h.v, t));
+    }
+    return h;
+  }
+  var m = go(g);
+  return {f:m, why: notes.length ? notes.join(", ")
+                                 : "no " + qch(kill) + " to remove; the quantifiers just go"};
+}
+
+/* ═════════════════════════════════════════════ state */
+var S = {chain:[], sel:[], phase:"empty", undo:[]};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var plural = function(n, w){ return n + " " + w + (n === 1 ? "" : "s"); };
+
+function curF(){ return S.chain[S.chain.length - 1].f; }
+function say(tone, html){
+  $("#status").className = "status" + (tone ? " " + tone : "");
+  $("#status").querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({chain:S.chain, sel:S.sel, phase:S.phase}));
+  if (S.undo.length > 120) S.undo.shift();
+}
+
+/* ═════════════════════════════════════════════ building */
+function build(src){
+  var f;
+  try {
+    f = parse(src);
+    checkArity([f]);
+  } catch (e){
+    if (LOG_READY) logFormula({f:src, err:"parse"});
+    say("err", e.message);
+    return;
+  }
+  if (LOG_READY) logFormula({f:src});
+  S.chain = [{f:f, kind:null, why:""}];
+  S.sel = [];
+  S.phase = "work";
+  S.undo = [];
+  hideOut();
+  say("", "Click a part of the formula to select it, then a rule to rewrite that part. " +
+      "The way out is <b>prenex form</b> first, then the matrix to <b>CNF</b>, then " +
+      "<b>Skolemise</b> — and only that last step gives up equivalence.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ applying a rule */
+function applyRule(code){
+  if (S.phase === "done"){
+    say("", "Finished — press <b>Restart</b> to run it again, or enter another formula.");
+    return;
+  }
+  var r = ruleOf(code), path = r.whole ? [] : S.sel, sub = at(curF(), path);
+  var out = r.go(sub);
+  if (!out){ say("err", whyNot(r, sub, path)); return; }
+  if (out.err){ say("err", out.err); return; }
+  snapshot();
+  var nf = r.whole ? out.f : putAt(curF(), path, out.f);
+  S.chain.push({f:nf, kind:r.kind || "eq", why:out.why || r.law, rule:code});
+  if (!livePath(nf, path)) path = [];
+  S.sel = path;
+  var tail = r.kind === "sat"
+    ? " The new formula is <b>not equivalent</b> to the old one — it is satisfiable exactly when the old one is, which is all clausal form ever promised."
+    : r.kind === "val"
+    ? " The new formula is <b>not equivalent</b> to the old one — it is valid exactly when the old one is."
+    : "";
+  say("ok", "<b>" + r.lbl + "</b> — " + (out.why || r.law) + "." + tail + nextStep());
+  draw();
+}
+function whyNot(r, sub, path){
+  var where = path.length ? "the selected " + fh(sub) : "the whole formula " + fh(sub);
+  if (r.whole) return "<b>" + r.lbl + "</b> acts on the whole formula — " + r.law + ".";
+  return "<b>" + r.lbl + "</b> does not fit " + where + ". The law is " +
+    '<span class="f">' + r.law + "</span>. Select a part that has that shape.";
+}
+function nextStep(){
+  var g = curF();
+  if (!quantFree(g) && isPrenex(g) && isCNF(prenexParts(g).m))
+    return " Prenex, and the matrix is in CNF — <b>Skolemise</b> finishes it.";
+  if (quantFree(g) && isCNF(g)) return " That is clausal form — press <b>Done</b>.";
+  if (hasKind(g, "imp") || hasKind(g, "iff")) return " Implications first.";
+  if (!isNNF(g)) return " Push the negations down to the atoms next.";
+  if (!isPrenex(g)) return " Now pull the quantifiers to the front.";
+  return " Now distribute ∨ over ∧ to make the clauses.";
+}
+
+/* ═════════════════════════════════════════════ finishing */
+function hideOut(){ $("#out").hidden = true; $("#out").innerHTML = ""; }
+/* a model of f, if one is small enough to find */
+function satOf(f){ return smallCountermodel([f], BOT); }
+function validIn(f){ return smallCountermodel([], f) === null; }
+/* Dropping the quantifiers leaves variables loose, and clausal form reads
+   those as universally quantified — that implicit ∀ is part of the bargain,
+   not an accident. Putting it back is what makes the check below honest:
+   compared without it, skolemisation would look as though it changed the
+   formula whenever a ∀ survived into the matrix. */
+function closeOver(f, vars, kind){
+  for (var i = vars.length - 1; i >= 0; i--) f = {k:kind, v:vars[i], a:f};
+  return f;
+}
+function prefixVars(g, kind){
+  return prenexParts(g).qs.filter(function(q){ return q.k === kind; })
+                          .map(function(q){ return q.v; });
+}
+
+function done(){
+  if (!S.chain.length) return;
+  var g = curF();
+  if (!quantFree(g)){
+    say("err", "There are still quantifiers. Clausal form is quantifier-free — " +
+        (isPrenex(g) ? "<b>Skolemise</b> removes them." : "get to prenex form, then Skolemise."));
+    return;
+  }
+  if (!isCNF(g)){
+    say("err", "Not a conjunction of clauses yet. A clause is a disjunction of literals, and a literal " +
+        "is an atom or a negated atom — somewhere here a ∧ still sits inside a ∨, or a ¬ outside an atom.");
+    return;
+  }
+  S.phase = "done";
+  var cs = flat(g, "and");
+  var h = '<p class="onote"><b>Clausal form.</b> ' + plural(cs.length, "clause") + ", " +
+    plural(cs.reduce(function(n, c){ return n + flat(c, "or").length; }, 0), "literal") +
+    " in all, reached in " + plural(S.chain.length - 1, "step") + ".</p>";
+  h += '<ul class="clauses">' + cs.map(function(c, i){
+    return '<li><span class="n">' + (i + 1) + '</span><span class="brace">{</span> ' +
+      flat(c, "or").map(fmtHTML).join('<span class="brace">,</span> ') +
+      ' <span class="brace">}</span></li>';
+  }).join("") + "</ul>";
+  h += '<p class="onote">' + verdict() + "</p>";
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+  say("ok", "<b>Done.</b> " + plural(cs.length, "clause") + ".");
+  draw();
+}
+/* What survives the chain, and whether a small model can tell the ends apart.
+   The ⇔ steps have to preserve truth outright; skolemisation only has to
+   preserve satisfiability, so each kind is checked against its own promise. */
+function verdict(){
+  var orig = S.chain[0].f, steps = S.chain, trouble = [];
+  var kinds = {};
+  for (var i = 1; i < steps.length; i++){
+    var k = steps[i].kind;
+    kinds[k] = true;
+    var before = steps[i - 1].f, after = steps[i].f;
+    if (k === "eq"){
+      if (smallCountermodel([before], after) || smallCountermodel([after], before))
+        trouble.push("step " + i + " (" + steps[i].rule + ") changes the formula's truth value");
+    } else if (k === "sat"){
+      if (!satOf(before) !== !satOf(closeOver(after, prefixVars(before, "all"), "all")))
+        trouble.push("step " + i + " changes whether the formula is satisfiable");
+    } else if (k === "val"){
+      if (validIn(before) !== validIn(closeOver(after, prefixVars(before, "ex"), "ex")))
+        trouble.push("step " + i + " changes whether the formula is valid");
+    }
+  }
+  if (trouble.length)
+    return "<b>Something is wrong:</b> " + trouble[0] + ". This is a bug in the tool, not in your " +
+      "working — please report it.";
+  var rel = kinds.sat ? "<b>equisatisfiable</b> with" : kinds.val ? "<b>equivalid</b> with"
+                      : "<b>logically equivalent</b> to";
+  var loose = freeIn(curF()).filter(function(v){ return freeIn(orig).indexOf(v) < 0; });
+  var note = kinds.sat
+    ? "Skolemisation is the step that costs you equivalence: " + fh(orig) + " and the clauses above " +
+      "are satisfiable in exactly the same cases, which is what resolution needs, but they do not have " +
+      "the same models." +
+      (loose.length ? " The variable" + (loose.length === 1 ? " " : "s ") +
+        loose.map(function(v){ return "<i>" + v + "</i>"; }).join(", ") +
+        (loose.length === 1 ? " is" : " are") +
+        " left loose, and clausal form reads a loose variable as universally quantified." : "")
+    : kinds.val
+    ? "Herbrandisation keeps validity rather than satisfiability — the dual bargain."
+    : "Every step was an equivalence, so the clauses say exactly what " + fh(orig) + " says.";
+  return "The result is " + rel + " " + fh(orig) + ". " + note +
+    " Checked against every interpretation over a domain of up to " + MAXDOM + ".";
+}
+
+/* ═════════════════════════════════════════════ drawing */
+function draw(){
+  drawRules();
+  drawMiles();
+  drawChain();
+  $("#doneBtn").disabled = S.phase === "empty";
+}
+function drawRules(){
+  var g = S.chain.length ? curF() : null;
+  $("#rules").innerHTML = RULES.map(function(r){
+    var sep = (r.code === "¬Q" || r.code === "dist" || r.code === "Skolem")
+      ? '<span class="rsep"></span>' : "";
+    var cls = "rule", live = null;
+    if (g && S.phase !== "done"){
+      var sub = r.whole ? g : at(g, S.sel);
+      var out = r.go(sub);
+      live = !!(out && !out.err);
+    }
+    if (live !== null) cls += live ? " armed" : " dim";
+    return sep + '<button type="button" class="' + cls + '" data-rule="' + r.code +
+      '" title="' + r.law.replace(/"/g, "&quot;") + '">' + r.lbl + "</button>";
+  }).join("");
+}
+function drawMiles(){
+  if (!S.chain.length){ $("#miles").innerHTML = ""; return; }
+  var g = curF();
+  var ms = [
+    [!hasKind(g, "imp") && !hasKind(g, "iff"), "⊃ and ≡ gone"],
+    [isNNF(g), "¬ only on atoms"],
+    [isPrenex(g), "prenex"],
+    [isCNF(prenexParts(g).m), "matrix in CNF"],
+    [quantFree(g), "quantifier-free"]
+  ];
+  $("#miles").innerHTML = ms.map(function(m){
+    return '<span class="mile' + (m[0] ? " on" : "") + '"><span class="tick">' +
+      (m[0] ? "✓" : "·") + "</span>" + m[1] + "</span>";
+  }).join("");
+}
+function drawChain(){
+  var last = S.chain.length - 1;
+  $("#board").innerHTML = '<div class="chain">' + S.chain.map(function(st, i){
+    var live = i === last && S.phase !== "done";
+    var con = i === 0 ? "" : st.kind === "eq" ? "⇔"
+            : st.kind === "sat" ? "equisat." : "equivalid.";
+    return '<div class="step' + (live ? " live" : "") + '">' +
+      '<span class="con' + (st.kind === "eq" || !st.kind ? "" : " sat") + '">' + con + "</span>" +
+      '<span class="fml">' + (live ? fmtPick(st.f, S.sel) : fmtHTML(st.f)) + "</span>" +
+      '<span class="why">' + (st.why || "") + "</span>" +
+      "</div>";
+  }).join("") + "</div>";
+  var b = $("#board");
+  b.scrollTop = b.scrollHeight;
+}
+/* the live line, with every subformula carrying its address */
+function fmtPick(g, sel){
+  var key = sel.join(".");
+  return show(g, null,
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; },
+    function(n, as){
+      return "<b>" + n + "</b>" + (as.length ? '<span class="pr">(</span>' +
+        as.join('<span class="pr">,</span>') + '<span class="pr">)</span>' : "");
+    },
+    function(q, v){ return '<span class="qu">' + q + "</span><i>" + v + "</i>&thinsp;"; },
+    function(n, as, bare){
+      return bare ? "<i>" + n + "</i>"
+                  : "<i>" + n + "</i>" + '<span class="pr">(</span>' +
+                    as.join('<span class="pr">,</span>') + '<span class="pr">)</span>';
+    },
+    function(s, path, h){
+      var p = path.join(".");
+      return '<span class="nd' + (p === key ? " sel" : "") + '" data-pos="' + p + '">' + s + "</span>";
+    });
+}
+function selectAt(p){
+  if (S.phase === "done"){ say("", "Finished — press <b>Restart</b> to go again."); return; }
+  S.sel = readPath(p);
+  var sub = at(curF(), S.sel);
+  var fits = RULES.filter(function(r){
+    if (r.whole) return false;
+    var o = r.go(sub);
+    return !!(o && !o.err);
+  }).map(function(r){ return "<b>" + r.lbl + "</b>"; });
+  say("", (S.sel.length ? "Selected " : "The whole formula, ") + fh(sub) + " — " +
+      (fits.length ? fits.join(", ") + (fits.length === 1 ? " applies." : " apply.")
+                   : "no rewriting rule fits it."));
+  draw();
+}
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo — you are back at the formula you typed."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.chain = s.chain; S.sel = s.sel; S.phase = s.phase;
+  hideOut();
+  say("", "Undone. " + plural(S.chain.length - 1, "step") + " so far.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ connective pad */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+
+/* ═════════════════════════════════════════════ wiring */
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-rule],[data-pos]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-rule")){ applyRule(t.dataset.rule); return; }
+  if (t.hasAttribute("data-pos")){
+    if (!t.closest(".step.live")) return;
+    selectAt(t.getAttribute("data-pos"));
+  }
+});
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#doneBtn").addEventListener("click", done);
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){
+  /* a restart re-runs the formula already in the box; not a submission */
+  var was = LOG_READY; LOG_READY = false;
+  build($("#formula").value);
+  LOG_READY = was;
+});
+document.addEventListener("keydown", function(e){
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "Escape" && S.sel.length){ selectAt(""); return; }
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+});
+
+build($("#formula").value);
+LOG_READY = true;
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

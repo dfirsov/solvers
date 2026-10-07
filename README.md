@@ -16,6 +16,7 @@ is why the set is not named after propositional logic.
 | `arith.html`     | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
 | `equiv.html`     | Equivalence Checker  | truth tables, counterexamples               |
 | `predicate.html` | Predicate Deduction  | ∀I ∀E ∃I ∃E, function symbols, Dilemma      |
+| `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
 
 ### What is different about the predicate page
 
@@ -52,6 +53,30 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Clausal form
+
+`clausal.html` is a rewriting tool rather than a proving one: you pick a
+subformula, pick a law, and the step is added to a chain of `⇔`s laid out the
+way the course writes it. The route is the one from the lectures — strip the
+implications, push the negations down, pull the quantifiers to the front
+(renaming where one would be captured), put the matrix into conjunctive normal
+form, then skolemise. A strip of five milestones says which of those are done.
+
+The step that matters is the last one. **Skolemisation is not an equivalence**,
+and the chain says so: that line is marked `equisat.` rather than `⇔`, because
+the result is satisfiable exactly when the original is and no more than that.
+`Herbrandise` is there too, the mirror image, which keeps validity instead.
+
+Two things to know about reading the output. A nullary Skolem symbol is a
+constant and is named like one (`c`, `d`), while the rest are functions of the
+∀-bound variables before them (`f`, `g`). And the variables left loose at the
+end are **universally quantified** — that implicit ∀ is part of what clausal
+form means, and it is what the equisatisfiability check puts back before
+comparing.
+
+`Done` lists the clauses and states the relationship to the original formula,
+having checked every interpretation over a domain of up to three.
 
 #### Dilemma
 

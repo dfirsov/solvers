@@ -59,8 +59,12 @@ Two things the propositional pages do, this one cannot:
 #### Kripke models
 
 `kripke.html` is a laboratory rather than a solver: you build the structure and
-it tells you what is true where. Drag from one world to another to add or
-remove an arrow, drag onto a world for a loop, click a letter to flip it. Every
+it tells you what is true where. **Drag a world to move it**; drag from the dot
+on its right edge onto another world to add or remove an arrow, onto itself for
+a loop; click a letter to flip it. Worlds start on a circle and stay where they
+are put, which is what makes a four-cycle readable instead of a tangle —
+`tidy` puts them back. Where they sit is only a picture, so it is not part of
+the structure's text form. Every
 world then carries a T or an F for the formula, and the panel shows the whole
 subformula chain at the selected world — including, for each `□` and `◇`, which
 successors made it come out that way. That last line is the "justify" the

@@ -167,7 +167,6 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .hint{font-size:12.5px; color:var(--ink-3); font-style:italic; padding:4px 15px 12px}
 
 /* worlds and arrows */
-.wbox{cursor:pointer}
 .wbox > rect{fill:var(--paper); stroke:var(--line); stroke-width:1.2}
 .wbox:hover > rect{stroke:var(--ink-3)}
 .wbox.sel > rect{stroke:var(--accent); stroke-width:2; fill:var(--accent-soft)}
@@ -181,6 +180,12 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .atom.off{fill:var(--ink-3); opacity:.45; text-decoration:line-through}
 .edge{fill:none; stroke:var(--ink-2); stroke-width:1.3}
 .edge.hot{stroke:var(--accent); stroke-width:2}
+.edge.ghost{stroke:var(--accent); stroke-dasharray:5 4; stroke-width:1.6}
+.hdl{fill:var(--paper); stroke:var(--ink-3); stroke-width:1.4; cursor:crosshair}
+.wbox:hover .hdl, .wbox.sel .hdl{fill:var(--accent); stroke:var(--accent)}
+.hdlhit{cursor:crosshair}
+.wbox{cursor:grab}
+.wbox.dragging{cursor:grabbing}
 .verd{font-family:var(--mono); font-size:10px; letter-spacing:.06em}
 .verd.yes{fill:var(--closed)} .verd.no{fill:var(--error)}
 
@@ -299,6 +304,7 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
       <button type="button" class="rule" data-act="refl" title="Add an arrow from every world to itself">+ loops</button>
       <button type="button" class="rule" data-act="close4" title="Add whatever arrows transitivity demands">make transitive</button>
       <button type="button" class="rule" data-act="closeB" title="Add whatever arrows symmetry demands">make symmetric</button>
+      <button type="button" class="rule" data-act="tidy" title="Put the worlds back on a circle">tidy</button>
     </div>
     <span class="glabel">Ask</span>
     <div class="group">
@@ -585,7 +591,7 @@ function searchVals(M, atoms, each){
 
 /* ═════════════════════════════════════════════ state */
 var MAXW = 8, MAXA = 5;
-var S = {f:null, M:newModel(3), atoms:["p"], sel:0, undo:[], msg:""};
+var S = {f:null, M:newModel(3), atoms:["p"], sel:0, undo:[], msg:"", pos:null, moved:false, link:null};
 
 var $ = function(s){ return document.querySelector(s); };
 var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
@@ -658,6 +664,7 @@ function act(what){
     M.R.splice(d, 1);
     M.R.forEach(function(row){ row.splice(d, 1); });
     S.atoms.forEach(function(a){ M.V[a].splice(d, 1); });
+    if (S.pos) S.pos.splice(d, 1);
     M.n--;
     if (S.sel >= M.n) S.sel = M.n - 1;
     say("ok", "World removed. The rest keep their arrows, renumbered.");
@@ -684,6 +691,10 @@ function act(what){
       if (M.R[x][y] && !M.R[y][x]){ M.R[y][x] = true; n2++; }
     say("ok", n2 ? plural(n2, "arrow") + " added — the frame is now <b>symmetric</b>, so B (A ⊃ □◇A) holds."
                  : "Nothing to add: the frame was already symmetric.");
+  } else if (what === "tidy"){
+    S.moved = false; S.pos = null;
+    say("", "Worlds put back on a circle. Nothing about the structure changed — where they sit is only " +
+        "a picture of it.");
   } else if (what === "findval"){ findVal(); return; }
   else if (what === "frame"){ frameValid(); return; }
   draw();
@@ -768,6 +779,36 @@ function tooBig(bits){
 /* ═════════════════════════════════════════════ drawing */
 var BW = 76, BH = 50;
 function boxW(){ return Math.max(BW, 22 + 15 * S.atoms.length); }
+/* Positions are the student's to arrange. They start on a circle and stay
+   wherever they are put; "tidy" puts them back. Nothing about the logic
+   depends on them, which is why they are not in the structure's text form. */
+function ensurePos(){
+  var svg = $("#svg");
+  var W = svg.clientWidth || 560, H = svg.clientHeight || 420;
+  var base = layout(S.M.n, W, H);
+  if (!S.pos || !S.moved){ S.pos = base; return; }
+  while (S.pos.length < S.M.n) S.pos.push(base[S.pos.length % base.length]);
+  if (S.pos.length > S.M.n) S.pos.length = S.M.n;
+  /* a narrower window must not leave a world off the edge */
+  S.pos = S.pos.map(clampPos);
+}
+function clampPos(p){
+  var svg = $("#svg"), W = svg.clientWidth || 560, H = svg.clientHeight || 420;
+  var bw = boxW() / 2 + 2, bh = BH / 2 + 24;     /* room above for a self-loop */
+  return {x:Math.max(bw, Math.min(W - bw, p.x)), y:Math.max(bh, Math.min(H - BH / 2 - 2, p.y))};
+}
+function worldAt(x, y){
+  var bw = boxW() / 2, bh = BH / 2;
+  for (var i = S.M.n - 1; i >= 0; i--){
+    var p = S.pos[i];
+    if (Math.abs(x - p.x) <= bw && Math.abs(y - p.y) <= bh) return i;
+  }
+  return null;
+}
+function svgXY(e){
+  var r = $("#svg").getBoundingClientRect();
+  return {x:e.clientX - r.left, y:e.clientY - r.top};
+}
 function layout(n, W, H){
   var cx = W / 2, cy = H / 2;
   if (n === 1) return [{x:cx, y:cy}];
@@ -794,9 +835,8 @@ function draw(){
 }
 function drawGraph(){
   var svg = $("#svg"), M = S.M;
-  var W = svg.clientWidth || 520, H = svg.clientHeight || 400;
-  var pos = layout(M.n, W, H), bw = boxW();
-  var hot = S.f ? null : null;
+  ensurePos();
+  var pos = S.pos, bw = boxW();
   var out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" ' +
     'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/>' +
     '</marker><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
@@ -839,13 +879,22 @@ function drawGraph(){
         '<text class="atom ' + (on ? "on" : "off") + '" x="' + ax + '" y="' + (p.y + 13) +
         '" text-anchor="middle">' + esc(at) + "</text></g>";
     });
+    out += '<circle class="hdlhit" data-hdl="' + i + '" cx="' + (p.x + bw / 2) + '" cy="' + p.y +
+      '" r="11" fill="transparent"/>' +
+      '<circle class="hdl" data-hdl="' + i + '" cx="' + (p.x + bw / 2) + '" cy="' + p.y + '" r="4.5"/>';
     out += "</g>";
+  }
+  if (S.link){
+    var lp = pos[S.link.from];
+    out += '<path class="edge ghost" marker-end="url(#ah2)" d="M' + lp.x + "," + lp.y +
+      " L" + S.link.x + "," + S.link.y + '"/>';
   }
   svg.innerHTML = out;
   $("#mdesc").textContent = "— " + plural(M.n, "world") + ", " +
     plural(M.R.reduce(function(t, r){ return t + r.filter(Boolean).length; }, 0), "arrow");
-  $("#ghint").innerHTML = "Drag from one world to another to add or remove an arrow — onto itself for a loop. " +
-    "Click a world to inspect it, a letter to flip it.";
+  $("#ghint").innerHTML = "<b>Drag a world</b> to move it. <b>Drag from the dot</b> on its right edge onto " +
+    "another world to add or remove an arrow — onto itself for a loop. Click a world to inspect it, a " +
+    "letter to flip it.";
 }
 function drawSide(){
   var M = S.M, h = "", w = S.sel;
@@ -936,7 +985,7 @@ function loadModel(src){
       M.V[a] = row;
     });
     snapshot();
-    S.M = M; S.atoms = atoms; S.sel = 0;
+    S.M = M; S.atoms = atoms; S.sel = 0; S.pos = null; S.moved = false;
     say("ok", "Structure loaded: " + plural(n, "world") + ", " + plural(es.length, "arrow") + ".");
     draw();
   } catch (e){ say("err", e.message); }
@@ -967,31 +1016,54 @@ $("#pad").addEventListener("mousedown", function(e){
 });
 
 /* ═════════════════════════════════════════════ wiring */
-/* Dragging between worlds edits the relation; a click that did not travel far
-   selects instead. Keeping those apart is what lets one gesture do both. */
+/* Two gestures on the same shape. Dragging a world moves it, which is only a
+   picture; dragging from its handle draws an arrow, which is the structure. A
+   drag that never travelled selects instead, so a click still works. */
 var drag = null;
-function worldUnder(e){
-  var t = e.target.closest ? e.target.closest("[data-w]") : null;
-  return t ? +t.getAttribute("data-w") : null;
-}
 $("#svg").addEventListener("pointerdown", function(e){
-  var atom = e.target.closest("[data-atom]");
+  var atom = e.target.closest && e.target.closest("[data-atom]");
   if (atom){ toggleAtom(+atom.getAttribute("data-w"), atom.getAttribute("data-atom")); e.preventDefault(); return; }
-  var w = worldUnder(e);
-  if (w === null) return;
-  drag = {from:w, x:e.clientX, y:e.clientY};
+  var hdl = e.target.closest && e.target.closest("[data-hdl]");
+  var at = svgXY(e);
+  if (hdl){
+    drag = {mode:"link", from:+hdl.getAttribute("data-hdl"), x0:at.x, y0:at.y, far:false};
+  } else {
+    var w = worldAt(at.x, at.y);
+    if (w === null) return;
+    drag = {mode:"move", from:w, x0:at.x, y0:at.y, far:false,
+            dx:S.pos[w].x - at.x, dy:S.pos[w].y - at.y};
+  }
+  try { $("#svg").setPointerCapture(e.pointerId); } catch (x){}
   e.preventDefault();
+});
+$("#svg").addEventListener("pointermove", function(e){
+  if (!drag) return;
+  var at = svgXY(e);
+  if (Math.abs(at.x - drag.x0) + Math.abs(at.y - drag.y0) > 5) drag.far = true;
+  if (!drag.far) return;
+  if (drag.mode === "move"){
+    S.moved = true;
+    S.pos[drag.from] = clampPos({x:at.x + drag.dx, y:at.y + drag.dy});
+  } else {
+    S.link = {from:drag.from, x:at.x, y:at.y};
+  }
+  drawGraph();
 });
 $("#svg").addEventListener("pointerup", function(e){
   if (!drag) return;
-  var to = worldUnder(e), from = drag.from;
-  var moved = Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 6;
-  drag = null;
-  if (to === null) return;
-  if (!moved && to === from){ S.sel = from; say("", "Looking at " + WN(from) + "."); draw(); return; }
-  toggleEdge(from, to);
+  var d = drag, at = svgXY(e);
+  drag = null; S.link = null;
+  try { $("#svg").releasePointerCapture(e.pointerId); } catch (x){}
+  if (d.mode === "link"){
+    var to = worldAt(at.x, at.y);
+    if (to === null){ drawGraph(); say("", "Arrow dropped on empty space — nothing changed."); return; }
+    toggleEdge(d.from, to);
+    return;
+  }
+  if (!d.far){ S.sel = d.from; say("", "Looking at " + WN(d.from) + "."); draw(); return; }
+  drawGraph();
 });
-$("#svg").addEventListener("pointerleave", function(){ drag = null; });
+$("#svg").addEventListener("pointercancel", function(){ drag = null; S.link = null; drawGraph(); });
 
 document.addEventListener("click", function(e){
   var t = e.target.closest("[data-sym],[data-act]");

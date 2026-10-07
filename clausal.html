@@ -853,6 +853,16 @@ function livePath(g, path){
 function readPath(s){ return s ? s.split(".") : []; }
 
 /* ═════════════════════════════════════════════ fresh names */
+/* Every symbol the formula uses, predicates included. namesIn alone sees only
+   terms, and a Skolem symbol that dodges the terms but lands on a predicate
+   name gives you c(c) — one name doing two jobs, which is no name at all. */
+function symbolsIn(g, out){
+  out = namesIn(g, out || []);
+  var sig = signature([g]);
+  Object.keys(sig.preds).forEach(function(n){ if (out.indexOf(n) < 0) out.push(n); });
+  Object.keys(sig.funcs).forEach(function(n){ if (out.indexOf(n) < 0) out.push(n); });
+  return out;
+}
 function freshVar(base, avoid){
   for (var i = 1; i <= 3; i++){
     var n = base + new Array(i + 1).join("'");     /* a plain prime, so it parses back */
@@ -911,16 +921,18 @@ var RULES = [
      return {f:{k:o, v:i.v, a:neg(i.a)},
              why:"¬" + qch(i.k) + "x A ⇔ " + qch(o) + "x ¬A"}; }},
 
-  {code:"∧Q", lbl:"∧ out", law:"(Qx A) ∧ B ⇔ Qx (A ∧ B), when x is not free in B",
-   go:function(g){ return pullOut(g, "and"); }},
+  {code:"∧Q", lbl:"∧ out", op:"and",
+   law:"(Qx A) ∧ B ⇔ Qx (A ∧ B), when x is not free in B",
+   go:function(g, side){ return pullOut(g, "and", side); }},
 
-  {code:"∨Q", lbl:"∨ out", law:"(Qx A) ∨ B ⇔ Qx (A ∨ B), when x is not free in B",
-   go:function(g){ return pullOut(g, "or"); }},
+  {code:"∨Q", lbl:"∨ out", op:"or",
+   law:"(Qx A) ∨ B ⇔ Qx (A ∨ B), when x is not free in B",
+   go:function(g, side){ return pullOut(g, "or", side); }},
 
   {code:"α", lbl:"rename", law:"Qx A ⇔ Qy A[y/x] for a fresh y — a bound name carries no meaning",
    go:function(g){
      if (g.k !== "all" && g.k !== "ex") return null;
-     var y = freshVar(g.v, namesIn(S.chain[S.chain.length - 1].f, []));
+     var y = freshVar(g.v, symbolsIn(S.chain[S.chain.length - 1].f));
      return {f:{k:g.k, v:y, a:subst(g.a, g.v, tm(y, []))},
              why:"bound " + g.v + " renamed " + y}; }},
 
@@ -948,11 +960,12 @@ function ruleOf(code){ return RULES.filter(function(r){ return r.code === code; 
 /* Pulling a quantifier out of a conjunction or a disjunction. Either side may
    carry it; the side condition is that the bound variable is not free in the
    other side, and when it is, renaming it first is exactly the cure. */
-function pullOut(g, op){
+function pullOut(g, op, side){
   if (g.k !== op) return null;
   var sym = op === "and" ? "∧" : "∨", blocked = null;
   for (var i = 0; i < 2; i++){
     var qs = i ? "b" : "a", os = i ? "a" : "b";
+    if (side && side !== qs) continue;          /* the student named a side */
     var q = g[qs], other = g[os];
     if (q.k !== "all" && q.k !== "ex") continue;
     if (freeIn(other).indexOf(q.v) >= 0){
@@ -962,7 +975,16 @@ function pullOut(g, op){
       continue;
     }
     var inner = i ? {k:op, a:other, b:q.a} : {k:op, a:q.a, b:other};
-    return {f:{k:q.k, v:q.v, a:inner},
+    /* Both halves may carry a quantifier, and which one comes out first is
+       not cosmetic: whatever ends up inside a ∀ will skolemise to a function
+       of it rather than to a constant. Selecting a quantifier directly is how
+       to say which, so the tool points that out the moment it matters. */
+    var o = other, alt = (o.k === "all" || o.k === "ex") && !side
+      ? " " + qch(o.k) + "<i>" + o.v + "</i> on the other side could have come out first instead — " +
+        "click it and press <b>" + (op === "and" ? "∧ out" : "∨ out") + "</b>. The order is not " +
+        "cosmetic: a quantifier left inside a ∀ skolemises to a function of it, not to a constant."
+      : "";
+    return {f:{k:q.k, v:q.v, a:inner}, alt:alt,
             why: i ? "B " + sym + " " + qch(q.k) + "x A ⇔ " + qch(q.k) + "x (B " + sym + " A)"
                    : qch(q.k) + "x A " + sym + " B ⇔ " + qch(q.k) + "x (A " + sym + " B)"};
   }
@@ -979,7 +1001,7 @@ function strip(g, dual){
     return {err:"This is defined on <b>prenex form</b> — all the quantifiers in front, nothing but " +
       "connectives behind them. Pull the remaining quantifiers to the front first."};
   var keep = dual ? "ex" : "all", kill = dual ? "all" : "ex";
-  var avoid = namesIn(g, []), held = [], notes = [];
+  var avoid = symbolsIn(g), held = [], notes = [];
   function go(h){
     if (h.k === keep){ held.push(h.v); return go(h.a); }
     if (h.k === kill){
@@ -994,6 +1016,21 @@ function strip(g, dual){
   var m = go(g);
   return {f:m, why: notes.length ? notes.join(", ")
                                  : "no " + qch(kill) + " to remove; the quantifiers just go"};
+}
+
+/* Where a rule will actually act. Normally that is the selected subformula,
+   but when both halves of a conjunction carry a quantifier, which one comes
+   out first decides what the ∃ ends up depending on — and so how many
+   arguments its Skolem function takes. Selecting the quantifier itself is how
+   you say which: the rule then acts on its parent, on that side. */
+function aim(r, sel){
+  if (r.whole) return {path:[], sub:S.chain.length ? curF() : null, side:null};
+  var g = curF(), path = sel, sub = at(g, path);
+  if (r.op && path.length && (sub.k === "all" || sub.k === "ex")){
+    var par = at(g, path.slice(0, -1));
+    if (par.k === r.op) return {path:path.slice(0, -1), sub:par, side:path[path.length - 1]};
+  }
+  return {path:path, sub:sub, side:null};
 }
 
 /* ═════════════════════════════════════════════ state */
@@ -1042,8 +1079,8 @@ function applyRule(code){
     say("", "Finished — press <b>Restart</b> to run it again, or enter another formula.");
     return;
   }
-  var r = ruleOf(code), path = r.whole ? [] : S.sel, sub = at(curF(), path);
-  var out = r.go(sub);
+  var r = ruleOf(code), a = aim(r, S.sel), path = a.path, sub = a.sub;
+  var out = r.go(sub, a.side);
   if (!out){ say("err", whyNot(r, sub, path)); return; }
   if (out.err){ say("err", out.err); return; }
   snapshot();
@@ -1056,7 +1093,7 @@ function applyRule(code){
     : r.kind === "val"
     ? " The new formula is <b>not equivalent</b> to the old one — it is valid exactly when the old one is."
     : "";
-  say("ok", "<b>" + r.lbl + "</b> — " + (out.why || r.law) + "." + tail + nextStep());
+  say("ok", "<b>" + r.lbl + "</b> — " + (out.why || r.law) + "." + (out.alt || "") + tail + nextStep());
   draw();
 }
 function whyNot(r, sub, path){
@@ -1150,7 +1187,13 @@ function verdict(){
       "working — please report it.";
   var rel = kinds.sat ? "<b>equisatisfiable</b> with" : kinds.val ? "<b>equivalid</b> with"
                       : "<b>logically equivalent</b> to";
-  var loose = freeIn(curF()).filter(function(v){ return freeIn(orig).indexOf(v) < 0; });
+  /* A name left free at the end is a loose variable only if a quantifier
+     somewhere in the chain bound it. The Skolem symbols are free too, but
+     they are constants, which is a different thing entirely. */
+  var bound = [];
+  steps.forEach(function(st){ boundVarsIn(st.f, bound); });
+  var loose = freeIn(curF()).filter(function(v){
+    return bound.indexOf(v) >= 0 && freeIn(orig).indexOf(v) < 0; });
   var note = kinds.sat
     ? "Skolemisation is the step that costs you equivalence: " + fh(orig) + " and the clauses above " +
       "are satisfiable in exactly the same cases, which is what resolution needs, but they do not have " +
@@ -1164,6 +1207,19 @@ function verdict(){
     : "Every step was an equivalence, so the clauses say exactly what " + fh(orig) + " says.";
   return "The result is " + rel + " " + fh(orig) + ". " + note +
     " Checked against every interpretation over a domain of up to " + MAXDOM + ".";
+}
+
+/* the names a quantifier binds anywhere in a formula */
+function boundVarsIn(g, out){
+  out = out || [];
+  if (g.k === "pred" || g.k === "top" || g.k === "bot") return out;
+  if (g.k === "all" || g.k === "ex"){
+    if (out.indexOf(g.v) < 0) out.push(g.v);
+    return boundVarsIn(g.a, out);
+  }
+  if (g.k === "not") return boundVarsIn(g.a, out);
+  boundVarsIn(g.a, out); boundVarsIn(g.b, out);
+  return out;
 }
 
 /* ═════════════════════════════════════════════ drawing */
@@ -1180,8 +1236,7 @@ function drawRules(){
       ? '<span class="rsep"></span>' : "";
     var cls = "rule", live = null;
     if (g && S.phase !== "done"){
-      var sub = r.whole ? g : at(g, S.sel);
-      var out = r.go(sub);
+      var a = aim(r, S.sel), out = r.go(a.sub, a.side);
       live = !!(out && !out.err);
     }
     if (live !== null) cls += live ? " armed" : " dim";
@@ -1248,7 +1303,7 @@ function selectAt(p){
   var sub = at(curF(), S.sel);
   var fits = RULES.filter(function(r){
     if (r.whole) return false;
-    var o = r.go(sub);
+    var a = aim(r, S.sel), o = r.go(a.sub, a.side);
     return !!(o && !o.err);
   }).map(function(r){ return "<b>" + r.lbl + "</b>"; });
   say("", (S.sel.length ? "Selected " : "The whole formula, ") + fh(sub) + " — " +

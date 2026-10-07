@@ -68,12 +68,22 @@ and the chain says so: that line is marked `equisat.` rather than `⇔`, because
 the result is satisfiable exactly when the original is and no more than that.
 `Herbrandise` is there too, the mirror image, which keeps validity instead.
 
-Two things to know about reading the output. A nullary Skolem symbol is a
+Three things to know about reading the output. A nullary Skolem symbol is a
 constant and is named like one (`c`, `d`), while the rest are functions of the
-∀-bound variables before them (`f`, `g`). And the variables left loose at the
-end are **universally quantified** — that implicit ∀ is part of what clausal
+∀-bound variables before them (`f`, `g`); either way the name dodges every
+symbol already in the formula, predicates included. The variables left loose at
+the end are **universally quantified** — that implicit ∀ is part of what clausal
 form means, and it is what the equisatisfiability check puts back before
 comparing.
+
+And **the order you pull quantifiers in matters**. Where both halves of a
+conjunction carry one, whichever is left inside a ∀ will skolemise to a
+function of it rather than to a constant — the clauses stay correct but say
+less than they could. Clicking the quantifier itself, rather than the ∧ below
+it, is how you say which one comes out first; the tool points this out the
+moment the choice arises. Courses that skolemise in place instead of prenexing
+first (UCC's handout26, say) never meet the question, and get the tighter
+answer by construction.
 
 `Done` lists the clauses and states the relationship to the original formula,
 having checked every interpretation over a domain of up to three.

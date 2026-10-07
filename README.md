@@ -16,6 +16,7 @@ is why the set is not named after propositional logic.
 | `arith.html`     | Arithmetic Encoding  | Boolean polynomials, ring laws + `x·x = x`  |
 | `equiv.html`     | Equivalence Checker  | truth tables, counterexamples               |
 | `predicate.html` | Predicate Deduction  | ∀I ∀E ∃I ∃E, function symbols, Dilemma      |
+| `predseq.html`   | Predicate Sequents   | cut-free LK with ∀L ∀R ∃L ∃R                |
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
 
 ### What is different about the predicate page
@@ -53,6 +54,41 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Predicate sequents
+
+`predseq.html` is `sequent.html` with the four quantifier rules, in the form the
+lecture gives them:
+
+```
+  Γ → A[y/x], ∆              Γ, (∀x A,) A[t/x] → ∆
+  ───────────── ∀R           ───────────────────── ∀L
+  Γ → ∀x A, ∆                     Γ, ∀x A → ∆
+
+  Γ → A[t/x], (∃x A,) ∆           Γ, A[y/x] → ∆
+  ───────────────────── ∃R        ───────────── ∃L
+  Γ → ∃x A, ∆                     Γ, ∃x A → ∆
+```
+
+`∀R` and `∃L` mint a parameter named after the variable it stands for — `x`
+becomes `x'`, as the handout writes `x⁰` — and it is fresh to the whole proof,
+which is the side condition. `∀L` and `∃R` ask you for a term instead, and
+offer the one that would close the branch first, having found it by matching.
+
+**The brackets in `(∀x A, )` are the interesting part.** Keeping the quantified
+formula is optional in the rule and the tool always keeps it, because that is
+what lets you instantiate the same quantifier twice — `⊢ ∃x (p(x) ⊃ ∀x p(x))`
+cannot be proved otherwise. The price is that proofs carry one more formula
+than the handout bothers to write, and that bottom-up search no longer has to
+terminate.
+
+That last point is the whole difference from the propositional page. There,
+every rule strictly simplifies the sequent, so the search always ends and a
+leaf that runs out of rules *is* a countermodel — failing to find a proof is a
+decision procedure. Here `∀L` and `∃R` put in terms that need not come from the
+goal, so a leaf of bare atoms means only that this route failed; a different
+term further down might not have. The page says so rather than pretending, and
+offers a countermodel search over domains of up to three to settle what it can.
 
 #### Clausal form
 

@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Linear-time temporal logic on a lasso: a run of states that loops back, with X, G, F, U and R evaluated at every position and the reason spelled out.">
+<title>Temporal Logic</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --open-soft:#FBEEDA;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1500px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strips ───────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap}
+.strip.a{padding-block:2px 6px}
+.strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none; width:5.6em;
+}
+.group{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+.rule{
+  font-family:var(--serif); font-size:15px; line-height:1;
+  min-width:40px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft); border-color:var(--ink-3)}
+.rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.rule.dim{opacity:.32}
+.rule.close{border-color:var(--closed); color:var(--closed)}
+.rule.close.armed{background:var(--closed); border-color:var(--closed); color:var(--paper)}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the board ─────────────────────────────────────────── */
+.board{flex:1; min-height:0; display:flex; gap:14px; align-items:stretch; margin-bottom:18px}
+.pane{background:var(--paper); border:1px solid var(--line); border-radius:10px;
+      display:flex; flex-direction:column; min-height:0}
+.pane.path{flex:1.2; min-width:0; overflow:auto}
+.pane.side{flex:1; min-width:0; overflow:auto; padding:13px 15px}
+.pane .ph{display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+          text-transform:uppercase; color:var(--ink-3); padding:12px 15px 0}
+.pane.side .ph{padding:0 0 9px}
+.pane.side .ph + .ph{padding-top:16px}
+#svg{display:block; margin:4px 0 0 4px}
+.hint{font-size:12.5px; color:var(--ink-3); font-style:italic; padding:6px 15px 12px}
+
+.sbox{cursor:pointer}
+.sbox > rect{fill:var(--paper); stroke:var(--line); stroke-width:1.2}
+.sbox:hover > rect{stroke:var(--ink-3)}
+.sbox.sel > rect{stroke:var(--accent); stroke-width:2; fill:var(--accent-soft)}
+.sbox.yes > rect{stroke:var(--closed); fill:var(--closed-soft)}
+.sbox.no > rect{stroke:var(--error); fill:var(--error-soft)}
+.sbox .hit{fill:transparent; stroke:none}
+.sn{font-family:var(--mono); font-size:11px; fill:var(--ink-2)}
+.sbox.sel .sn{fill:var(--accent)}
+.atom{font-family:var(--serif); font-size:15px; cursor:pointer}
+.atom.on{fill:var(--ink); font-weight:500}
+.atom.off{fill:var(--ink-3); opacity:.45; text-decoration:line-through}
+.edge{fill:none; stroke:var(--ink-2); stroke-width:1.4}
+.edge.loop{stroke:var(--accent)}
+.loopl{font-family:var(--mono); font-size:9.5px; fill:var(--accent); text-anchor:middle}
+.verd{font-family:var(--mono); font-size:10px; letter-spacing:.06em}
+.verd.yes{fill:var(--closed)} .verd.no{fill:var(--error)}
+.loopb{min-width:34px}
+
+.note{font-size:12.5px; color:var(--ink-2); margin:0 0 8px; line-height:1.5}
+.note b{color:var(--ink); font-weight:500}
+.none2{font-size:12.5px; color:var(--ink-3); font-style:italic}
+.sub{width:100%; border-collapse:collapse; font-size:13px}
+.sub td{padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:baseline}
+.sub tr:last-child td{border-bottom:0}
+.sub td.v{width:1px; text-align:right; font-family:var(--mono); font-size:11px; white-space:nowrap}
+.sub td.v.t{color:var(--closed)} .sub td.v.f{color:var(--error)}
+.sub td.v .t{color:var(--closed)} .sub td.v .f{color:var(--error); opacity:.75}
+.sub tr.top td{font-weight:500}
+.srow{display:flex; gap:6px; align-items:center; margin-top:8px}
+.srow input{font-family:var(--mono); font-size:12px; padding:5px 8px; flex:1; min-width:0}
+.f .tm{color:var(--accent); font-weight:500}
+@media (max-width:860px){
+  .board{flex-direction:column; min-height:0}
+  .pane.path{flex:none}
+  .pane.side{flex:none; overflow:visible}
+  #app{height:auto; min-height:100%}
+}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>↻</span> TEMPORAL</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <input type="text" id="formula" spellcheck="false" autocomplete="off"
+             aria-label="LTL formula" value="F p &amp; F q -> F (p &amp; X F q) | F (p &amp; q) | F (X F p &amp; q)">
+      <button type="submit" class="go">Evaluate</button>
+      <div class="pad" id="pad" role="group" aria-label="Insert a connective">
+        <button type="button" data-sym="¬" aria-label="Insert negation" title="negation — also typed as ~ or !">¬</button>
+        <button type="button" data-sym="∧" aria-label="Insert conjunction" title="conjunction — also typed as &amp;">∧</button>
+        <button type="button" data-sym="∨" aria-label="Insert disjunction" title="disjunction — also typed as |">∨</button>
+        <button type="button" data-sym="⊃" aria-label="Insert implication" title="implication — also typed as -&gt;">⊃</button>
+        <button type="button" data-sym="≡" aria-label="Insert biconditional" title="biconditional — also typed as &lt;-&gt;">≡</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="X " aria-label="Insert next" title="X A — A at the next state">X</button>
+        <button type="button" data-sym="G " aria-label="Insert globally" title="G A — A at every state from here on">G</button>
+        <button type="button" data-sym="F " aria-label="Insert finally" title="F A — A at some state from here on">F</button>
+        <button type="button" data-sym=" U " aria-label="Insert until" title="A U B — A until B, and B does come">U</button>
+        <button type="button" data-sym=" R " aria-label="Insert release" title="A R B — B holds until A releases it, perhaps for ever">R</button>
+        <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
+        <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
+        <span class="padhint">¬ X G F bind tightest, then ∧, then ∨, then U and R, then ⊃ — so <code>p | r U q &amp; s</code> is <code>(p∨r) U (q∧s)</code></span>
+      </div>
+    </form>
+  </div>
+
+  <div class="strip b">
+    <span class="glabel">Path</span>
+    <div class="group">
+      <button type="button" class="rule" data-act="add" title="Add a state at the end">+ state</button>
+      <button type="button" class="rule" data-act="del" title="Drop the last state">− state</button>
+    </div>
+    <span class="glabel" title="Which state the last one goes back to">Loop to</span>
+    <div class="group" id="loops"></div>
+    <span class="glabel">Ask</span>
+    <div class="group">
+      <button type="button" class="rule" data-act="find" title="Search this many states for a path making the formula true at s0">find a path…</button>
+      <button type="button" class="rule" data-act="valid" title="Look for a path that makes the formula false at s0">is it valid?</button>
+    </div>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts">
+      <button class="link" id="undo">Undo</button>
+      <button class="link" id="reset">Restart</button>
+    </span>
+  </div>
+
+  <div class="board">
+    <div class="pane path">
+      <span class="ph">The path <i id="pdesc"></i></span>
+      <svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <span class="hint">Click a letter to flip it, a state to look at it. The last state loops back, so the
+        path is infinite and <b>G</b> and <b>F</b> have something to quantify over.</span>
+    </div>
+    <div class="pane side" id="side"></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ logging */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
+var LOG_URL = "log.php";
+var LOG_PAGE = "ltl";
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
+
+function logFormula(data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    var body = JSON.stringify([ev]);
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+
+
+/* ═════════════════════════════════════════════ formulas */
+/* Linear time. The structure of lecture 14 has a relation that is serial and
+   functional — every state has exactly one next state — so a finite one is a
+   lasso: a run of states, the last of which loops back to one of them. That
+   is the whole model, and it is what the page draws. */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+var UN = {X:"X", G:"G", F:"F"};
+var BIN2 = {U:"U", R:"R"};
+
+function show(g, esc, wrap, neg, opw, cst, tmp){
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" || UN[c.k]) return false;
+    if (pk === "not" || UN[pk]) return true;
+    if (BIN2[pk]) return !(c.k === "and" || c.k === "or" || UN[c.k]);
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    if (pk === "and" && c.k === "or") return true;
+    if (pk === "or" && c.k === "and") return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    if (UN[h.k]) return tmp(h.k) + go(h.a, h.k, false);
+    if (BIN2[h.k]) return go(h.a, h.k, true) + tmp(" " + h.k + " ") + go(h.b, h.k, false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function fmtHTML(g){
+  return show(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; },
+    function(m){ return '<span class="tm">' + m.replace(/ /g, "&thinsp;") + "</span>"; });
+}
+function fmtText(g){
+  return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
+    /* X, G and F are words: without the space Fp lexes back as one atom */
+    function(m){ return /^[XGF]$/.test(m) ? m + " " : m; });
+}
+function atomsOf(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* none */ }
+  else if (g.k === "not" || UN[g.k]) atomsOf(g.a, out);
+  else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+function eqF(a, b){
+  if (a.k !== b.k) return false;
+  if (a.k === "atom") return a.n === b.n;
+  if (a.k === "top" || a.k === "bot") return true;
+  if (a.k === "not" || UN[a.k]) return eqF(a.a, b.a);
+  return eqF(a.a, b.a) && eqF(a.b, b.b);
+}
+function subsOf(g, out){
+  out = out || [];
+  if (g.k === "not" || UN[g.k]) subsOf(g.a, out);
+  else if (g.k !== "atom" && g.k !== "top" && g.k !== "bot"){ subsOf(g.a, out); subsOf(g.b, out); }
+  if (!out.some(function(x){ return eqF(x, g); })) out.push(g);
+  return out;
+}
+
+/* ═════════════════════════════════════════════ parser */
+var SYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], [")","rp"]
+];
+/* X, G, F, U and R are words, not symbols, so a letter run decides */
+function tokenize(src){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_']/.test(src[j])) j++;
+      var w = src.slice(i, j);
+      t.push({t:(UN[w] || BIN2[w]) ? "tmp" : "atom", v:w, i:i}); i = j; continue;
+    }
+    for (var k = 0; k < SYMS.length; k++){
+      if (src.startsWith(SYMS[k][0], i)){
+        t.push({t:SYMS[k][1], v:SYMS[k][0], i:i}); i += SYMS[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+/* ¬ X G F tightest, then ∧, then ∨, then U and R, then ⊃, then ≡ — so
+   p ∨ r U q ∧ s is (p ∨ r) U (q ∧ s), the way the handout brackets it. */
+function parse(src){
+  if (!src.trim()) throw new Error("Nothing to evaluate — type a formula.");
+  var t = tokenize(src), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = until(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function until(){
+    var l = or();
+    if (peek() === "tmp" && BIN2[t[p].v]){ var op = t[p++].v; return {k:op, a:l, b:until()}; }
+    return l;
+  }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (peek() === "tmp" && UN[t[p].v]){ var op = t[p++].v; return {k:op, a:un()}; }
+    if (peek() === "tmp") throw new Error("<b>" + t[p].v + "</b> joins two formulas — put one in front of it.");
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
+    var a = eat("atom");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
+    if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
+    throw new Error("Expected a letter, a temporal operator or “(” at position " + (t[p].i + 1) + ".");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” at position " + (t[p].i + 1) + " — is a connective missing?");
+  return f;
+}
+
+/* ═════════════════════════════════════════════ paths */
+/* A path is n states, the last of which goes back to state `loop`. So the
+   successor of i is i+1, except that the successor of n−1 is loop. */
+function newPath(n){ return {n:n, loop:0, V:{}}; }
+function next(P, i){ return i === P.n - 1 ? P.loop : i + 1; }
+
+/* G, F, U and R all say something about the whole infinite future, which a
+   lasso makes finite: each is the fixpoint of a one-step equation, reached by
+   iterating over the n states. F and U start from nothing and grow; G and R
+   start from everything and shrink. */
+function evalAll(g, P){
+  var n = P.n, i, out = [];
+  switch (g.k){
+    case "atom": for (i = 0; i < n; i++) out.push(!!(P.V[g.n] && P.V[g.n][i])); return out;
+    case "top":  for (i = 0; i < n; i++) out.push(true); return out;
+    case "bot":  for (i = 0; i < n; i++) out.push(false); return out;
+    case "not":  return evalAll(g.a, P).map(function(x){ return !x; });
+    case "and":  { var A = evalAll(g.a, P), B = evalAll(g.b, P);
+                   return A.map(function(x, i2){ return x && B[i2]; }); }
+    case "or":   { var A2 = evalAll(g.a, P), B2 = evalAll(g.b, P);
+                   return A2.map(function(x, i2){ return x || B2[i2]; }); }
+    case "imp":  { var A3 = evalAll(g.a, P), B3 = evalAll(g.b, P);
+                   return A3.map(function(x, i2){ return !x || B3[i2]; }); }
+    case "iff":  { var A4 = evalAll(g.a, P), B4 = evalAll(g.b, P);
+                   return A4.map(function(x, i2){ return x === B4[i2]; }); }
+    case "X":    { var A5 = evalAll(g.a, P);
+                   for (i = 0; i < n; i++) out.push(A5[next(P, i)]); return out; }
+    case "F":    return fix(P, evalAll(g.a, P), null, false);
+    case "G":    return fix(P, null, evalAll(g.a, P), true);
+    case "U":    return fix(P, evalAll(g.b, P), evalAll(g.a, P), false);
+    case "R":    { var A6 = evalAll(g.a, P), B6 = evalAll(g.b, P);
+                   return fixR(P, A6, B6); }
+  }
+  return out;
+}
+/* least fixpoint of  x[i] = now[i] ∨ (keep[i] ∧ x[next i]) — F is keep = ⊤,
+   U is keep = A; the greatest version, with now = ⊥ and the roles flipped,
+   is G */
+function fix(P, now, keep, greatest){
+  var n = P.n, x = [], i, changed = true;
+  for (i = 0; i < n; i++) x.push(greatest);
+  while (changed){
+    changed = false;
+    for (i = 0; i < n; i++){
+      var v = greatest ? (keep[i] && x[next(P, i)])
+                       : (now[i] || ((keep ? keep[i] : true) && x[next(P, i)]));
+      if (v !== x[i]){ x[i] = v; changed = true; }
+    }
+  }
+  return x;
+}
+/* greatest fixpoint of  x[i] = B[i] ∧ (A[i] ∨ x[next i]) */
+function fixR(P, A, B){
+  var n = P.n, x = [], i, changed = true;
+  for (i = 0; i < n; i++) x.push(true);
+  while (changed){
+    changed = false;
+    for (i = 0; i < n; i++){
+      var v = B[i] && (A[i] || x[next(P, i)]);
+      if (v !== x[i]){ x[i] = v; changed = true; }
+    }
+  }
+  return x;
+}
+function holdsAt(g, P, i){ return evalAll(g, P)[i]; }
+var SN = function(i){ return "s" + i; };
+
+/* ═════════════════════════════════════════════ state */
+var MAXS = 8, MAXA = 4, MAXBITS = 22;
+var S = {f:null, P:newPath(3), atoms:["p"], sel:0, undo:[]};
+
+var $ = function(s){ return document.querySelector(s); };
+var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
+var plural = function(n, w, pl){ return n + " " + (n === 1 ? w : (pl || w + "s")); };
+function say(tone, html){
+  $("#status").className = "status" + (tone ? " " + tone : "");
+  $("#status").querySelector(".msg").innerHTML = html;
+}
+function snapshot(){
+  S.undo.push(JSON.stringify({P:S.P, atoms:S.atoms, sel:S.sel}));
+  if (S.undo.length > 120) S.undo.shift();
+}
+function undo(){
+  if (!S.undo.length){ say("", "Nothing to undo."); return; }
+  var s = JSON.parse(S.undo.pop());
+  S.P = s.P; S.atoms = s.atoms; S.sel = s.sel;
+  say("", "Stepped back.");
+  draw();
+}
+function pathText(){
+  var P = S.P;
+  var vs = S.atoms.map(function(a){
+    var ss = [];
+    for (var i = 0; i < P.n; i++) if (P.V[a] && P.V[a][i]) ss.push(i);
+    return a + "=" + ss.join(",");
+  });
+  return "S=" + P.n + "; loop=" + P.loop + (vs.length ? "; " + vs.join("; ") : "");
+}
+function loadPath(src){
+  try {
+    var parts = src.split(";").map(function(x){ return x.trim(); }).filter(Boolean);
+    var n = null, lp = 0, vs = {};
+    parts.forEach(function(p){
+      var m = p.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+      if (!m) throw new Error("“" + p + "” is not a <i>name</i>=<i>value</i> part.");
+      if (m[1] === "S"){ n = parseInt(m[2], 10); if (!(n >= 1 && n <= MAXS)) throw new Error("S must be between 1 and " + MAXS + "."); }
+      else if (m[1] === "loop") lp = parseInt(m[2], 10);
+      else vs[m[1]] = m[2].split(",").map(function(x){ return x.trim(); }).filter(Boolean)
+                          .map(function(x){ return parseInt(x, 10); });
+    });
+    if (n === null) throw new Error("Say how many states, as S=3.");
+    if (!(lp >= 0 && lp < n)) throw new Error("The loop has to go back to a state between 0 and " + (n - 1) + ".");
+    var P = newPath(n);
+    P.loop = lp;
+    var atoms = S.atoms.slice();
+    Object.keys(vs).forEach(function(a){ if (atoms.indexOf(a) < 0 && atoms.length < MAXA) atoms.push(a); });
+    atoms.forEach(function(a){
+      var row = [];
+      for (var i = 0; i < n; i++) row.push((vs[a] || []).indexOf(i) >= 0);
+      P.V[a] = row;
+    });
+    snapshot();
+    S.P = P; S.atoms = atoms; S.sel = 0;
+    say("ok", "Path loaded: " + plural(n, "state") + ", looping back to " + SN(lp) + ".");
+    draw();
+  } catch (e){ say("err", e.message); }
+}
+
+/* ═════════════════════════════════════════════ the formula */
+function build(src){
+  var f;
+  try { f = parse(src); }
+  catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
+  if (LOG_READY) logFormula({f:src});
+  S.f = f;
+  atomsOf(f).forEach(function(a){
+    if (S.atoms.indexOf(a) < 0 && S.atoms.length < MAXA){ S.atoms.push(a); S.P.V[a] = null; }
+  });
+  S.atoms.forEach(function(a){
+    if (!S.P.V[a]){ var r = []; for (var i = 0; i < S.P.n; i++) r.push(false); S.P.V[a] = r; }
+  });
+  var v = evalAll(f, S.P), yes = [];
+  for (var i = 0; i < S.P.n; i++) if (v[i]) yes.push(SN(i));
+  say(v[0] ? "ok" : "", fh(f) + " is " + (v[0] ? "<b>true</b>" : "<b>false</b>") + " at " + SN(0) +
+      (yes.length ? ", and holds at " + yes.join(", ") : ", and nowhere on the path") +
+      ". Click a letter to flip it, a state to look at it.");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ editing */
+function reshape(n){
+  var P = S.P;
+  S.atoms.forEach(function(a){
+    var row = P.V[a] || [];
+    while (row.length < n) row.push(false);
+    P.V[a] = row.slice(0, n);
+  });
+  P.n = n;
+  if (P.loop >= n) P.loop = n - 1;
+  if (S.sel >= n) S.sel = n - 1;
+}
+function act(what){
+  var P = S.P;
+  if (what === "add"){
+    if (P.n >= MAXS){ say("err", "That is as many states as this page draws — " + MAXS + "."); return; }
+    snapshot(); reshape(P.n + 1); S.sel = P.n - 1;
+    say("ok", "State <b>" + SN(P.n - 1) + "</b> added at the end, with every letter false. It is the new " +
+        "last state, so the loop now comes out of it.");
+  } else if (what === "del"){
+    if (P.n <= 1){ say("err", "A path needs at least one state."); return; }
+    snapshot(); reshape(P.n - 1);
+    say("ok", "Last state dropped.");
+  } else if (what === "find"){ findPath(); return; }
+  else if (what === "valid"){ checkValid(); return; }
+  draw();
+}
+function setLoop(i){
+  snapshot();
+  S.P.loop = i;
+  say("ok", "The path now loops from " + SN(S.P.n - 1) + " back to <b>" + SN(i) + "</b>. Everything from " +
+      SN(i) + " on repeats for ever, which is what makes <b>G</b> and <b>F</b> decidable here.");
+  draw();
+}
+function toggleAtom(i, a){
+  snapshot();
+  S.P.V[a][i] = !S.P.V[a][i];
+  say("ok", "<i>" + a + "</i> is now <b>" + (S.P.V[a][i] ? "true" : "false") + "</b> at " + SN(i) + ".");
+  draw();
+}
+
+/* ═════════════════════════════════════════════ the two questions */
+function putVal(P, atoms, mask){
+  atoms.forEach(function(a, ai){
+    var row = [];
+    for (var i = 0; i < P.n; i++) row.push(!!(mask & (1 << (ai * P.n + i))));
+    P.V[a] = row;
+  });
+}
+function grabVal(P, atoms){
+  var mask = 0;
+  atoms.forEach(function(a, ai){
+    for (var i = 0; i < P.n; i++) if (P.V[a] && P.V[a][i]) mask |= (1 << (ai * P.n + i));
+  });
+  return mask;
+}
+function findPath(){
+  if (!S.f){ say("err", "Enter a formula first."); return; }
+  var at = atomsOf(S.f), P = S.P, bits = at.length * P.n;
+  if (bits > MAXBITS){ say("err", tooBig(bits)); return; }
+  var keep = grabVal(P, at), keepLoop = P.loop, total = 1 << bits, hit = null;
+  for (var lp = 0; lp < P.n && !hit; lp++){
+    P.loop = lp;
+    for (var m = 0; m < total; m++){
+      putVal(P, at, m);
+      if (holdsAt(S.f, P, 0)){ hit = {m:m, lp:lp}; break; }
+    }
+  }
+  if (!hit){
+    putVal(P, at, keep); P.loop = keepLoop;
+    say("err", "<b>No path of " + plural(P.n, "state") + " works.</b> Over all " + total +
+        " valuations and all " + P.n + " places to loop back to, " + fh(S.f) + " is false at " + SN(0) +
+        " every time. Add a state and try again — a longer path can do things a shorter one cannot.");
+    draw();
+    return;
+  }
+  snapshot();
+  P.loop = hit.lp; putVal(P, at, hit.m);
+  say("ok", "<b>Found one.</b> " + fh(S.f) + " is true at " + SN(0) + " on this path.");
+  draw();
+}
+function checkValid(){
+  if (!S.f){ say("err", "Enter a formula first."); return; }
+  var at = atomsOf(S.f), bad = null;
+  for (var n = 1; n <= MAXS && !bad; n++){
+    var bits = at.length * n;
+    if (bits > MAXBITS) break;
+    var Q = newPath(n), total = 1 << bits;
+    for (var lp = 0; lp < n && !bad; lp++){
+      Q.loop = lp;
+      for (var m = 0; m < total; m++){
+        putVal(Q, at, m);
+        if (!holdsAt(S.f, Q, 0)){ bad = {n:n, lp:lp, m:m}; break; }
+      }
+    }
+  }
+  if (!bad){
+    say("ok", "<b>Never false.</b> Over every path of up to " + plural(MAXS, "state") + " — every valuation " +
+        "and every place to loop back to — " + fh(S.f) + " holds at " + SN(0) + ". That is evidence, not a " +
+        "proof: a formula can need a longer path than this to be refuted, so the argument is still yours " +
+        "to make.");
+    return;
+  }
+  snapshot();
+  reshape(bad.n);
+  S.P.loop = bad.lp;
+  putVal(S.P, at, bad.m);
+  S.sel = 0;
+  say("err", "<b>Not valid.</b> This path makes " + fh(S.f) + " false at " + SN(0) +
+      " — it is loaded now, so the panel shows why.");
+  draw();
+}
+function tooBig(bits){
+  return "That is 2<sup>" + bits + "</sup> valuations, past what this page will sit through. Use fewer " +
+    "states or fewer letters.";
+}
+
+/* ═════════════════════════════════════════════ drawing */
+var SW = 96, SH = 54, GAP = 42;
+function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+function draw(){
+  drawLoopBtns();
+  drawPath();
+  drawSide();
+}
+function drawLoopBtns(){
+  var P = S.P, h = "";
+  for (var i = 0; i < P.n; i++)
+    h += '<button type="button" class="rule loopb' + (P.loop === i ? " armed" : "") +
+      '" data-loop="' + i + '" title="Make the last state go back to ' + SN(i) + '">' + SN(i) + "</button>";
+  $("#loops").innerHTML = h;
+}
+function drawPath(){
+  var P = S.P, svg = $("#svg");
+  var vals = S.f ? evalAll(S.f, P) : null;
+  var W = 30 + P.n * (SW + GAP), H = 190;
+  var y = 46;
+  var out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
+    'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/></marker>' +
+    '<marker id="ahl" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
+    'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker></defs>';
+  function x(i){ return 20 + i * (SW + GAP); }
+  /* the straight run */
+  for (var i = 0; i + 1 < P.n; i++)
+    out += '<path class="edge" marker-end="url(#ah)" d="M' + (x(i) + SW + 3) + "," + (y + SH / 2) +
+      " L" + (x(i + 1) - 5) + "," + (y + SH / 2) + '"/>';
+  /* and the loop back */
+  var lastR = x(P.n - 1) + SW / 2, tgt = x(P.loop) + SW / 2;
+  var dip = y + SH + 46;
+  out += '<path class="edge loop" marker-end="url(#ahl)" d="M' + lastR + "," + (y + SH + 3) +
+    " C" + lastR + "," + dip + " " + tgt + "," + dip + " " + tgt + "," + (y + SH + 6) + '"/>';
+  out += '<text class="loopl" x="' + ((lastR + tgt) / 2) + '" y="' + (dip + 4) + '">loops back to ' +
+    SN(P.loop) + ", and repeats for ever</text>";
+  for (var k = 0; k < P.n; k++){
+    var v = vals ? vals[k] : null;
+    var cls = "sbox" + (k === S.sel ? " sel" : "") + (v === true ? " yes" : v === false ? " no" : "");
+    out += '<g class="' + cls + '" data-state="' + k + '">' +
+      '<rect x="' + x(k) + '" y="' + y + '" width="' + SW + '" height="' + SH + '" rx="9"/>' +
+      '<text class="sn" x="' + (x(k) + 9) + '" y="' + (y + 16) + '">' + SN(k) + "</text>";
+    if (v !== null)
+      out += '<text class="verd ' + (v ? "yes" : "no") + '" x="' + (x(k) + SW - 8) + '" y="' + (y + 16) +
+        '" text-anchor="end">' + (v ? "T" : "F") + "</text>";
+    S.atoms.forEach(function(a, ai){
+      var ax = x(k) + 15 + ai * 17, on = !!(P.V[a] && P.V[a][k]);
+      out += '<g data-atom="' + esc(a) + '" data-state="' + k + '">' +
+        '<rect class="hit" x="' + (ax - 8) + '" y="' + (y + 22) + '" width="16" height="22"/>' +
+        '<text class="atom ' + (on ? "on" : "off") + '" x="' + ax + '" y="' + (y + 38) +
+        '" text-anchor="middle">' + esc(a) + "</text></g>";
+    });
+    out += "</g>";
+  }
+  svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+  svg.setAttribute("width", W);
+  svg.setAttribute("height", H);
+  svg.innerHTML = out;
+  $("#pdesc").textContent = "— " + plural(P.n, "state") + ", looping back to " + SN(P.loop);
+}
+function drawSide(){
+  var P = S.P, h = "", i = S.sel;
+  h += '<span class="ph">' + SN(i) + "</span>";
+  var seen = [], j = i;
+  for (var c = 0; c < P.n + 1; c++){ seen.push(SN(j)); j = next(P, j); }
+  h += '<p class="note">From here the path runs ' + seen.slice(0, P.n + 1).join(" → ") +
+    " → … — " + (P.loop === 0 && P.n === 1 ? "one state, for ever" : "and on round the loop") + ".</p>";
+  if (!S.f){ h += '<p class="none2">Enter a formula to see it evaluated here.</p>'; }
+  else {
+    h += '<span class="ph">Why, at ' + SN(i) + "</span><table class=\"sub\">";
+    var subs = subsOf(S.f);
+    subs.forEach(function(g, k){
+      var row = evalAll(g, P), v = row[i];
+      h += '<tr' + (k === subs.length - 1 ? ' class="top"' : "") + '><td><span class="f">' +
+        fmtHTML(g) + '</span></td><td class="v ' + (v ? "t" : "f") + '">' + (v ? "true" : "false") + "</td></tr>";
+      if (UN[g.k] || BIN2[g.k])
+        h += '<tr><td colspan="2" class="none2" style="padding-left:14px">' + why(g, P, i) + "</td></tr>";
+    });
+    h += "</table>";
+    h += '<span class="ph">Along the whole path</span><table class="sub">';
+    subsOf(S.f).filter(function(g){ return UN[g.k] || BIN2[g.k] || g.k === "atom"; }).forEach(function(g){
+      var row = evalAll(g, P);
+      h += '<tr><td><span class="f">' + fmtHTML(g) + '</span></td><td class="v">' +
+        row.map(function(x, k){ return '<span class="' + (x ? "t" : "f") + '">' + (x ? "T" : "F") + "</span>"; })
+           .join("") + "</td></tr>";
+    });
+    h += "</table>";
+  }
+  h += '<span class="ph">This path, in text</span>' +
+    '<div class="srow"><input type="text" id="ptext" spellcheck="false" autocomplete="off" value="' +
+    esc(pathText()) + '"><button type="button" class="rule" data-act="load">load</button></div>';
+  $("#side").innerHTML = h;
+}
+/* a sentence saying why a temporal operator came out as it did */
+function why(g, P, i){
+  var a = g.a ? evalAll(g.a, P) : null, b = g.b ? evalAll(g.b, P) : null;
+  if (g.k === "X") return "the next state is " + SN(next(P, i)) + ", where it is " +
+    (a[next(P, i)] ? "true" : "false");
+  var run = [], j = i;
+  for (var c = 0; c < P.n; c++){ run.push(j); j = next(P, j); }
+  if (g.k === "G"){
+    var bad = run.filter(function(k){ return !a[k]; });
+    return bad.length ? "fails already at " + SN(bad[0]) : "holds at every state from here on: " +
+      run.map(SN).join(", ");
+  }
+  if (g.k === "F"){
+    var good = run.filter(function(k){ return a[k]; });
+    return good.length ? "first true at " + SN(good[0]) : "never true from here on";
+  }
+  if (g.k === "U"){
+    var k2 = -1;
+    for (var m = 0; m < run.length; m++) if (b[run[m]]){ k2 = m; break; }
+    if (k2 < 0) return "the right side is never reached, so there is nothing to wait for";
+    var holdsTill = run.slice(0, k2).every(function(x){ return a[x]; });
+    return "the right side first holds at " + SN(run[k2]) + ", and the left side " +
+      (holdsTill ? "holds all the way there" : "does not hold all the way there");
+  }
+  var fail = -1;
+  for (var q = 0; q < run.length; q++) if (!b[run[q]]){ fail = q; break; }
+  if (fail < 0) return "the right side holds for ever, so nothing has to release it";
+  var rel = run.slice(0, fail).some(function(x){ return a[x]; });
+  return "the right side first fails at " + SN(run[fail]) + ", and the left side " +
+    (rel ? "had already released it" : "never released it before then");
+}
+
+/* ═════════════════════════════════════════════ pad and wiring */
+var caret = null;
+function rememberCaret(){
+  var el = $("#formula");
+  if (el.selectionStart !== null) caret = [el.selectionStart, el.selectionEnd];
+}
+["input","click","keyup","select","blur"].forEach(function(ev){
+  $("#formula").addEventListener(ev, rememberCaret);
+});
+function insertSym(ch){
+  var el = $("#formula"), v = el.value, a, b;
+  if (document.activeElement === el && el.selectionStart !== null){ a = el.selectionStart; b = el.selectionEnd; }
+  else if (caret){ a = caret[0]; b = caret[1]; }
+  if (a === undefined || a === null){ a = b = v.length; }
+  el.value = v.slice(0, a) + ch + v.slice(b);
+  var pos = a + ch.length;
+  caret = [pos, pos];
+  el.focus();
+  try { el.setSelectionRange(pos, pos); } catch (e){}
+}
+$("#pad").addEventListener("mousedown", function(e){
+  if (e.target.closest("[data-sym]")) e.preventDefault();
+});
+document.addEventListener("click", function(e){
+  var t = e.target.closest("[data-sym],[data-act],[data-loop],[data-atom],[data-state]");
+  if (!t) return;
+  if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-loop")){ setLoop(+t.getAttribute("data-loop")); return; }
+  if (t.hasAttribute("data-atom")){
+    toggleAtom(+t.getAttribute("data-state"), t.getAttribute("data-atom")); return;
+  }
+  if (t.hasAttribute("data-act")){
+    if (t.dataset.act === "load"){ loadPath($("#ptext").value); return; }
+    act(t.dataset.act); return;
+  }
+  if (t.hasAttribute("data-state")){
+    S.sel = +t.getAttribute("data-state");
+    say("", "Looking at " + SN(S.sel) + ".");
+    draw();
+  }
+});
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
+$("#undo").addEventListener("click", undo);
+$("#reset").addEventListener("click", function(){
+  snapshot();
+  S.P = newPath(3); S.atoms = ["p"]; S.P.V.p = [false, false, false]; S.sel = 0; S.f = null;
+  say("", "Back to three states looping to the first, everything false.");
+  draw();
+});
+document.addEventListener("keydown", function(e){
+  if (e.target.tagName === "INPUT") return;
+  if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey)){ e.preventDefault(); undo(); }
+});
+
+S.P = newPath(3); S.P.loop = 1;
+S.atoms = ["p", "q"];
+S.P.V.p = [true, false, false];
+S.P.V.q = [false, true, false];
+draw();
+build($("#formula").value);
+LOG_READY = true;
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var nx = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", nx);
+  try { localStorage.setItem("logic.theme", nx); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

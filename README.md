@@ -21,6 +21,7 @@ is why the set is not named after propositional logic.
 | `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions, K E D C |
 | `modaltab.html`  | Modal Tableaux       | labelled tableaux, K through S5             |
 | `corresp.html`   | Frame Correspondence | axiom ↔ frame condition, checked both ways  |
+| `ltl.html`       | Temporal Logic       | LTL on a lasso: X, G, F, U, R               |
 
 ### What is different about the predicate page
 
@@ -57,6 +58,32 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Temporal logic
+
+Lecture 14's structure has a relation that is serial *and functional* — every
+state has exactly one next state — so a finite one is a **lasso**: a run of
+states whose last one loops back to one of them. `ltl.html` draws exactly that,
+and nothing else: click a letter to flip it, pick where the loop goes back to,
+and every state carries a T or an F for the formula.
+
+`G`, `F`, `U` and `R` all say something about the whole infinite future, which
+the loop makes finite. Each is the fixpoint of a one-step equation — `F A` is
+`A ∨ X F A`, `A U B` is `B ∨ (A ∧ X(A U B))`, and `G` and `R` are the same
+read downwards from true instead of upwards from false — so the page iterates
+over the states until nothing changes. The panel then says in words why each
+one came out as it did: *"the right side first holds at s2, and the left side
+holds all the way there"*. Underneath, every subformula's value at every
+position, as a strip of T's and F's.
+
+`¬ X G F` bind tightest, then `∧`, then `∨`, then `U` and `R`, then `⊃` — so
+`p | r U q & s` is `(p∨r) U (q∧s)`, which is how the handout brackets it.
+
+Two buttons: **find a path** searches the current number of states, every
+valuation and every place to loop back, for one that makes the formula true at
+`s0`; **is it valid?** looks for one that makes it false. A formula can need a
+longer path than the search reaches, so the verdict says what it checked rather
+than claiming more.
 
 #### Frame correspondence
 

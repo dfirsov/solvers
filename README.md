@@ -20,6 +20,7 @@ is why the set is not named after propositional logic.
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
 | `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions, K E D C |
 | `modaltab.html`  | Modal Tableaux       | labelled tableaux, K through S5             |
+| `corresp.html`   | Frame Correspondence | axiom ↔ frame condition, checked both ways  |
 
 ### What is different about the predicate page
 
@@ -56,6 +57,30 @@ Two things the propositional pages do, this one cannot:
   condition. Everything already in scope where a parameter is born was written
   down before it existed, so nothing in scope can mention it. `Done` re-checks
   each `∀I` and `∃E` against the finished tree rather than trusting the argument.
+
+#### Frame correspondence
+
+Harjutus 7 opens by asking what frame condition an axiom corresponds to, and
+`corresp.html` is for checking an answer. You give the axiom and the condition —
+the condition as a first-order statement about the one relation a frame has,
+`forall w. forall u. forall v. R(w,u) & R(w,v) -> u = v`, which is the language
+lecture 12 writes the correspondence table in — and every frame up to three or
+four worlds is tested twice over: is the axiom valid on it, and does the
+condition hold of it.
+
+Correspondence is exactly the claim that those two answers never differ, so a
+frame where they do is the answer to the exercise, and that is what the page
+shows — with a picture, and a link that opens it in the model lab. It also says
+*which way* the answer is wrong, which is the useful part: a frame validating
+the axiom without satisfying the condition means the condition is too **strong**,
+one satisfying it without validating means too **weak**.
+
+Leave the condition empty and it just shows the frames the axiom is and is not
+valid on, which is how to find the condition rather than check it.
+
+This is evidence, not a proof — it says only that no frame that small tells the
+two apart. The argument is still yours to make, and the frames shown are the
+ones to make it about.
 
 #### Modal tableaux
 

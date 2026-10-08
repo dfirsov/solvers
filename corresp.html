@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Correspondence between a modal axiom and a frame condition: write the condition as a first-order statement about R and every small frame is checked both ways.">
+<title>Frame Correspondence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap">
+
+<style>
+:root{
+  color-scheme:light dark;
+  --bg:#F3F4F8;
+  --paper:#FFFFFF;
+  --soft:#E7EAF2;
+  --ink:#171A26;
+  --ink-2:#5D6379;
+  --ink-3:#8A91A6;
+  --line:#D3D7E4;
+  --accent:#2E3FA8;
+  --accent-ink:#FFFFFF;
+  --accent-soft:#E0E4FB;
+  --closed:#1F7A5C;
+  --closed-soft:#D8EEE5;
+  --open:#A46200;
+  --open-soft:#FBEEDA;
+  --error:#B3261E;
+  --error-soft:#FAE0DE;
+  --sans:"IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --mono:"IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif:"Newsreader", ui-serif, Georgia, serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111320; --paper:#191C29; --soft:#232736;
+    --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+    --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+    --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+    --error:#F3897D; --error-soft:#3B1D1A;
+  }
+}
+:root[data-theme="light"]{color-scheme:light}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#111320; --paper:#191C29; --soft:#232736;
+  --ink:#E7E9F2; --ink-2:#9BA2B8; --ink-3:#6E768E; --line:#31364A;
+  --accent:#8F9BF7; --accent-ink:#141726; --accent-soft:#262C4C;
+  --closed:#55C79C; --closed-soft:#173529; --open:#E0A44F; --open-soft:#33270F;
+  --error:#F3897D; --error-soft:#3B1D1A;
+}
+
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:var(--sans); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+*{box-sizing:border-box}
+button{font:inherit; color:inherit; cursor:pointer}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px; border-radius:3px}
+@media (prefers-reduced-motion:reduce){ *{animation-duration:.01ms!important; transition-duration:.01ms!important} }
+
+#app{height:100%; display:flex; flex-direction:column; padding-inline:20px; max-width:1500px; margin:0 auto}
+
+/* ── input row ─────────────────────────────────────────── */
+.top{display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding-block:18px 14px}
+.wordmark{font-family:var(--serif); font-size:17px; color:var(--ink-2); white-space:nowrap}
+.wordmark span{color:var(--accent)}
+.sibling{font-size:12px; color:var(--ink-3); text-decoration:underline; text-underline-offset:3px}
+.sibling:hover{color:var(--accent)}
+form{display:flex; align-items:center; gap:8px; flex:1; min-width:280px; flex-wrap:wrap}
+input[type=text]{
+  flex:1; min-width:0; font-family:var(--mono); font-size:15px;
+  padding:8px 12px; border-radius:7px; border:1px solid var(--line);
+  background:var(--paper); color:var(--ink);
+}
+input[type=text]:focus{outline:none; border-color:var(--accent)}
+.go{
+  border:1px solid var(--accent); background:var(--accent); color:var(--accent-ink);
+  border-radius:7px; padding:8px 16px; font-weight:500;
+}
+.go:hover{filter:brightness(1.08)}
+.link{
+  border:0; background:transparent; color:var(--ink-3); padding:6px 4px;
+  font-size:13px; text-decoration:underline; text-underline-offset:3px;
+}
+.link:hover{color:var(--ink)}
+
+.pad{display:flex; align-items:center; gap:4px; flex-wrap:wrap; flex-basis:100%}
+.pad button{
+  font-family:var(--serif); font-size:17px; line-height:1;
+  min-width:36px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s;
+}
+.pad button:hover{background:var(--soft); border-color:var(--ink-3)}
+.pad button:active{background:var(--accent-soft); border-color:var(--accent); color:var(--accent)}
+.pad .gap{width:10px}
+.padhint{font-size:12px; color:var(--ink-3); margin-left:4px}
+.padhint code{font-family:var(--mono); font-size:11.5px}
+
+/* ── rule strips ───────────────────────────────────────── */
+.strip{display:flex; align-items:center; gap:8px 16px; flex-wrap:wrap}
+.strip.a{padding-block:2px 6px}
+.strip.b{padding-block:0 13px; border-bottom:1px solid var(--line)}
+.glabel{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); white-space:nowrap; flex:none; width:5.6em;
+}
+.group{display:flex; align-items:center; gap:5px; flex-wrap:wrap}
+.rule{
+  font-family:var(--serif); font-size:15px; line-height:1;
+  min-width:40px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+  transition:background .1s, border-color .1s, opacity .1s;
+}
+.rule:hover{background:var(--soft); border-color:var(--ink-3)}
+.rule.armed{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.rule.dim{opacity:.32}
+.rule.close{border-color:var(--closed); color:var(--closed)}
+.rule.close.armed{background:var(--closed); border-color:var(--closed); color:var(--paper)}
+.done{
+  border:1px solid var(--closed); background:transparent; color:var(--closed);
+  border-radius:7px; padding:6px 16px; font-weight:500; flex:none;
+}
+.done:hover{background:var(--closed-soft)}
+.done:disabled{opacity:.4; cursor:not-allowed}
+.done:disabled:hover{background:transparent}
+
+/* ── status ────────────────────────────────────────────── */
+.status{
+  display:flex; align-items:baseline; gap:10px;
+  padding-block:11px; min-height:42px; font-size:13.5px; color:var(--ink-2);
+}
+.status .msg{flex:1}
+.status.ok{color:var(--closed)}
+.status.err{color:var(--error)}
+.status b{font-weight:500; color:var(--ink)}
+.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status .acts{display:flex; gap:2px; flex:none}
+.f{font-family:var(--serif); font-size:15.5px}
+.f i{font-style:italic}
+.f .op{margin:0 .26em}
+.f .op.neg{margin:0 .04em 0 0}
+.f .pr{color:var(--ink-3)}
+.f .cst{font-style:normal; color:var(--accent)}
+
+/* ── the page ──────────────────────────────────────────── */
+.two{display:flex; gap:10px; flex-wrap:wrap; flex-basis:100%; align-items:center}
+.two input[type=text]{flex:1 1 320px}
+.two .padhint{flex-basis:100%; margin:1px 0 0 84px}
+.two label{
+  font-family:var(--mono); font-size:10px; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); white-space:nowrap; flex:none; width:74px;
+}
+.board{flex:1; min-height:0; overflow:auto; margin-bottom:18px}
+.out{
+  border:1px solid var(--line); background:var(--paper);
+  border-radius:10px; padding:14px 16px; margin-bottom:14px;
+}
+.note{margin:0 0 10px; font-size:13.5px; color:var(--ink-2); line-height:1.55}
+.note b{color:var(--ink); font-weight:500}
+.ph{
+  display:block; font-family:var(--mono); font-size:9.5px; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); margin:16px 0 9px;
+}
+/* a heading that carries a formula must not be shouted in capitals */
+.ph.said{
+  font-family:var(--sans); font-size:12.5px; letter-spacing:0; text-transform:none;
+  color:var(--ink-2); line-height:1.5;
+}
+.ph.said b{color:var(--ink); font-weight:500}
+.gal .row{display:flex; gap:12px; flex-wrap:wrap}
+.card{
+  border:1px solid var(--line); border-radius:9px; padding:9px 11px 10px;
+  display:flex; flex-direction:column; align-items:center; gap:4px; background:var(--bg);
+}
+.thumb{display:block}
+.tw{fill:var(--paper); stroke:var(--ink-2); stroke-width:1.5}
+.tl{font-family:var(--mono); font-size:9px; fill:var(--ink-2); text-anchor:middle}
+.te{fill:none; stroke:var(--ink-3); stroke-width:1.2}
+.ft{font-family:var(--mono); font-size:9.5px; color:var(--ink-2); white-space:nowrap}
+.golink{font-size:10px; color:var(--accent); text-decoration:underline; text-underline-offset:2px}
+.f .md{margin-right:.08em}
+.f .rr{font-family:var(--mono); font-size:.8em; color:var(--ink-3); margin:0 .12em}
+.f .qu{color:var(--accent)}
+</style>
+<script>
+/* stamp the saved theme before anything paints, so there is no flash */
+(function(){
+  try{
+    var t = localStorage.getItem("logic.theme");
+    if (t === "dark" || t === "light") document.documentElement.setAttribute("data-theme", t);
+  }catch(e){}
+})();
+</script>
+</head>
+
+<body>
+<div id="app">
+  <div class="top">
+    <span class="wordmark"><span>⇄</span> CORRESPONDENCE</span>
+    <a class="sibling" href="index.html">← All solvers</a>
+    <button class="theme" id="themeBtn" type="button">◐</button>
+    <form id="entry">
+      <div class="two">
+        <label for="modal">axiom</label>
+        <input type="text" id="modal" spellcheck="false" autocomplete="off"
+               aria-label="Modal formula" value="<>p & <>q -> <>(p & q)">
+        <button type="submit" class="go">Check</button>
+      </div>
+      <div class="two">
+        <label for="cond">condition</label>
+        <input type="text" id="cond" spellcheck="false" autocomplete="off"
+               aria-label="Frame condition" value="forall w. forall u. forall v. R(w,u) &amp; R(w,v) -> u = v">
+        <span class="padhint">a first-order statement about <code>R</code>: <code>R(w,u)</code>, <code>w = u</code>, <code>forall</code>, <code>exists</code>. Leave it empty to just see which frames validate the axiom</span>
+      </div>
+    </form>
+  </div>
+
+  <div class="status" id="status" role="status" aria-live="polite">
+    <span class="msg"></span>
+    <span class="acts"><button class="link" id="reset">Restart</button></span>
+  </div>
+
+  <div class="board"><div class="out" id="out" hidden></div></div>
+</div>
+
+<script>
+"use strict";
+
+/* ═════════════════════════════════════════════ logging */
+/* One line per formula submitted: someone types a formula, presses the button,
+   and that is recorded. Nothing else is — no rule steps, no verdicts, no page
+   views. Posts to the host that served this page, same origin; a failure is
+   swallowed, so logging can never break the tool. LOG_URL = "" switches it off. */
+var LOG_URL = "log.php";
+var LOG_PAGE = "corresp";
+var LOG_READY = false;      /* the formula a page loads with is not a submission */
+
+function logFormula(data){
+  if (!LOG_URL) return;
+  try {
+    var ev = {t:new Date().toISOString(), p:LOG_PAGE};
+    Object.keys(data).forEach(function(k){
+      var v = data[k];
+      ev[k] = (typeof v === "string" && v.length > 300) ? v.slice(0, 300) : v;
+    });
+    var body = JSON.stringify([ev]);
+    if (navigator.sendBeacon &&
+        navigator.sendBeacon(LOG_URL, new Blob([body], {type:"application/json"}))) return;
+    fetch(LOG_URL, {method:"POST", body:body, keepalive:true,
+                    headers:{"Content-Type":"application/json"}}).catch(function(){});
+  } catch (e){}
+}
+
+
+/* ═════════════════════════════════════════════ modal formulas */
+/* The same propositional modal language as the model lab, single relation. */
+var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
+var MDCH = {box:"□", dia:"◇"};
+
+function mshow(g, esc, wrap, neg, opw, cst, mod){
+  function needs(c, pk, left){
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" ||
+        c.k === "box" || c.k === "dia") return false;
+    if (pk === "not" || pk === "box" || pk === "dia") return true;
+    if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
+    return true;
+  }
+  function go(h, pk, left){ var s = body(h); return needs(h, pk, left) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "atom") return esc(h.n);
+    if (h.k === "top") return cst("⊤");
+    if (h.k === "bot") return cst("⊥");
+    if (h.k === "not") return neg() + go(h.a, "not", false);
+    if (h.k === "box" || h.k === "dia") return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
+  }
+  return body(g);
+}
+function mHTML(g){
+  return mshow(g,
+    function(n){ return "<i>" + n + "</i>"; },
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(t){ return '<span class="cst">' + t + "</span>"; },
+    function(m){ return '<span class="md">' + m + "</span>"; });
+}
+function mText(g){
+  return mshow(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
+    function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
+    function(m){ return m; });
+}
+function matoms(g, out){
+  out = out || [];
+  if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
+  else if (g.k === "top" || g.k === "bot"){ /* none */ }
+  else if (g.k === "not" || g.k === "box" || g.k === "dia") matoms(g.a, out);
+  else { matoms(g.a, out); matoms(g.b, out); }
+  return out;
+}
+var MSYMS = [
+  ["<->","iff"], ["<=>","iff"], ["↔","iff"], ["≡","iff"],
+  ["->","imp"], ["=>","imp"], ["→","imp"], ["⊃","imp"],
+  ["/\\","and"], ["&&","and"], ["∧","and"], ["&","and"], ["^","and"],
+  ["\\/","or"], ["||","or"], ["∨","or"], ["|","or"],
+  ["¬","not"], ["~","not"], ["!","not"],
+  ["[]","box"], ["□","box"], ["<>","dia"], ["◇","dia"],
+  ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
+  ["(","lp"], [")","rp"]
+];
+function lex(src, syms, extra){
+  var t = [], i = 0;
+  outer: while (i < src.length){
+    var c = src[i];
+    if (/\s/.test(c)){ i++; continue; }
+    if (/[A-Za-z]/.test(c)){
+      var j = i + 1;
+      while (j < src.length && /[A-Za-z0-9_']/.test(src[j])) j++;
+      var w = src.slice(i, j);
+      t.push({t:(extra && extra[w]) || "name", v:w, i:i}); i = j; continue;
+    }
+    for (var k = 0; k < syms.length; k++){
+      if (src.startsWith(syms[k][0], i)){
+        t.push({t:syms[k][1], v:syms[k][0], i:i}); i += syms[k][0].length; continue outer;
+      }
+    }
+    throw new Error("I don’t recognise “" + c + "” at position " + (i + 1) + ".");
+  }
+  t.push({t:"end", v:"", i:src.length});
+  return t;
+}
+function mparse(src){
+  if (!src.trim()) throw new Error("Type a modal formula.");
+  var t = lex(src, MSYMS), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (peek() === "box"){ p++; return {k:"box", a:un()}; }
+    if (peek() === "dia"){ p++; return {k:"dia", a:un()}; }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed."); return f; }
+    var a = eat("name");
+    if (a) return {k:"atom", n:a.v};
+    if (peek() === "end") throw new Error("The modal formula stops early.");
+    throw new Error("Expected a letter, □, ◇ or “(” at position " + (t[p].i + 1) + ".");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” in the modal formula.");
+  return f;
+}
+function mholds(g, R, n, V, w){
+  switch (g.k){
+    case "atom": return !!(V[g.n] && V[g.n][w]);
+    case "top":  return true;
+    case "bot":  return false;
+    case "not":  return !mholds(g.a, R, n, V, w);
+    case "and":  return mholds(g.a, R, n, V, w) && mholds(g.b, R, n, V, w);
+    case "or":   return mholds(g.a, R, n, V, w) || mholds(g.b, R, n, V, w);
+    case "imp":  return !mholds(g.a, R, n, V, w) || mholds(g.b, R, n, V, w);
+    case "iff":  return mholds(g.a, R, n, V, w) === mholds(g.b, R, n, V, w);
+    case "box":
+      for (var u = 0; u < n; u++) if (R[w][u] && !mholds(g.a, R, n, V, u)) return false;
+      return true;
+    case "dia":
+      for (var v = 0; v < n; v++) if (R[w][v] && mholds(g.a, R, n, V, v)) return true;
+      return false;
+  }
+  return false;
+}
+/* valid on a frame: true in every world under every valuation */
+function validOn(g, R, n, atoms){
+  var bits = atoms.length * n, total = 1 << bits, V = {};
+  for (var m = 0; m < total; m++){
+    atoms.forEach(function(a, ai){
+      var row = [];
+      for (var w = 0; w < n; w++) row.push(!!(m & (1 << (ai * n + w))));
+      V[a] = row;
+    });
+    for (var w2 = 0; w2 < n; w2++) if (!mholds(g, R, n, V, w2)) return false;
+  }
+  return true;
+}
+
+/* ═════════════════════════════════════════════ frame conditions */
+/* A frame condition is a first-order sentence about one binary relation, so
+   the little language here has exactly that: variables, R(x,y), x = y, the
+   connectives and the two quantifiers. It is the language lecture 12 writes
+   the correspondence table in. */
+var FSYMS = MSYMS.filter(function(s){ return s[1] !== "box" && s[1] !== "dia"; })
+  .concat([["∀","all"], ["∃","ex"], ["!=","neq"], ["≠","neq"], ["=","eq"], [",","comma"], [".","dot"]]);
+var FWORDS = {forall:"all", all:"all", exists:"ex", some:"ex"};
+
+function fparse(src){
+  if (!src.trim()) throw new Error("Type a frame condition — a first-order formula about R.");
+  var t = lex(src, FSYMS, FWORDS), p = 0;
+  function peek(){ return t[p].t; }
+  function eat(k){ return t[p].t === k ? t[p++] : null; }
+  function iff(){ var l = impR(); while (peek() === "iff"){ p++; l = {k:"iff", a:l, b:impR()}; } return l; }
+  function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
+  function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
+  function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  function un(){
+    if (peek() === "not"){ p++; return {k:"not", a:un()}; }
+    if (peek() === "all" || peek() === "ex"){
+      var q = t[p++].t, v = eat("name");
+      if (!v) throw new Error("A quantifier needs a variable after it, as in ∀w.");
+      /* the dot widens the scope, as on the predicate pages */
+      return {k:q, v:v.v, a:eat("dot") ? iff() : un()};
+    }
+    if (eat("top")) return {k:"top"};
+    if (eat("bot")) return {k:"bot"};
+    if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed."); return f; }
+    var a = eat("name");
+    if (a){
+      if (eat("lp")){
+        if (a.v !== "R" && a.v !== "r")
+          throw new Error("“" + a.v + "” is not a relation here. The only one a frame has is <b>R</b>.");
+        var x = eat("name");
+        if (!x || !eat("comma")) throw new Error("R takes two variables, as in R(w,u).");
+        var y = eat("name");
+        if (!y || !eat("rp")) throw new Error("R takes two variables, as in R(w,u).");
+        return {k:"rel", x:x.v, y:y.v};
+      }
+      if (peek() === "eq" || peek() === "neq"){
+        var neg = t[p++].t === "neq", b = eat("name");
+        if (!b) throw new Error("Put a variable on both sides of the = sign.");
+        var e = {k:"eqv", x:a.v, y:b.v};
+        return neg ? {k:"not", a:e} : e;
+      }
+      throw new Error("“" + a.v + "” on its own is not a statement about the frame. Write <b>R(" + a.v +
+        ",u)</b> for an arrow, or <b>" + a.v + " = u</b> for the same world.");
+    }
+    if (peek() === "end") throw new Error("The condition stops early.");
+    throw new Error("Expected R(…), a quantifier or “(” at position " + (t[p].i + 1) + ".");
+  }
+  var f = iff();
+  if (peek() !== "end") throw new Error("Unexpected “" + t[p].v + "” in the condition.");
+  return f;
+}
+function fshow(g, wrap, neg, opw, rel, eqv, qnt){
+  function needs(c, pk){
+    if (c.k === "rel" || c.k === "eqv" || c.k === "not" || c.k === "all" || c.k === "ex" ||
+        c.k === "top" || c.k === "bot") return false;
+    return true;
+  }
+  function go(h, pk){ var s = body(h); return needs(h, pk) ? wrap(s) : s; }
+  function body(h){
+    if (h.k === "rel") return rel(h.x, h.y);
+    if (h.k === "eqv") return eqv(h.x, h.y);
+    if (h.k === "top") return "⊤";
+    if (h.k === "bot") return "⊥";
+    if (h.k === "not") return neg() + go(h.a, "not");
+    if (h.k === "all" || h.k === "ex") return qnt(h.k === "all" ? "∀" : "∃", h.v) + go(h.a, null);
+    return go(h.a, h.k) + opw(OPCH[h.k]) + go(h.b, h.k);
+  }
+  return body(g);
+}
+function fHTML(g){
+  return fshow(g,
+    function(s){ return '<span class="pr">(</span>' + s + '<span class="pr">)</span>'; },
+    function(){ return '<span class="op neg">¬</span>'; },
+    function(o){ return '<span class="op">' + o + "</span>"; },
+    function(x, y){ return "<i>" + x + "</i><span class=\"rr\">R</span><i>" + y + "</i>"; },
+    function(x, y){ return "<i>" + x + "</i><span class=\"op\">=</span><i>" + y + "</i>"; },
+    function(q, v){ return '<span class="qu">' + q + "</span><i>" + v + "</i>&thinsp;"; });
+}
+function fvars(g, out){
+  out = out || [];
+  if (g.k === "rel"){ [g.x, g.y].forEach(function(v){ if (out.indexOf(v) < 0) out.push(v); }); return out; }
+  if (g.k === "eqv"){ [g.x, g.y].forEach(function(v){ if (out.indexOf(v) < 0) out.push(v); }); return out; }
+  if (g.k === "top" || g.k === "bot") return out;
+  if (g.k === "not") return fvars(g.a, out);
+  if (g.k === "all" || g.k === "ex") return fvars(g.a, out);
+  fvars(g.a, out); fvars(g.b, out);
+  return out;
+}
+function ffree(g, out, bound){
+  out = out || []; bound = bound || [];
+  if (g.k === "rel" || g.k === "eqv"){
+    [g.x, g.y].forEach(function(v){ if (bound.indexOf(v) < 0 && out.indexOf(v) < 0) out.push(v); });
+    return out;
+  }
+  if (g.k === "top" || g.k === "bot") return out;
+  if (g.k === "not") return ffree(g.a, out, bound);
+  if (g.k === "all" || g.k === "ex") return ffree(g.a, out, bound.concat([g.v]));
+  ffree(g.a, out, bound); ffree(g.b, out, bound);
+  return out;
+}
+function fholds(g, R, n, env){
+  switch (g.k){
+    case "rel": return !!R[env[g.x]][env[g.y]];
+    case "eqv": return env[g.x] === env[g.y];
+    case "top": return true;
+    case "bot": return false;
+    case "not": return !fholds(g.a, R, n, env);
+    case "and": return fholds(g.a, R, n, env) && fholds(g.b, R, n, env);
+    case "or":  return fholds(g.a, R, n, env) || fholds(g.b, R, n, env);
+    case "imp": return !fholds(g.a, R, n, env) || fholds(g.b, R, n, env);
+    case "iff": return fholds(g.a, R, n, env) === fholds(g.b, R, n, env);
+    case "all": case "ex": {
+      var want = g.k === "all";
+      for (var d = 0; d < n; d++){
+        var e2 = {}, k;
+        for (k in env) e2[k] = env[k];
+        e2[g.v] = d;
+        if (fholds(g.a, R, n, e2) !== want) return !want;
+      }
+      return want;
+    }
+  }
+  return false;
+}
+
+/* ═════════════════════════════════════════════ the comparison */
+/* Walk every frame up to N worlds and ask two questions of each: is the modal
+   formula valid on it, and does the condition hold of it. Correspondence is
+   exactly the claim that those two answers never differ. A frame where they
+   do is the whole answer to the exercise — so it is what gets shown. */
+var BUDGET = 6000000;
+function reach(atoms){
+  /* the largest N whose frames can be walked without the page hanging */
+  for (var n = 4; n >= 1; n--){
+    var work = Math.pow(2, n * n) * Math.pow(2, n * atoms.length) * n;
+    if (work <= BUDGET) return n;
+  }
+  return 1;
+}
+function eachFrame(N, fn){
+  for (var n = 1; n <= N; n++){
+    var cells = n * n, total = Math.pow(2, cells);
+    for (var r = 0; r < total; r++){
+      var R = [];
+      for (var i = 0; i < n; i++){ R.push([]); for (var j = 0; j < n; j++) R[i].push(!!(r & (1 << (i * n + j)))); }
+      if (fn(R, n) === false) return;
+    }
+  }
+}
+function arrows(R){ return R.reduce(function(t, r){ return t + r.filter(Boolean).length; }, 0); }
+function frameText(R, n){
+  var es = [];
+  for (var a = 0; a < n; a++) for (var b = 0; b < n; b++) if (R[a][b]) es.push(a + ">" + b);
+  return "W=" + n + "; R=" + es.join(",");
+}
+/* a small picture of a frame, worlds on a circle */
+function thumb(R, n, w, h){
+  w = w || 142; h = h || 118;
+  var cx = w / 2, cy = h / 2 + 5, rad = n === 1 ? 0 : Math.min(w, h) / 2 - 24, pos = [];
+  for (var i = 0; i < n; i++){
+    var a = -Math.PI / 2 + i * 2 * Math.PI / n;
+    pos.push({x:cx + rad * Math.cos(a), y:cy + rad * Math.sin(a)});
+  }
+  var out = '<svg class="thumb" viewBox="0 0 ' + w + " " + h + '" width="' + w + '" height="' + h + '">';
+  for (var a2 = 0; a2 < n; a2++) for (var b = 0; b < n; b++){
+    if (!R[a2][b]) continue;
+    var p = pos[a2], q = pos[b];
+    if (a2 === b){
+      out += '<path class="te" d="M' + (p.x - 5) + "," + (p.y - 6) + " C" + (p.x - 17) + "," + (p.y - 27) +
+        " " + (p.x + 17) + "," + (p.y - 27) + " " + (p.x + 4.5) + "," + (p.y - 6.5) + '" marker-end="url(#ta)"/>';
+      continue;
+    }
+    var vx = q.x - p.x, vy = q.y - p.y, L = Math.sqrt(vx * vx + vy * vy) || 1;
+    var ux = vx / L, uy = vy / L, bow = R[b][a2] ? 11 : 0;
+    var sx = p.x + ux * 8, sy = p.y + uy * 8, ex = q.x - ux * 10.5, ey = q.y - uy * 10.5;
+    out += '<path class="te" d="M' + sx + "," + sy + " Q" + ((sx + ex) / 2 - uy * bow) + "," +
+      ((sy + ey) / 2 + ux * bow) + " " + ex + "," + ey + '" marker-end="url(#ta)"/>';
+  }
+  pos.forEach(function(p, i){
+    out += '<circle class="tw" cx="' + p.x + '" cy="' + p.y + '" r="5.5"/>' +
+      '<text class="tl" x="' + (p.x + 11) + '" y="' + (p.y + 12) + '">' + i + "</text>";
+  });
+  return out + "</svg>";
+}
+var TDEF = '<svg width="0" height="0"><defs><marker id="ta" viewBox="0 0 10 10" refX="9" refY="5" ' +
+  'markerWidth="6" markerHeight="6" orient="auto-start-reverse">' +
+  '<path d="M0,0 L10,5 L0,10 z" fill="var(--ink-3)"/></marker></defs></svg>';
+
+/* ═════════════════════════════════════════════ state */
+var S = {m:null, c:null};
+var $ = function(s){ return document.querySelector(s); };
+var plural = function(n, w, pl){ return n + " " + (n === 1 ? w : (pl || w + "s")); };
+function say(tone, html){
+  $("#status").className = "status" + (tone ? " " + tone : "");
+  $("#status").querySelector(".msg").innerHTML = html;
+}
+function link(R, n){
+  return '<a class="golink" href="kripke.html#' + encodeURIComponent(frameText(R, n)) +
+    '" target="_blank" rel="noopener">open in the model lab →</a>';
+}
+
+function run(){
+  var mg, cg;
+  try { mg = mparse($("#modal").value); }
+  catch (e){ if (LOG_READY) logFormula({f:$("#modal").value, err:"parse"}); say("err", e.message); return; }
+  var ctxt = $("#cond").value.trim();
+  if (ctxt){
+    try { cg = fparse(ctxt); }
+    catch (e){ say("err", e.message); return; }
+    var free = ffree(cg);
+    if (free.length){
+      say("err", "The condition leaves " + free.map(function(v){ return "<i>" + v + "</i>"; }).join(", ") +
+          " loose. A frame condition is a statement about the whole frame, so every variable has to be " +
+          "quantified — put a ∀ in front.");
+      return;
+    }
+  }
+  if (LOG_READY) logFormula({f:$("#modal").value, cond:ctxt});
+  S.m = mg; S.c = cg || null;
+
+  var atoms = matoms(mg), N = reach(atoms);
+  var both = 0, onlyV = [], onlyC = [], valid = 0, held = 0, seen = 0;
+  eachFrame(N, function(R, n){
+    seen++;
+    var v = validOn(mg, R, n, atoms);
+    if (v) valid++;
+    if (!cg){
+      if (v && onlyV.length < 6) onlyV.push([R, n]);
+      else if (!v && onlyC.length < 6) onlyC.push([R, n]);
+      return;
+    }
+    var c = fholds(cg, R, n, {});
+    if (c) held++;
+    if (v && c) both++;
+    else if (v && !c && onlyV.length < 4) onlyV.push([R, n]);
+    else if (!v && c && onlyC.length < 4) onlyC.push([R, n]);
+  });
+  report(mg, cg, N, seen, valid, held, both, onlyV, onlyC);
+}
+function report(mg, cg, N, seen, valid, held, both, onlyV, onlyC){
+  var h = "", mh = '<span class="f">' + mHTML(mg) + "</span>";
+  if (!cg){
+    say("", "No condition given — here are the frames the formula is and is not valid on, to read the " +
+        "pattern off.");
+    h += '<p class="note">Of the <b>' + seen + "</b> frames with at most " + plural(N, "world") + ", <b>" +
+      valid + "</b> make " + mh + " valid. Write a condition above and it will be checked against all of them.</p>";
+    h += gallery("valid on these", onlyV) + gallery("not valid on these", onlyC);
+    $("#out").innerHTML = h;
+    $("#out").hidden = false;
+    return;
+  }
+  var ch = '<span class="f">' + fHTML(cg) + "</span>";
+  var ok = !onlyV.length && !onlyC.length;
+  if (ok){
+    say("ok", "<b>They correspond</b> — on every frame of at most " + plural(N, "world") + ".");
+    h += '<p class="note"><b>They correspond.</b> Over all <b>' + seen + "</b> frames with at most " +
+      plural(N, "world") + ", " + mh + " is valid on exactly the <b>" + both + "</b> that satisfy " + ch +
+      ". That is what the exercise asks for, in both directions at once.</p>";
+    h += '<p class="note">This is evidence, not a proof: it says no frame that small tells them apart. ' +
+      "The argument still has to be made by hand, and the frames below are the ones to make it about.</p>";
+    /* the first frames in enumeration order are all the empty ones, which show
+       nothing; the ones with the most arrows are where the condition bites */
+    var some = [];
+    eachFrame(Math.min(N, 3), function(R, n){ if (fholds(cg, R, n, {})) some.push([R, n]); });
+    some.sort(function(x, y){ return arrows(y[0]) - arrows(x[0]); });
+    h += gallery("the busiest frames the condition holds of", some.slice(0, 6));
+  } else {
+    say("err", "<b>They do not correspond.</b> " + (onlyV.length ? "A frame validates the formula without " +
+      "satisfying the condition" + (onlyC.length ? "; and another does the reverse." : ".")
+      : "A frame satisfies the condition without validating the formula."));
+    h += '<p class="note"><b>They do not correspond.</b> Of the ' + seen + " frames with at most " +
+      plural(N, "world") + ", " + valid + " validate " + mh + " and " + held + " satisfy " + ch +
+      " — and those are not the same frames.</p>";
+    if (onlyV.length)
+      h += gallery(mh + " is valid here, but the condition fails — so the condition is <b>too strong</b>",
+                   onlyV, cg, mg, "v");
+    if (onlyC.length)
+      h += gallery("the condition holds here, but " + mh + " is not valid — so it is <b>too weak</b>",
+                   onlyC, cg, mg, "c");
+  }
+  $("#out").innerHTML = h;
+  $("#out").hidden = false;
+}
+function gallery(title, fs, cg, mg, kind){
+  if (!fs.length) return "";
+  return '<div class="gal"><span class="ph said">' + title + "</span><div class=\"row\">" +
+    fs.map(function(f){
+      return '<div class="card">' + thumb(f[0], f[1]) +
+        '<code class="ft">' + frameText(f[0], f[1]) + "</code>" + link(f[0], f[1]) + "</div>";
+    }).join("") + "</div></div>";
+}
+
+document.getElementById("app").insertAdjacentHTML("beforeend", TDEF);
+$("#entry").addEventListener("submit", function(e){ e.preventDefault(); run(); });
+$("#reset").addEventListener("click", function(){
+  var was = LOG_READY; LOG_READY = false;
+  run();
+  LOG_READY = was;
+});
+run();
+LOG_READY = true;
+
+/* ── theme toggle ─────────────────────────────────────── */
+function themeNow(){
+  var t = document.documentElement.getAttribute("data-theme");
+  if (t === "dark" || t === "light") return t;
+  try { return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  catch (e){ return "light"; }
+}
+function syncTheme(){
+  var b = document.getElementById("themeBtn"), next = themeNow() === "dark" ? "light" : "dark";
+  b.title = "Switch to the " + next + " theme";
+  b.setAttribute("aria-label", b.title);
+}
+document.getElementById("themeBtn").addEventListener("click", function(){
+  var next = themeNow() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("logic.theme", next); } catch (e){}
+  syncTheme();
+});
+syncTheme();
+</script>
+</body>
+</html>

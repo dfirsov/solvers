@@ -18,7 +18,7 @@ is why the set is not named after propositional logic.
 | `predicate.html` | Predicate Deduction  | ∀I ∀E ∃I ∃E, function symbols, Dilemma      |
 | `predseq.html`   | Predicate Sequents   | cut-free LK with ∀L ∀R ∃L ∃R                |
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
-| `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions|
+| `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions, K E D C |
 | `modaltab.html`  | Modal Tableaux       | labelled tableaux, K through S5             |
 
 ### What is different about the predicate page
@@ -119,6 +119,30 @@ frame you have drawn, which is small enough to be instant at these sizes:
 
 The structure has a text form (`W=3; R=0>1,0>2,2>0; p=1,2`) which can be pasted
 in, so a structure given in an exercise takes seconds to set up.
+
+##### More than one agent
+
+Lecture 13's epistemic logic needs one accessibility relation per agent, so the
+page carries a list of them. Arrows belong to whichever agent is picked in the
+strip, and are drawn in that agent's colour with its name on them; the frame
+conditions are then reported per agent, since knowledge wants each relation to
+be an equivalence. The text form names them: `W=3; Ra=0>1; Rb=0>2; p=1`, with a
+bare `R=` still meaning the first agent.
+
+The operators are the lecture's, and each is just a different set of arrows to
+look along:
+
+| | reads along | written |
+|---|---|---|
+| `K_a A` | *a*'s own arrows | agent *a* knows A |
+| `E A` | the **union** of them | everyone knows A |
+| `D A` | the **intersection** | distributed knowledge |
+| `C A` | any **chain** of one arrow or more | common knowledge |
+
+`□` and `◇` still mean the first agent's relation, so everything single-agent
+reads as before. The panel names which of these a modality is looking along —
+"every *b*-successor: w0 ✓, w1 ✗" — which is the part of an epistemic argument
+that is easy to get wrong on paper.
 
 What it deliberately does not do is decide validity in a *logic* — that is
 quantifying over all frames of a class, and belongs to a tableaux tool rather

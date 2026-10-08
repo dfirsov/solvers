@@ -197,6 +197,23 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
   white-space:nowrap; cursor:help;
 }
 .chip2.on{border-color:var(--closed); color:var(--closed); background:var(--closed-soft)}
+.agtag{
+  font-family:var(--mono); font-size:10px; padding:3px 7px; border-radius:20px;
+  border:1px solid currentColor; white-space:nowrap;
+}
+.agbtn{
+  font-family:var(--serif); font-size:15px; min-width:30px; padding:6px 9px; border-radius:6px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink);
+}
+.agbtn.on{background:var(--accent); border-color:var(--accent); color:var(--accent-ink)}
+.edge.ag0{stroke:var(--ink-2)} .edge.ag1{stroke:var(--open)}
+.edge.ag2{stroke:var(--closed)} .edge.ag3{stroke:var(--error)}
+.agl{font-family:var(--mono); font-size:9.5px; text-anchor:middle}
+.agl.ag0{fill:var(--ink-2)} .agl.ag1{fill:var(--open)}
+.agl.ag2{fill:var(--closed)} .agl.ag3{fill:var(--error)}
+.agtag.ag0{color:var(--ink-2)} .agtag.ag1{color:var(--open)}
+.agtag.ag2{color:var(--closed)} .agtag.ag3{color:var(--error)}
+.f .md sub{font-size:.62em; font-style:italic}
 .sub{width:100%; border-collapse:collapse; font-size:13px}
 .sub td{padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:baseline}
 .sub tr:last-child td{border-bottom:0}
@@ -288,14 +305,21 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
         <span class="gap"></span>
         <button type="button" data-sym="□" aria-label="Insert box" title="necessarily — also typed as []">□</button>
         <button type="button" data-sym="◇" aria-label="Insert diamond" title="possibly — also typed as &lt;&gt;">◇</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="K_a " aria-label="Insert knows" title="K_a — agent a knows">K<sub>a</sub></button>
+        <button type="button" data-sym="E " aria-label="Insert everyone knows" title="E — everyone knows">E</button>
+        <button type="button" data-sym="D " aria-label="Insert distributed knowledge" title="D — distributed knowledge, pooled between the agents">D</button>
+        <button type="button" data-sym="C " aria-label="Insert common knowledge" title="C — common knowledge, true along every chain of arrows">C</button>
         <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
         <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
-        <span class="padhint"><code>[]</code> is □ and <code>&lt;&gt;</code> is ◇; a modality binds tighter than ∧ ∨ ⊃ ≡</span>
+        <span class="padhint"><code>[]</code> is □, <code>&lt;&gt;</code> is ◇, <code>K_a</code> is agent <i>a</i>’s knowledge; every modality binds tighter than ∧ ∨ ⊃ ≡</span>
       </div>
     </form>
   </div>
 
   <div class="strip b">
+    <span class="glabel">Agents</span>
+    <div class="group" id="agents"></div>
     <span class="glabel">Structure</span>
     <div class="group">
       <button type="button" class="rule" data-act="add" title="Add a world to the structure">+ world</button>
@@ -362,18 +386,24 @@ function logFormula(data){
 }
 
 /* ═════════════════════════════════════════════ formulas */
-/* Propositional, plus the two modalities. □ and ◇ bind as tightly as ¬ does,
-   so □p ∧ q is (□p) ∧ q and the other reading needs brackets. */
+/* Propositional, plus the modalities. One accessibility relation per agent,
+   so □ and ◇ are the single-agent reading of K and its dual, and the
+   multi-agent operators of lecture 13 sit beside them:
+     K_a A   agent a knows A        — along a's own arrows
+     E A     everyone knows A       — along the union of them
+     D A     distributed knowledge  — along the intersection
+     C A     common knowledge       — along any non-empty chain of arrows
+   □ and ◇ bind as tightly as ¬, and so do K, E, C and D. */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 var MDCH = {box:"□", dia:"◇"};
+var MODAL = {box:1, dia:1, ka:1, e:1, c:1, d:1};
 
 function show(g, esc, wrap, neg, opw, cst, mod){
   cst = cst || function(t){ return t; };
   mod = mod || function(m){ return m; };
   function needs(c, pk, left){
-    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" ||
-        c.k === "box" || c.k === "dia") return false;
-    if (pk === "not" || pk === "box" || pk === "dia") return true;
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" || MODAL[c.k]) return false;
+    if (pk === "not" || MODAL[pk]) return true;
     if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
     return true;
   }
@@ -384,6 +414,9 @@ function show(g, esc, wrap, neg, opw, cst, mod){
     if (h.k === "bot") return cst("⊥");
     if (h.k === "not") return neg() + go(h.a, "not", false);
     if (h.k === "box" || h.k === "dia") return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    if (h.k === "ka") return mod("K", h.ag) + go(h.a, h.k, false);
+    if (h.k === "e" || h.k === "c" || h.k === "d")
+      return mod(h.k.toUpperCase()) + go(h.a, h.k, false);
     return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
   }
   return body(g);
@@ -395,32 +428,43 @@ function fmtHTML(g){
     function(){ return '<span class="op neg">¬</span>'; },
     function(o){ return '<span class="op">' + o + "</span>"; },
     function(t){ return '<span class="cst">' + t + "</span>"; },
-    function(m){ return '<span class="md">' + m + "</span>"; });
+    function(m, ag){ return '<span class="md">' + m + (ag ? "<sub>" + ag + "</sub>" : "") + "</span>"; });
 }
 function fmtText(g){
   return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
     function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
-    function(m){ return m; });
+    /* A word operator needs a space or it runs into what follows: K_a p, not
+       K_ap, which would lex as one name and make the agent "ap". */
+    function(m, ag){ return /[A-Z]/.test(m) ? m + (ag ? "_" + ag : "") + " " : m; });
 }
 function atomsOf(g, out){
   out = out || [];
   if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
   else if (g.k === "top" || g.k === "bot"){ /* none */ }
-  else if (g.k === "not" || g.k === "box" || g.k === "dia") atomsOf(g.a, out);
+  else if (g.k === "not" || MODAL[g.k]) atomsOf(g.a, out);
   else { atomsOf(g.a, out); atomsOf(g.b, out); }
+  return out;
+}
+function agentsOf(g, out){
+  out = out || [];
+  if (g.k === "ka" && out.indexOf(g.ag) < 0) out.push(g.ag);
+  if (g.k === "atom" || g.k === "top" || g.k === "bot") return out;
+  if (g.k === "not" || MODAL[g.k]) return agentsOf(g.a, out);
+  agentsOf(g.a, out); agentsOf(g.b, out);
   return out;
 }
 function eqF(a, b){
   if (a.k !== b.k) return false;
   if (a.k === "atom") return a.n === b.n;
   if (a.k === "top" || a.k === "bot") return true;
-  if (a.k === "not" || a.k === "box" || a.k === "dia") return eqF(a.a, b.a);
+  if (a.k === "ka") return a.ag === b.ag && eqF(a.a, b.a);
+  if (a.k === "not" || MODAL[a.k]) return eqF(a.a, b.a);
   return eqF(a.a, b.a) && eqF(a.b, b.b);
 }
 /* every subformula, innermost first, which is the order they get evaluated in */
 function subsOf(g, out){
   out = out || [];
-  if (g.k === "not" || g.k === "box" || g.k === "dia") subsOf(g.a, out);
+  if (g.k === "not" || MODAL[g.k]) subsOf(g.a, out);
   else if (g.k !== "atom" && g.k !== "top" && g.k !== "bot"){ subsOf(g.a, out); subsOf(g.b, out); }
   if (!out.some(function(x){ return eqF(x, g); })) out.push(g);
   return out;
@@ -437,6 +481,16 @@ var SYMS = [
   ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
   ["(","lp"], [")","rp"]
 ];
+/* K_a is one word to the tokeniser, which is exactly what makes it readable:
+   the agent travels with the operator instead of being a separate token. */
+function wordOp(v){
+  var m = /^K_(.+)$/.exec(v);
+  if (m) return {k:"ka", ag:m[1]};
+  if (v === "E") return {k:"e"};
+  if (v === "C") return {k:"c"};
+  if (v === "D") return {k:"d"};
+  return null;
+}
 function tokenize(src){
   var t = [], i = 0;
   outer: while (i < src.length){
@@ -470,11 +524,19 @@ function parse(src){
     if (peek() === "not"){ p++; return {k:"not", a:un()}; }
     if (peek() === "box"){ p++; return {k:"box", a:un()}; }
     if (peek() === "dia"){ p++; return {k:"dia", a:un()}; }
+    if (peek() === "atom"){
+      var op = wordOp(t[p].v);
+      if (op){ p++; var node = {k:op.k, a:un()}; if (op.ag) node.ag = op.ag; return node; }
+    }
     if (eat("top")) return {k:"top"};
     if (eat("bot")) return {k:"bot"};
     if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
     var a = eat("atom");
-    if (a) return {k:"atom", n:a.v};
+    if (a){
+      if (/^K$/.test(a.v))
+        throw new Error("Write the agent on the K, as in <i>K_a</i> — that is how the operator says whose knowledge it is.");
+      return {k:"atom", n:a.v};
+    }
     if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
     if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
     throw new Error("Expected a letter, a modality or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
@@ -485,12 +547,45 @@ function parse(src){
 }
 
 /* ═════════════════════════════════════════════ structures */
-/* A Kripke structure is worlds 0…n−1, a relation as a boolean matrix, and a
-   valuation giving every atom a truth value in every world. */
-function newModel(n){
+/* Worlds 0…n−1, one relation per agent, and a valuation over the atoms. */
+function newModel(n, agents){
+  var M = {n:n, R:{}, V:{}};
+  (agents || ["a"]).forEach(function(g){ M.R[g] = blank(n); });
+  return M;
+}
+function blank(n){
   var R = [];
   for (var i = 0; i < n; i++){ R.push([]); for (var j = 0; j < n; j++) R[i].push(false); }
-  return {n:n, R:R, V:{}};
+  return R;
+}
+function agentList(M){ return Object.keys(M.R); }
+/* the derived relations: everyone, distributed, common */
+function unionR(M){
+  var ag = agentList(M), R = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++)
+    R[i][j] = ag.some(function(g){ return M.R[g][i][j]; });
+  return R;
+}
+function interR(M){
+  var ag = agentList(M), R = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++)
+    R[i][j] = ag.length > 0 && ag.every(function(g){ return M.R[g][i][j]; });
+  return R;
+}
+/* common knowledge reaches along any chain of one arrow or more, so this is
+   the transitive — not reflexive-transitive — closure of the union */
+function closeR(R, n){
+  var C = R.map(function(r){ return r.slice(); });
+  for (var k = 0; k < n; k++) for (var i = 0; i < n; i++) for (var j = 0; j < n; j++)
+    if (C[i][k] && C[k][j]) C[i][j] = true;
+  return C;
+}
+function relOf(M, g){
+  if (g.k === "ka") return M.R[g.ag] || blank(M.n);
+  if (g.k === "e") return unionR(M);
+  if (g.k === "d") return interR(M);
+  if (g.k === "c") return closeR(unionR(M), M.n);
+  return M.R[agentList(M)[0]] || blank(M.n);     /* □ and ◇: the first agent */
 }
 function holdsAt(g, M, w){
   switch (g.k){
@@ -502,54 +597,61 @@ function holdsAt(g, M, w){
     case "or":   return holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
     case "imp":  return !holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
     case "iff":  return holdsAt(g.a, M, w) === holdsAt(g.b, M, w);
-    case "box":
-      for (var u = 0; u < M.n; u++) if (M.R[w][u] && !holdsAt(g.a, M, u)) return false;
-      return true;
-    case "dia":
-      for (var v = 0; v < M.n; v++) if (M.R[w][v] && holdsAt(g.a, M, v)) return true;
+    case "dia": {
+      var Rd = relOf(M, g);
+      for (var v = 0; v < M.n; v++) if (Rd[w][v] && holdsAt(g.a, M, v)) return true;
       return false;
+    }
+    default: {                                   /* □, K_a, E, D, C all say "every" */
+      var R = relOf(M, g);
+      for (var u = 0; u < M.n; u++) if (R[w][u] && !holdsAt(g.a, M, u)) return false;
+      return true;
+    }
   }
-  return false;
 }
-function succ(M, w){
+function succ(M, g, w){
+  var R = M.R[g] || blank(M.n), out = [];
+  for (var u = 0; u < M.n; u++) if (R[w][u]) out.push(u);
+  return out;
+}
+function succR(R, w, n){
   var out = [];
-  for (var u = 0; u < M.n; u++) if (M.R[w][u]) out.push(u);
+  for (var u = 0; u < n; u++) if (R[w][u]) out.push(u);
   return out;
 }
 var WN = function(i){ return "w" + i; };
 
-/* ── the frame conditions of lecture 10, each with a witness when it fails ── */
+/* ── the frame conditions of lecture 10, per agent, each with a witness ── */
 var FRAMES = [
   {k:"serial", law:"every world has a successor — the axiom D, □A ⊃ ◇A",
-   test:function(M){
-     for (var w = 0; w < M.n; w++) if (!succ(M, w).length) return WN(w) + " has no successor";
+   test:function(R, n){
+     for (var w = 0; w < n; w++) if (!R[w].some(Boolean)) return WN(w) + " has no successor";
      return null; }},
   {k:"reflexive", law:"every world sees itself — the axiom T, □A ⊃ A",
-   test:function(M){
-     for (var w = 0; w < M.n; w++) if (!M.R[w][w]) return WN(w) + " does not see itself";
+   test:function(R, n){
+     for (var w = 0; w < n; w++) if (!R[w][w]) return WN(w) + " does not see itself";
      return null; }},
   {k:"transitive", law:"two steps are one — the axiom 4, □A ⊃ □□A",
-   test:function(M){
-     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
-       if (M.R[a][b] && M.R[b][c] && !M.R[a][c])
+   test:function(R, n){
+     for (var a = 0; a < n; a++) for (var b = 0; b < n; b++) for (var c = 0; c < n; c++)
+       if (R[a][b] && R[b][c] && !R[a][c])
          return WN(a) + "→" + WN(b) + "→" + WN(c) + " but not " + WN(a) + "→" + WN(c);
      return null; }},
   {k:"symmetric", law:"arrows come in pairs — the axiom B, A ⊃ □◇A",
-   test:function(M){
-     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++)
-       if (M.R[a][b] && !M.R[b][a]) return WN(a) + "→" + WN(b) + " but not back";
+   test:function(R, n){
+     for (var a = 0; a < n; a++) for (var b = 0; b < n; b++)
+       if (R[a][b] && !R[b][a]) return WN(a) + "→" + WN(b) + " but not back";
      return null; }},
   {k:"euclidean", law:"anything seen from one world sees the rest — the axiom 5, ◇A ⊃ □◇A",
-   test:function(M){
-     for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
-       if (M.R[a][b] && M.R[a][c] && !M.R[b][c])
+   test:function(R, n){
+     for (var a = 0; a < n; a++) for (var b = 0; b < n; b++) for (var c = 0; c < n; c++)
+       if (R[a][b] && R[a][c] && !R[b][c])
          return WN(a) + "→" + WN(b) + " and " + WN(a) + "→" + WN(c) + " but not " + WN(b) + "→" + WN(c);
      return null; }}
 ];
-/* which of the named logics this frame belongs to */
-function logicsOf(M){
+function logicsOf(R, n){
   var has = {};
-  FRAMES.forEach(function(f){ has[f.k] = f.test(M) === null; });
+  FRAMES.forEach(function(f){ has[f.k] = f.test(R, n) === null; });
   var out = ["K"];
   if (has.serial) out.push("D");
   if (has.reflexive) out.push("T");
@@ -560,8 +662,6 @@ function logicsOf(M){
 }
 
 /* ── searching the valuations of a fixed frame ── */
-/* 2^(worlds × atoms) of them, which is nothing at the sizes drawn here, and
-   is exactly what "for every valuation" in the exercises means. */
 var MAXBITS = 20;
 function putVal(M, atoms, mask){
   atoms.forEach(function(a, ai){
@@ -588,10 +688,11 @@ function searchVals(M, atoms, each){
   putVal(M, atoms, keep);
   return {hit:hit, total:total};
 }
-
 /* ═════════════════════════════════════════════ state */
-var MAXW = 8, MAXA = 5;
-var S = {f:null, M:newModel(3), atoms:["p"], sel:0, undo:[], msg:"", pos:null, moved:false, link:null};
+var MAXW = 8, MAXA = 5, MAXAG = 4;
+var AGNAMES = ["a", "b", "c", "d"];
+var S = {f:null, M:newModel(3), atoms:["p"], sel:0, ag:"a", undo:[], msg:"",
+         pos:null, moved:false, link:null};
 
 var $ = function(s){ return document.querySelector(s); };
 var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
@@ -602,13 +703,13 @@ function say(tone, html){
   $("#status").querySelector(".msg").innerHTML = html;
 }
 function snapshot(){
-  S.undo.push(JSON.stringify({M:S.M, atoms:S.atoms, sel:S.sel}));
+  S.undo.push(JSON.stringify({M:S.M, atoms:S.atoms, sel:S.sel, ag:S.ag}));
   if (S.undo.length > 120) S.undo.shift();
 }
 function undo(){
   if (!S.undo.length){ say("", "Nothing to undo."); return; }
   var s = JSON.parse(S.undo.pop());
-  S.M = s.M; S.atoms = s.atoms; S.sel = s.sel;
+  S.M = s.M; S.atoms = s.atoms; S.sel = s.sel; S.ag = s.ag || agentList(S.M)[0];
   say("", "Stepped back.");
   draw();
 }
@@ -618,6 +719,15 @@ function build(src){
   var f;
   try { f = parse(src); }
   catch (e){ if (LOG_READY) logFormula({f:src, err:"parse"}); say("err", e.message); return; }
+  var want = agentsOf(f), have = agentList(S.M);
+  var missing = want.filter(function(g){ return have.indexOf(g) < 0; });
+  if (missing.length){
+    say("err", "That formula names " + missing.map(function(g){ return "<i>" + g + "</i>"; }).join(", ") +
+        ", but the structure has " + (have.length === 1 ? "only the agent " : "the agents ") +
+        have.map(function(g){ return "<i>" + g + "</i>"; }).join(", ") +
+        ". Add the agent with <b>+ agent</b> first.");
+    return;
+  }
   if (LOG_READY) logFormula({f:src});
   S.f = f;
   atomsOf(f).forEach(function(a){
@@ -637,13 +747,16 @@ function build(src){
 
 /* ═════════════════════════════════════════════ editing the structure */
 function reshape(n){
-  var M = S.M, old = M.R;
-  var R = [];
-  for (var i = 0; i < n; i++){
-    R.push([]);
-    for (var j = 0; j < n; j++) R[i].push(i < M.n && j < M.n ? old[i][j] : false);
-  }
-  M.R = R; M.n = n;
+  var M = S.M;
+  agentList(M).forEach(function(g){
+    var old = M.R[g], R = [];
+    for (var i = 0; i < n; i++){
+      R.push([]);
+      for (var j = 0; j < n; j++) R[i].push(i < M.n && j < M.n ? old[i][j] : false);
+    }
+    M.R[g] = R;
+  });
+  M.n = n;
   S.atoms.forEach(function(a){
     var row = M.V[a] || [];
     while (row.length < n) row.push(false);
@@ -661,36 +774,55 @@ function act(what){
     if (M.n <= 1){ say("err", "A frame needs at least one world."); return; }
     snapshot();
     var d = S.sel;
-    M.R.splice(d, 1);
-    M.R.forEach(function(row){ row.splice(d, 1); });
+    agentList(M).forEach(function(g){
+      M.R[g].splice(d, 1);
+      M.R[g].forEach(function(row){ row.splice(d, 1); });
+    });
     S.atoms.forEach(function(a){ M.V[a].splice(d, 1); });
     if (S.pos) S.pos.splice(d, 1);
     M.n--;
     if (S.sel >= M.n) S.sel = M.n - 1;
     say("ok", "World removed. The rest keep their arrows, renumbered.");
+  } else if (what === "agadd"){
+    var free = AGNAMES.filter(function(g){ return agentList(M).indexOf(g) < 0; });
+    if (!free.length){ say("err", "Four agents is as many as this page draws."); return; }
+    snapshot();
+    M.R[free[0]] = blank(M.n);
+    S.ag = free[0];
+    say("ok", "Agent <b>" + free[0] + "</b> added, with no arrows of its own yet. Its arrows are the ones " +
+        "<i>K_" + free[0] + "</i> looks along; <b>E</b>, <b>D</b> and <b>C</b> now count it in.");
+  } else if (what === "agdel"){
+    if (agentList(M).length <= 1){ say("err", "A structure needs at least one agent."); return; }
+    snapshot();
+    delete M.R[S.ag];
+    S.ag = agentList(M)[0];
+    say("ok", "Agent removed. <b>E</b>, <b>D</b> and <b>C</b> are now over " +
+        agentList(M).map(function(g){ return "<i>" + g + "</i>"; }).join(", ") + ".");
   } else if (what === "noedge"){
     snapshot();
-    for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++) M.R[i][j] = false;
-    say("ok", "Every arrow removed — the frame is now empty, so □A holds everywhere and ◇A nowhere.");
+    M.R[S.ag] = blank(M.n);
+    say("ok", "Every arrow of <b>" + S.ag + "</b> removed — so <i>K_" + S.ag + "</i>A now holds everywhere.");
   } else if (what === "refl"){
     snapshot();
-    for (var k = 0; k < M.n; k++) M.R[k][k] = true;
-    say("ok", "A loop at every world. The frame is now <b>reflexive</b>, so T (□A ⊃ A) holds on it.");
+    for (var k = 0; k < M.n; k++) M.R[S.ag][k][k] = true;
+    say("ok", "A loop at every world for <b>" + S.ag + "</b>. That relation is now <b>reflexive</b>, which " +
+        "is the truth axiom: what " + S.ag + " knows is so.");
   } else if (what === "close4"){
     snapshot();
-    var added = 0;
+    var R4 = M.R[S.ag], added = 0;
     for (var g = 0; g < M.n; g++)
       for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) for (var c = 0; c < M.n; c++)
-        if (M.R[a][b] && M.R[b][c] && !M.R[a][c]){ M.R[a][c] = true; added++; }
-    say("ok", added ? plural(added, "arrow") + " added — the frame is now <b>transitive</b>, so 4 (□A ⊃ □□A) holds."
-                    : "Nothing to add: the frame was already transitive.");
+        if (R4[a][b] && R4[b][c] && !R4[a][c]){ R4[a][c] = true; added++; }
+    say("ok", added ? plural(added, "arrow") + " added for <b>" + S.ag + "</b> — that relation is now " +
+          "<b>transitive</b>, which is positive introspection: " + S.ag + " knows what " + S.ag + " knows."
+                    : "Nothing to add: " + S.ag + "’s relation was already transitive.");
   } else if (what === "closeB"){
     snapshot();
-    var n2 = 0;
+    var RB = M.R[S.ag], n2 = 0;
     for (var x = 0; x < M.n; x++) for (var y = 0; y < M.n; y++)
-      if (M.R[x][y] && !M.R[y][x]){ M.R[y][x] = true; n2++; }
-    say("ok", n2 ? plural(n2, "arrow") + " added — the frame is now <b>symmetric</b>, so B (A ⊃ □◇A) holds."
-                 : "Nothing to add: the frame was already symmetric.");
+      if (RB[x][y] && !RB[y][x]){ RB[y][x] = true; n2++; }
+    say("ok", n2 ? plural(n2, "arrow") + " added for <b>" + S.ag + "</b> — that relation is now <b>symmetric</b>."
+                 : "Nothing to add: " + S.ag + "’s relation was already symmetric.");
   } else if (what === "tidy"){
     S.moved = false; S.pos = null;
     say("", "Worlds put back on a circle. Nothing about the structure changed — where they sit is only " +
@@ -701,9 +833,16 @@ function act(what){
 }
 function toggleEdge(a, b){
   snapshot();
-  S.M.R[a][b] = !S.M.R[a][b];
-  say("ok", (S.M.R[a][b] ? "Arrow " : "Arrow removed: ") + "<b>" + WN(a) + " → " + WN(b) + "</b>" +
-      (a === b ? " — a loop, so " + WN(a) + " is among its own successors." : "."));
+  var R = S.M.R[S.ag];
+  R[a][b] = !R[a][b];
+  say("ok", (R[a][b] ? "Arrow " : "Arrow removed: ") + "<b>" + WN(a) + " →" +
+      (agentList(S.M).length > 1 ? "<sub>" + S.ag + "</sub>" : "") + " " + WN(b) + "</b>" +
+      (a === b ? " — a loop, so " + WN(a) + " is among its own " + S.ag + "-successors." : "."));
+  draw();
+}
+function pickAgent(g){
+  S.ag = g;
+  say("", "Drawing arrows for <b>" + g + "</b> now. Its arrows are what <i>K_" + g + "</i> looks along.");
   draw();
 }
 function toggleAtom(w, a){
@@ -750,7 +889,10 @@ function frameValid(){
     say("ok", "<b>Valid on this frame.</b> " + fh(S.f) + " is true in every world under every one of the " +
         r.total + " valuation" + (r.total === 1 ? "" : "s") + " of " +
         (at.length ? at.map(function(a){ return "<i>" + a + "</i>"; }).join(", ") : "no letters") +
-        ". The frame is " + logicsOf(S.M).join(", ") + ".");
+        ". " + (agentList(S.M).length > 1
+          ? agentList(S.M).map(function(g){
+              return "<i>" + g + "</i> is " + logicsOf(S.M.R[g], S.M.n).join(", "); }).join("; ")
+          : "The frame is " + logicsOf(S.M.R[agentList(S.M)[0]], S.M.n).join(", ")) + ".");
     return;
   }
   /* Validity on a frame is "every world, every valuation", but an exercise
@@ -830,38 +972,68 @@ function rim(p, dx, dy){
 }
 function esc(s){ return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
 function draw(){
+  drawAgents();
   drawGraph();
   drawSide();
+}
+function drawAgents(){
+  var ags = agentList(S.M);
+  $("#agents").innerHTML = ags.map(function(g, gi){
+    return '<button type="button" class="agbtn ag' + gi + (g === S.ag ? " on" : "") +
+      '" data-agent="' + g + '" title="Draw arrows for ' + g + ", which is what K_" + g +
+      ' looks along">' + g + "</button>";
+  }).join("") +
+    '<button type="button" class="rule" data-act="agadd" title="Add another agent">+ agent</button>' +
+    (ags.length > 1
+      ? '<button type="button" class="rule" data-act="agdel" title="Remove the selected agent">− agent</button>'
+      : "");
 }
 function drawGraph(){
   var svg = $("#svg"), M = S.M;
   ensurePos();
   var pos = S.pos, bw = boxW();
-  var out = '<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" ' +
-    'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--ink-2)"/>' +
-    '</marker><marker id="ah2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" ' +
-    'orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker></defs>';
-  /* arrows first, so the boxes sit on top of them */
-  for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++){
-    if (!M.R[a][b]) continue;
-    var live = a === S.sel;
-    var cls = "edge" + (live ? " hot" : ""), mk = live ? "ah2" : "ah";
-    if (a === b){
-      var p = pos[a], top = p.y - BH / 2 - 2;
-      out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + (p.x - 13) + "," + top +
-        " C" + (p.x - 24) + "," + (top - 34) + " " + (p.x + 24) + "," + (top - 34) + " " +
-        (p.x + 11) + "," + top + '"/>';
-      continue;
-    }
-    var pa = pos[a], pb = pos[b];
-    var vx = pb.x - pa.x, vy = pb.y - pa.y, L = Math.sqrt(vx * vx + vy * vy) || 1;
-    var ux = vx / L, uy = vy / L;
-    var bow = M.R[b][a] ? 20 : 0;                /* bow the pair apart when both ways exist */
-    var s = rim(pa, ux, uy), e = rim(pb, -ux, -uy);
-    var mx = (s.x + e.x) / 2 - uy * bow, my = (s.y + e.y) / 2 + ux * bow;
-    out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + s.x + "," + s.y +
-      " Q" + mx + "," + my + " " + e.x + "," + e.y + '"/>';
+  var AGC = ["var(--ink-2)", "var(--open)", "var(--closed)", "var(--error)"];
+  var out = "<defs>";
+  for (var mi = 0; mi < 4; mi++){
+    out += '<marker id="ah' + mi + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" ' +
+      'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="' + AGC[mi] +
+      '"/></marker>' +
+      '<marker id="ah' + mi + 'h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" ' +
+      'markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/>' +
+      "</marker>";
   }
+  out += "</defs>";
+  /* Arrows first, so the boxes sit on top of them. Each agent gets its own
+     colour and its own bow, so two agents' arrows between the same pair of
+     worlds stay apart instead of lying on top of one another. */
+  var ags = agentList(M), many = ags.length > 1;
+  ags.forEach(function(g, gi){
+    var R = M.R[g];
+    for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++){
+      if (!R[a][b]) continue;
+      var live = a === S.sel && g === S.ag;
+      var cls = "edge ag" + gi + (live ? " hot" : ""), mk = "ah" + gi + (live ? "h" : "");
+      if (a === b){
+        var p = pos[a], top = p.y - BH / 2 - 2, sp = gi * 9;
+        out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + (p.x - 13 - sp) + "," + top +
+          " C" + (p.x - 24 - sp * 1.6) + "," + (top - 34 - sp * 1.5) + " " +
+          (p.x + 24 + sp * 1.6) + "," + (top - 34 - sp * 1.5) + " " + (p.x + 11 + sp) + "," + top + '"/>';
+        if (many) out += '<text class="agl ag' + gi + '" x="' + (p.x + 22 + sp * 1.6) + '" y="' +
+          (top - 20 - sp) + '">' + g + "</text>";
+        continue;
+      }
+      var pa = pos[a], pb = pos[b];
+      var vx = pb.x - pa.x, vy = pb.y - pa.y, L = Math.sqrt(vx * vx + vy * vy) || 1;
+      var ux = vx / L, uy = vy / L;
+      var bow = (R[b][a] ? 20 : 0) + gi * 22;
+      var st = rim(pa, ux, uy), en = rim(pb, -ux, -uy);
+      var mx = (st.x + en.x) / 2 - uy * bow, my = (st.y + en.y) / 2 + ux * bow;
+      out += '<path class="' + cls + '" marker-end="url(#' + mk + ')" d="M' + st.x + "," + st.y +
+        " Q" + mx + "," + my + " " + en.x + "," + en.y + '"/>';
+      if (many) out += '<text class="agl ag' + gi + '" x="' + ((st.x + en.x) / 2 - uy * bow * 0.56) +
+        '" y="' + ((st.y + en.y) / 2 + ux * bow * 0.56 + 4) + '">' + g + "</text>";
+    }
+  });
   for (var i = 0; i < M.n; i++){
     var p = pos[i], val = S.f ? holdsAt(S.f, M, i) : null;
     var cls2 = "wbox" + (i === S.sel ? " sel" : "") + (val === true ? " yes" : val === false ? " no" : "");
@@ -890,28 +1062,46 @@ function drawGraph(){
       " L" + S.link.x + "," + S.link.y + '"/>';
   }
   svg.innerHTML = out;
-  $("#mdesc").textContent = "— " + plural(M.n, "world") + ", " +
-    plural(M.R.reduce(function(t, r){ return t + r.filter(Boolean).length; }, 0), "arrow");
+  var tot = ags.reduce(function(t, g){
+    return t + M.R[g].reduce(function(u, r){ return u + r.filter(Boolean).length; }, 0); }, 0);
+  $("#mdesc").textContent = "— " + plural(M.n, "world") + ", " + plural(tot, "arrow") +
+    (many ? ", " + plural(ags.length, "agent") : "");
   $("#ghint").innerHTML = "<b>Drag a world</b> to move it. <b>Drag from the dot</b> on its right edge onto " +
     "another world to add or remove an arrow — onto itself for a loop. Click a world to inspect it, a " +
-    "letter to flip it.";
+    "letter to flip it." + (many ? " Arrows are drawn for the agent picked above, <b>" + S.ag + "</b>." : "");
 }
 function drawSide(){
-  var M = S.M, h = "", w = S.sel;
-  h += '<span class="ph">Frame conditions</span><div class="chips">';
-  FRAMES.forEach(function(F){
-    var bad = F.test(M);
-    h += '<span class="chip2' + (bad ? "" : " on") + '" title="' + esc(F.law) +
-      (bad ? " — fails: " + esc(bad) : "") + '">' + F.k + "</span>";
+  var M = S.M, h = "", w = S.sel, ags = agentList(M), many = ags.length > 1;
+  h += '<span class="ph">Frame conditions' + (many ? ", per agent" : "") + "</span>";
+  ags.forEach(function(g, gi){
+    h += '<div class="chips">' + (many ? '<span class="agtag ag' + gi + '">' + g + "</span>" : "");
+    FRAMES.forEach(function(F){
+      var bad = F.test(M.R[g], M.n);
+      h += '<span class="chip2' + (bad ? "" : " on") + '" title="' + esc(F.law) +
+        (bad ? " — fails: " + esc(bad) : "") + '">' + F.k + "</span>";
+    });
+    h += "</div>";
   });
-  h += "</div>";
-  h += '<p class="note" style="margin-top:9px">This frame is a frame of <b>' + logicsOf(M).join(", ") +
-    "</b>. Hover a condition that is off to see which worlds break it.</p>";
+  h += '<p class="note" style="margin-top:9px">' + (many
+    ? ags.map(function(g){ return "<i>" + g + "</i> is " + logicsOf(M.R[g], M.n).join(", "); }).join("; ") +
+      ". Knowledge wants reflexive, transitive and euclidean — an equivalence."
+    : "This frame is a frame of <b>" + logicsOf(M.R[ags[0]], M.n).join(", ") + "</b>") +
+    " Hover a condition that is off to see which worlds break it.</p>";
 
   h += '<span class="ph">' + WN(w) + "</span>";
-  var sc = succ(M, w);
-  h += '<p class="note">Sees ' + (sc.length ? sc.map(WN).join(", ") : "<b>nothing</b> — so □A is true here " +
-    "for every A, and ◇A false for every A") + ".</p>";
+  ags.forEach(function(g){
+    var sc = succ(M, g, w);
+    h += '<p class="note">' + (many ? "<i>" + g + "</i> sees " : "Sees ") +
+      (sc.length ? sc.map(WN).join(", ")
+                 : "<b>nothing</b> — so " + (many ? "<i>K_" + g + "</i>A" : "□A") + " is true here for every A") +
+      ".</p>";
+  });
+  if (many){
+    var U = unionR(M), I = interR(M), Cc = closeR(U, M.n);
+    h += '<p class="note">everyone <b>E</b> ' + (succR(U, w, M.n).map(WN).join(", ") || "nothing") +
+      " · distributed <b>D</b> " + (succR(I, w, M.n).map(WN).join(", ") || "nothing") +
+      " · common <b>C</b> " + (succR(Cc, w, M.n).map(WN).join(", ") || "nothing") + "</p>";
+  }
 
   if (!S.f){ h += '<p class="none2">Enter a formula to see it evaluated here.</p>'; }
   else {
@@ -921,13 +1111,14 @@ function drawSide(){
       var v = holdsAt(g, M, w);
       h += '<tr' + (i === subs.length - 1 ? ' class="top"' : "") + '><td><span class="f">' +
         fmtHTML(g) + '</span></td><td class="v ' + (v ? "t" : "f") + '">' + (v ? "true" : "false") + "</td></tr>";
-      if (g.k === "box" || g.k === "dia"){
-        var ss = succ(M, w);
+      if (MODAL[g.k]){
+        var ss = succR(relOf(M, g), w, M.n);
+        var every = g.k !== "dia";
         h += '<tr><td colspan="2" class="none2" style="padding-left:14px">' +
           (ss.length
-            ? (g.k === "box" ? "every" : "some") + " successor: " + ss.map(function(u){
+            ? (every ? "every" : "some") + " " + relName(g) + ": " + ss.map(function(u){
                 return WN(u) + " " + (holdsAt(g.a, M, u) ? "✓" : "✗"); }).join(", ")
-            : "no successors, so " + (g.k === "box" ? "vacuously true" : "nothing to witness it")) +
+            : "no " + relName(g) + ", so " + (every ? "vacuously true" : "nothing to witness it")) +
           "</td></tr>";
       }
     });
@@ -939,43 +1130,59 @@ function drawSide(){
     '<p class="none2" style="margin-top:6px">Paste a structure here to set it up at once.</p>';
   $("#side").innerHTML = h;
 }
+/* what the arrows a modality looks along are called, in words */
+function relName(g){
+  if (g.k === "ka") return g.ag + "-successor";
+  if (g.k === "e") return "successor of any agent";
+  if (g.k === "d") return "successor of every agent";
+  if (g.k === "c") return "world reachable by a chain";
+  return "successor";
+}
+
 /* a compact, pasteable form of the structure */
 function modelText(){
-  var M = S.M, es = [];
-  for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) if (M.R[a][b]) es.push(a + ">" + b);
+  var M = S.M, ags = agentList(M), many = ags.length > 1;
+  var rs = ags.map(function(g){
+    var es = [];
+    for (var a = 0; a < M.n; a++) for (var b = 0; b < M.n; b++) if (M.R[g][a][b]) es.push(a + ">" + b);
+    return "R" + (many ? g : "") + "=" + es.join(",");
+  });
   var vs = S.atoms.map(function(at){
     var ws = [];
     for (var w = 0; w < M.n; w++) if (M.V[at] && M.V[at][w]) ws.push(w);
     return at + "=" + ws.join(",");
   });
-  return "W=" + M.n + "; R=" + es.join(",") + (vs.length ? "; " + vs.join("; ") : "");
+  return "W=" + M.n + "; " + rs.join("; ") + (vs.length ? "; " + vs.join("; ") : "");
 }
 function loadModel(src){
   try {
     var parts = src.split(";").map(function(s){ return s.trim(); }).filter(Boolean);
-    var n = null, es = [], vs = {};
+    var n = null, es = [], vs = {}, ags = [];
     parts.forEach(function(p){
       var m = p.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
       if (!m) throw new Error("“" + p + "” is not a <i>name</i>=<i>value</i> part.");
       var key = m[1], val = m[2].trim();
       if (key === "W"){ n = parseInt(val, 10); if (!(n >= 1 && n <= MAXW)) throw new Error("W must be between 1 and " + MAXW + "."); }
-      else if (key === "R"){
+      else if (key.charAt(0) === "R" && (key.length === 1 || AGNAMES.indexOf(key.slice(1)) >= 0)){
+        var who = key.length === 1 ? "a" : key.slice(1);   /* bare R is the first agent */
         val.split(",").map(function(s){ return s.trim(); }).filter(Boolean).forEach(function(e){
           var q = e.split(">");
           if (q.length !== 2) throw new Error("“" + e + "” is not an arrow — write it as 0&gt;1.");
-          es.push([parseInt(q[0], 10), parseInt(q[1], 10)]);
+          es.push([parseInt(q[0], 10), parseInt(q[1], 10), who]);
         });
+        if (ags.indexOf(who) < 0) ags.push(who);
       } else {
         vs[key] = val.split(",").map(function(s){ return s.trim(); }).filter(Boolean)
                      .map(function(s){ return parseInt(s, 10); });
       }
     });
     if (n === null) throw new Error("Say how many worlds, as W=3.");
-    var M = newModel(n);
+    if (!ags.length) ags = ["a"];
+    var M = newModel(n, ags);
     es.forEach(function(e){
       if (!(e[0] >= 0 && e[0] < n && e[1] >= 0 && e[1] < n))
         throw new Error("Arrow " + e[0] + "&gt;" + e[1] + " mentions a world outside 0…" + (n - 1) + ".");
-      M.R[e[0]][e[1]] = true;
+      M.R[e[2]][e[0]][e[1]] = true;
     });
     var atoms = S.atoms.slice();
     Object.keys(vs).forEach(function(a){ if (atoms.indexOf(a) < 0 && atoms.length < MAXA) atoms.push(a); });
@@ -985,8 +1192,9 @@ function loadModel(src){
       M.V[a] = row;
     });
     snapshot();
-    S.M = M; S.atoms = atoms; S.sel = 0; S.pos = null; S.moved = false;
-    say("ok", "Structure loaded: " + plural(n, "world") + ", " + plural(es.length, "arrow") + ".");
+    S.M = M; S.atoms = atoms; S.sel = 0; S.pos = null; S.moved = false; S.ag = ags[0];
+    say("ok", "Structure loaded: " + plural(n, "world") + ", " + plural(es.length, "arrow") +
+        (ags.length > 1 ? ", " + plural(ags.length, "agent") : "") + ".");
     draw();
   } catch (e){ say("err", e.message); }
 }
@@ -1066,9 +1274,10 @@ $("#svg").addEventListener("pointerup", function(e){
 $("#svg").addEventListener("pointercancel", function(){ drag = null; S.link = null; drawGraph(); });
 
 document.addEventListener("click", function(e){
-  var t = e.target.closest("[data-sym],[data-act]");
+  var t = e.target.closest("[data-sym],[data-act],[data-agent]");
   if (!t) return;
   if (t.hasAttribute("data-sym")){ insertSym(t.dataset.sym); return; }
+  if (t.hasAttribute("data-agent")){ pickAgent(t.dataset.agent); return; }
   if (t.dataset.act === "load"){ loadModel($("#mtext").value); return; }
   act(t.dataset.act);
 });
@@ -1076,7 +1285,7 @@ $("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($(
 $("#undo").addEventListener("click", undo);
 $("#reset").addEventListener("click", function(){
   snapshot();
-  S.M = newModel(3); S.atoms = ["p"]; S.M.V.p = [false, false, false]; S.sel = 0; S.f = null;
+  S.M = newModel(3); S.atoms = ["p"]; S.M.V.p = [false, false, false]; S.sel = 0; S.f = null; S.ag = "a";
   say("", "Back to three worlds, no arrows, everything false.");
   draw();
 });
@@ -1098,7 +1307,7 @@ function fromHash(){
 
 /* the structure of harj6 question 1, as a place to start from */
 S.M = newModel(5);
-[[0,1],[0,2],[1,0],[1,3],[2,1],[2,3],[2,4],[3,2]].forEach(function(e){ S.M.R[e[0]][e[1]] = true; });
+[[0,1],[0,2],[1,0],[1,3],[2,1],[2,3],[2,4],[3,2]].forEach(function(e){ S.M.R.a[e[0]][e[1]] = true; });
 S.atoms = ["p", "q"];
 S.M.V.p = [true, false, true, false, true];
 S.M.V.q = [true, true, false, true, true];

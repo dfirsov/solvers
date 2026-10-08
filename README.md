@@ -176,6 +176,26 @@ reads as before. The panel names which of these a modality is looking along —
 "every *b*-successor: w0 ✓, w1 ✗" — which is the part of an epistemic argument
 that is easy to get wrong on paper.
 
+##### Dynamic logic
+
+Lecture 15's dynamic logic is the same structure read differently: the
+relations are *actions* rather than agents, and the modalities are indexed by
+whole programs built from them. So the page takes those too — `[a;p?;b]A`,
+`⟨(p?;a)*⟩A` — with
+
+| | |
+|---|---|
+| `α;β` | first α, then β |
+| `α∪β` (or `α+β`) | either one |
+| `α*` | α any number of times, none included |
+| `A?` | go nowhere, but only where A holds |
+
+A program is just a relation built out of the drawn ones — composition, union,
+reflexive-transitive closure, and the identity cut down by a test — so nothing
+about the editor changes. The panel adds a line per program saying where it
+actually gets to from the selected world, which is the thing to look at when a
+`⟨α⟩` comes out false: `a;p?;b → w2, w3`.
+
 What it deliberately does not do is decide validity in a *logic* — that is
 quantifying over all frames of a class, and belongs to a tableaux tool rather
 than to a model editor.

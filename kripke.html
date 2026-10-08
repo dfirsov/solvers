@@ -214,6 +214,8 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .agtag.ag0{color:var(--ink-2)} .agtag.ag1{color:var(--open)}
 .agtag.ag2{color:var(--closed)} .agtag.ag3{color:var(--error)}
 .f .md sub{font-size:.62em; font-style:italic}
+.f .pop{color:var(--ink-3); margin:0 .04em}
+.f .pn2{font-style:italic}
 .sub{width:100%; border-collapse:collapse; font-size:13px}
 .sub td{padding:3px 6px; border-bottom:1px solid var(--line); vertical-align:baseline}
 .sub tr:last-child td{border-bottom:0}
@@ -310,15 +312,22 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
         <button type="button" data-sym="E " aria-label="Insert everyone knows" title="E — everyone knows">E</button>
         <button type="button" data-sym="D " aria-label="Insert distributed knowledge" title="D — distributed knowledge, pooled between the agents">D</button>
         <button type="button" data-sym="C " aria-label="Insert common knowledge" title="C — common knowledge, true along every chain of arrows">C</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="[a]" aria-label="Insert a program box" title="[α]A — after every run of the program α, A">[α]</button>
+        <button type="button" data-sym="&lt;a&gt;" aria-label="Insert a program diamond" title="⟨α⟩A — after some run of α, A">⟨α⟩</button>
+        <button type="button" data-sym=";" aria-label="Insert sequencing" title="α;β — first α, then β">;</button>
+        <button type="button" data-sym="∪" aria-label="Insert choice" title="α∪β — either one; also typed as +">∪</button>
+        <button type="button" data-sym="*" aria-label="Insert iteration" title="α* — α any number of times, including none">*</button>
+        <button type="button" data-sym="?" aria-label="Insert a test" title="A? — go nowhere, but only where A holds">?</button>
         <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
         <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
-        <span class="padhint"><code>[]</code> is □, <code>&lt;&gt;</code> is ◇, <code>K_a</code> is agent <i>a</i>’s knowledge; every modality binds tighter than ∧ ∨ ⊃ ≡</span>
+        <span class="padhint"><code>[]</code> is □, <code>&lt;&gt;</code> is ◇, <code>K_a</code> is agent <i>a</i>’s knowledge, <code>[a;p?;b]</code> is a program. Every modality binds tighter than ∧ ∨ ⊃ ≡</span>
       </div>
     </form>
   </div>
 
   <div class="strip b">
-    <span class="glabel">Agents</span>
+    <span class="glabel" title="One relation each. They are the agents of K_a and the actions of [a] alike">Agents</span>
     <div class="group" id="agents"></div>
     <span class="glabel">Structure</span>
     <div class="group">
@@ -413,7 +422,10 @@ function show(g, esc, wrap, neg, opw, cst, mod){
     if (h.k === "top") return cst("⊤");
     if (h.k === "bot") return cst("⊥");
     if (h.k === "not") return neg() + go(h.a, "not", false);
-    if (h.k === "box" || h.k === "dia") return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    if (h.k === "box" || h.k === "dia"){
+      if (h.pr) return mod(h.k === "box" ? "[" : "⟨", null, h.pr) + go(h.a, h.k, false);
+      return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    }
     if (h.k === "ka") return mod("K", h.ag) + go(h.a, h.k, false);
     if (h.k === "e" || h.k === "c" || h.k === "d")
       return mod(h.k.toUpperCase()) + go(h.a, h.k, false);
@@ -428,20 +440,107 @@ function fmtHTML(g){
     function(){ return '<span class="op neg">¬</span>'; },
     function(o){ return '<span class="op">' + o + "</span>"; },
     function(t){ return '<span class="cst">' + t + "</span>"; },
-    function(m, ag){ return '<span class="md">' + m + (ag ? "<sub>" + ag + "</sub>" : "") + "</span>"; });
+    function(m, ag, pr){
+      if (pr) return '<span class="md">' + m + "</span>" + progHTML(pr) +
+        '<span class="md">' + (m === "[" ? "]" : "⟩") + "</span>";
+      return '<span class="md">' + m + (ag ? "<sub>" + ag + "</sub>" : "") + "</span>";
+    });
 }
 function fmtText(g){
   return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
     function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
     /* A word operator needs a space or it runs into what follows: K_a p, not
        K_ap, which would lex as one name and make the agent "ap". */
-    function(m, ag){ return /[A-Z]/.test(m) ? m + (ag ? "_" + ag : "") + " " : m; });
+    function(m, ag, pr){
+      /* plain brackets in the text form, so it can be typed straight back */
+      if (pr) return (m === "[" ? "[" : "<") + progText(pr) + (m === "[" ? "]" : ">");
+      return /[A-Z]/.test(m) ? m + (ag ? "_" + ag : "") + " " : m;
+    });
 }
+/* ── programs ── */
+/* A program is a regular expression over the relations, and its meaning is
+   just a relation built from them: ; composes, + unions, * takes the
+   reflexive-transitive closure, and A? is the identity cut down to the worlds
+   where A holds. Everything here is matrix work on the structure already
+   drawn. */
+function progText(pr){ return progShow(pr, function(f){ return fmtText(f); }, false); }
+function progHTML(pr){ return progShow(pr, function(f){ return fmtHTML(f); }, true); }
+function progShow(pr, fml, html){
+  var op = html ? function(c){ return '<span class="pop">' + c + "</span>"; }
+                : function(c){ return c; };
+  var nm = html ? function(n){ return '<span class="pn2">' + n + "</span>"; }
+                : function(n){ return n; };
+  function go(x, lvl){
+    var s, need;
+    if (x.p === "atom"){ return nm(x.n); }
+    if (x.p === "test"){ return fml(x.f) + op("?"); }
+    if (x.p === "star"){ return go(x.a, 3) + op("*"); }
+    if (x.p === "seq"){ s = go(x.a, 2) + op(";") + go(x.b, 2); need = lvl > 2; }
+    else { s = go(x.a, 1) + op("∪") + go(x.b, 1); need = lvl > 1; }
+    return need ? op("(") + s + op(")") : s;
+  }
+  return go(pr, 0);
+}
+function progAtoms(pr, out){
+  out = out || [];
+  if (pr.p === "atom"){ if (out.indexOf(pr.n) < 0) out.push(pr.n); return out; }
+  if (pr.p === "test") return out;
+  if (pr.p === "star") return progAtoms(pr.a, out);
+  progAtoms(pr.a, out); progAtoms(pr.b, out);
+  return out;
+}
+function progTests(pr, out){
+  out = out || [];
+  if (pr.p === "test"){ out.push(pr.f); return out; }
+  if (pr.p === "atom") return out;
+  if (pr.p === "star") return progTests(pr.a, out);
+  progTests(pr.a, out); progTests(pr.b, out);
+  return out;
+}
+function eqProg(a, b){
+  if (a.p !== b.p) return false;
+  if (a.p === "atom") return a.n === b.n;
+  if (a.p === "test") return eqF(a.f, b.f);
+  if (a.p === "star") return eqProg(a.a, b.a);
+  return eqProg(a.a, b.a) && eqProg(a.b, b.b);
+}
+function compose(A, B, n){
+  var R = blank(n);
+  for (var i = 0; i < n; i++) for (var k = 0; k < n; k++){
+    if (!A[i][k]) continue;
+    for (var j = 0; j < n; j++) if (B[k][j]) R[i][j] = true;
+  }
+  return R;
+}
+function starR(A, n){
+  var R = A.map(function(r){ return r.slice(); });
+  for (var i = 0; i < n; i++) R[i][i] = true;          /* reflexive, then transitive */
+  for (var k = 0; k < n; k++) for (var i = 0; i < n; i++) for (var j = 0; j < n; j++)
+    if (R[i][k] && R[k][j]) R[i][j] = true;
+  return R;
+}
+function relProg(M, pr){
+  if (pr.p === "atom") return M.R[pr.n] || blank(M.n);
+  if (pr.p === "test"){
+    var R = blank(M.n);
+    for (var w = 0; w < M.n; w++) if (holdsAt(pr.f, M, w)) R[w][w] = true;
+    return R;
+  }
+  if (pr.p === "star") return starR(relProg(M, pr.a), M.n);
+  if (pr.p === "seq") return compose(relProg(M, pr.a), relProg(M, pr.b), M.n);
+  var A = relProg(M, pr.a), B = relProg(M, pr.b), U = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++) U[i][j] = A[i][j] || B[i][j];
+  return U;
+}
+
 function atomsOf(g, out){
   out = out || [];
   if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
   else if (g.k === "top" || g.k === "bot"){ /* none */ }
-  else if (g.k === "not" || MODAL[g.k]) atomsOf(g.a, out);
+  else if (g.k === "not" || MODAL[g.k]){
+    if (g.pr) progTests(g.pr).forEach(function(t){ atomsOf(t, out); });
+    atomsOf(g.a, out);
+  }
   else { atomsOf(g.a, out); atomsOf(g.b, out); }
   return out;
 }
@@ -449,7 +548,13 @@ function agentsOf(g, out){
   out = out || [];
   if (g.k === "ka" && out.indexOf(g.ag) < 0) out.push(g.ag);
   if (g.k === "atom" || g.k === "top" || g.k === "bot") return out;
-  if (g.k === "not" || MODAL[g.k]) return agentsOf(g.a, out);
+  if (g.k === "not" || MODAL[g.k]){
+    if (g.pr){
+      progAtoms(g.pr).forEach(function(a){ if (out.indexOf(a) < 0) out.push(a); });
+      progTests(g.pr).forEach(function(t){ agentsOf(t, out); });
+    }
+    return agentsOf(g.a, out);
+  }
   agentsOf(g.a, out); agentsOf(g.b, out);
   return out;
 }
@@ -458,6 +563,11 @@ function eqF(a, b){
   if (a.k === "atom") return a.n === b.n;
   if (a.k === "top" || a.k === "bot") return true;
   if (a.k === "ka") return a.ag === b.ag && eqF(a.a, b.a);
+  if (a.k === "box" || a.k === "dia"){
+    if (!a.pr !== !b.pr) return false;
+    if (a.pr && !eqProg(a.pr, b.pr)) return false;
+    return eqF(a.a, b.a);
+  }
   if (a.k === "not" || MODAL[a.k]) return eqF(a.a, b.a);
   return eqF(a.a, b.a) && eqF(a.b, b.b);
 }
@@ -479,7 +589,10 @@ var SYMS = [
   ["¬","not"], ["~","not"], ["!","not"],
   ["[]","box"], ["□","box"], ["<>","dia"], ["◇","dia"],
   ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
-  ["(","lp"], [")","rp"]
+  ["(","lp"], [")","rp"],
+  /* after the longer ones, so [] and <> still win: these open a program */
+  ["[","lbox"], ["]","rbox"], ["⟨","lang"], ["<","lang"], ["⟩","rang"], [">","rang"],
+  [";","seq"], ["∪","alt"], ["+","alt"], ["*","star"], ["?","test"]
 ];
 /* K_a is one word to the tokeniser, which is exactly what makes it readable:
    the agent travels with the operator instead of being a separate token. */
@@ -520,10 +633,63 @@ function parse(src){
   function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
   function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
   function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  /* a program: ∪ loosest, then ;, then * and ? tightest */
+  function prog(){
+    var l = pseq();
+    while (peek() === "alt"){ p++; l = {p:"alt", a:l, b:pseq()}; }
+    return l;
+  }
+  function pseq(){
+    var l = pstar();
+    while (peek() === "seq"){ p++; l = {p:"seq", a:l, b:pstar()}; }
+    return l;
+  }
+  function pstar(){
+    var l = patom();
+    while (peek() === "star"){ p++; l = {p:"star", a:l}; }
+    return l;
+  }
+  function patom(){
+    if (eat("lp")){
+      /* (…) is a sub-program, unless a ? follows, in which case what is in
+         the brackets was a formula all along and this is a test */
+      var save = p - 1;
+      try {
+        var x = prog();
+        if (eat("rp")){
+          if (eat("test")){ p = save; throw 0; }
+          return x;
+        }
+        throw 0;
+      } catch (e){
+        p = save;
+        if (!eat("lp")) throw new Error("A “(” in the program is never closed.");
+        var f2 = iff();
+        if (!eat("rp")) throw new Error("A “(” in the program is never closed.");
+        if (!eat("test")) throw new Error("A bracketed formula in a program has to be a test — write (A)?");
+        return {p:"test", f:f2};
+      }
+    }
+    var a = eat("atom");
+    if (!a) throw new Error("Expected an action or a test at position " + (t[p].i + 1) +
+      ", found “" + t[p].v + "”. A program is built from the relation names with ; ∪ * and A?");
+    if (eat("test")) return {p:"test", f:{k:"atom", n:a.v}};
+    return {p:"atom", n:a.v};
+  }
   function un(){
     if (peek() === "not"){ p++; return {k:"not", a:un()}; }
     if (peek() === "box"){ p++; return {k:"box", a:un()}; }
     if (peek() === "dia"){ p++; return {k:"dia", a:un()}; }
+    if (peek() === "lbox"){
+      p++; var pb = prog();
+      if (!eat("rbox")) throw new Error("A “[” is never closed — write [a]A.");
+      return {k:"box", pr:pb, a:un()};
+    }
+    if (peek() === "lang"){
+      p++; var pd = prog();
+      if (!eat("rang")) throw new Error("A “⟨” is never closed — write ⟨a⟩A.");
+      return {k:"dia", pr:pd, a:un()};
+    }
     if (peek() === "atom"){
       var op = wordOp(t[p].v);
       if (op){ p++; var node = {k:op.k, a:un()}; if (op.ag) node.ag = op.ag; return node; }
@@ -581,6 +747,7 @@ function closeR(R, n){
   return C;
 }
 function relOf(M, g){
+  if ((g.k === "box" || g.k === "dia") && g.pr) return relProg(M, g.pr);
   if (g.k === "ka") return M.R[g.ag] || blank(M.n);
   if (g.k === "e") return unionR(M);
   if (g.k === "d") return interR(M);
@@ -1103,6 +1270,17 @@ function drawSide(){
       " · common <b>C</b> " + (succR(Cc, w, M.n).map(WN).join(", ") || "nothing") + "</p>";
   }
 
+  if (S.f){
+    var prs = progsIn(S.f);
+    if (prs.length){
+      h += '<span class="ph">What each program reaches, from ' + WN(w) + "</span>";
+      prs.forEach(function(pr){
+        var R = relProg(M, pr), to = succR(R, w, M.n);
+        h += '<p class="note"><span class="f">' + progHTML(pr) + "</span> → " +
+          (to.length ? to.map(WN).join(", ") : "<b>nowhere</b>") + "</p>";
+      });
+    }
+  }
   if (!S.f){ h += '<p class="none2">Enter a formula to see it evaluated here.</p>'; }
   else {
     h += '<span class="ph">Why, at ' + WN(w) + "</span><table class=\"sub\">";
@@ -1130,8 +1308,22 @@ function drawSide(){
     '<p class="none2" style="margin-top:6px">Paste a structure here to set it up at once.</p>';
   $("#side").innerHTML = h;
 }
+/* every distinct program the formula mentions */
+function progsIn(g, out){
+  out = out || [];
+  if (g.k === "atom" || g.k === "top" || g.k === "bot") return out;
+  if ((g.k === "box" || g.k === "dia") && g.pr){
+    if (!out.some(function(x){ return eqProg(x, g.pr); })) out.push(g.pr);
+    progTests(g.pr).forEach(function(t){ progsIn(t, out); });
+  }
+  if (g.k === "not" || MODAL[g.k]) return progsIn(g.a, out);
+  progsIn(g.a, out); progsIn(g.b, out);
+  return out;
+}
+
 /* what the arrows a modality looks along are called, in words */
 function relName(g){
+  if ((g.k === "box" || g.k === "dia") && g.pr) return "world the program reaches";
   if (g.k === "ka") return g.ag + "-successor";
   if (g.k === "e") return "successor of any agent";
   if (g.k === "d") return "successor of every agent";

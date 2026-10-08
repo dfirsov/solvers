@@ -107,13 +107,20 @@ Every structure read off a branch is checked before it is offered: it has to
 satisfy the frame conditions and actually refute the formula. A tool that hands
 you a countermodel should have looked at it first.
 
-**A known limit.** With **transitivity** or **euclideanness** on, the search
-need not terminate: a `◇` demands a fresh world, the closure draws an arrow
-that reaches it, and that wakes the `◇` again. Proofs still close — it is the
-*countermodels* that can run away — and K, D, T, KB and B are unaffected.
-Making S4 and S5 terminate needs a loop check (blocking) that this page does
-not do. Instead it stops at forty worlds and explains what it is looking at:
-the formulas repeating at the last few worlds are the countermodel.
+**The loop check.** With **transitivity** or **euclideanness** on, a `◇` would
+demand a fresh world, the closure would draw an arrow reaching it, and that
+would wake the `◇` again — for ever. So in those logics the page blocks: if an
+earlier world already carries every formula this one does, the new world would
+only repeat it, and in a transitive frame this world reaches whatever that one
+reaches. The world is left unexpanded and the structure loops back to it, which
+is also how the countermodel is read off — the blocked worlds are not worlds of
+it, and the arrows into them are redirected to their blockers.
+
+Blocking is a fact about a *branch*, not about a line, so it is asked once per
+branch: a `◇` can be blocked on one branch and live on another. Since the
+number of distinct formula sets is bounded, so is the number of worlds, and the
+search stops. K, D, T, KB and B never needed it and do not get it — there the
+loop back is not licensed.
 
 #### Kripke models
 

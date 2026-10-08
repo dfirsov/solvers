@@ -527,6 +527,8 @@ var COND = [
   {k:"symmetric",  ax:"B", lbl:"symm", law:"from wRv, add vRw"},
   {k:"euclidean",  ax:"5", lbl:"eucl", law:"from wRv and wRu, add vRu"}
 ];
+/* "an S4 frame", but "a K4 frame" — S is the only one that starts with a vowel sound */
+function aLogic(on){ var n = logicName(on); return (n.charAt(0) === "S" ? "an " : "a ") + n; }
 function logicName(on){
   var ls = COND.filter(function(c){ return on[c.k]; }).map(function(c){ return c.ax; }).join("");
   var pretty = {"":"K", "D":"D", "T":"T", "T4":"S4", "TB":"B", "T4B":"S5", "T5":"S5", "T4B5":"S5",
@@ -603,6 +605,59 @@ function clashOn(tab, seg){
   return null;
 }
 
+/* ── blocking, so transitive logics stop ── */
+/* With transitivity or euclideanness on, a ◇ asks for a fresh world, the
+   closure draws an arrow that reaches it, and the ◇ wakes again: the branch
+   grows for ever. The cure is the standard loop check. If an earlier world u
+   already carries everything w carries, then nothing w could ask for is
+   anything u has not already been given, so w need not be expanded at all —
+   the model simply lets w's arrows land on u instead.
+
+   Only transitive and euclidean logics get this. K, D, T and the symmetric
+   ones terminate on their own, and there the loop back is not licensed. */
+function blocking(){ return !!(S.on.transitive || S.on.euclidean); }
+/* These are asked for constantly while a branch is being worked on and the
+   answers only change when a line is added, so they are cached against a
+   stamp the tableau bumps on every write. Without that the check is the
+   slowest thing on the page by a wide margin. */
+function cacheOf(tab){
+  if (!tab.cc || tab.cc.at !== tab.nextLine){ tab.cc = {at:tab.nextLine, sig:{}, blk:{}}; }
+  return tab.cc;
+}
+function sigma(tab, seg, w){
+  var c = cacheOf(tab), k = seg + "|" + w;
+  if (c.sig[k]) return c.sig[k];
+  var out = {};
+  pathLines(tab, seg).forEach(function(id){
+    var L = tab.lines[id];
+    if (L.kind === "fml" && L.w === w) out[L.s + key(L.f)] = 1;
+  });
+  c.sig[k] = out;
+  return out;
+}
+function covers(A, B){ return Object.keys(B).every(function(k){ return A[k]; }); }
+/* the earliest unblocked world that carries everything this one does */
+function blockedBy(tab, seg, w){
+  if (!blocking() || w === 0) return null;
+  var c = cacheOf(tab), k = seg + "|" + w;
+  if (c.blk[k] !== undefined) return c.blk[k];
+  c.blk[k] = null;                               /* guards the recursion below */
+  var ws = worldsOn(tab, seg), mine = sigma(tab, seg, w), hit = null;
+  for (var i = 0; i < ws.length && hit === null; i++){
+    var u = ws[i];
+    if (u >= w) break;
+    if (blockedBy(tab, seg, u) !== null) continue;
+    if (covers(sigma(tab, seg, u), mine)) hit = u;
+  }
+  c.blk[k] = hit;
+  return hit;
+}
+/* where a world stands in the finished structure */
+function repOf(tab, seg, w){
+  var u = blockedBy(tab, seg, w);
+  return u === null ? w : repOf(tab, seg, u);
+}
+
 /* ── what is still owed on a branch ── */
 /* An α, β or existential line is owed until it has been used. A universal line
    is owed whenever an arrow exists whose target does not yet carry its inner
@@ -615,7 +670,8 @@ function owedFml(tab, seg){
     if (L.kind !== "fml") return;
     var p = propRule(L.s, L.f), m = modalRule(L.s, L.f);
     if (p && !L.used) out.push({id:id, why:p.code});
-    else if (m && m.mode === "new" && !L.used) out.push({id:id, why:m.code});
+    else if (m && m.mode === "new" && !L.used && blockedBy(tab, seg, L.w) === null)
+      out.push({id:id, why:m.code});
     else if (m && m.mode === "all" && allTargets(tab, seg, L).length) out.push({id:id, why:m.code});
   });
   return out;
@@ -672,7 +728,7 @@ function condWork(tab, seg, k){
 function applyFml(tab, lineId){
   var L = tab.lines[lineId];
   var p = propRule(L.s, L.f), m = modalRule(L.s, L.f);
-  var tgt = leaves(tab, L.seg, "active"), added = 0;
+  var tgt = leaves(tab, L.seg, "active"), added = 0, fired = 0;
   tgt.forEach(function(lf){
     if (p){
       if (p.kind === "alpha"){
@@ -688,17 +744,24 @@ function applyFml(tab, lineId){
       return;
     }
     if (m.mode === "new"){
+      /* Blocking is a fact about a branch, not about a line, so it is asked
+         here, once per branch: the ones where the world is blocked get
+         nothing and loop back instead. */
+      if (blockedBy(tab, lf, L.w) !== null) return;
       var v = tab.nextW++;
       addRel(tab, lf, L.w, v, lineId, m.code);
       addFml(tab, lf, v, m.inner, L.f.a, lineId, m.code);
       added += 2;
+      fired++;
     } else {
       allTargets(tab, lf, L).forEach(function(v){
         addFml(tab, lf, v, m.inner, L.f.a, lineId, m.code); added++;
       });
     }
   });
-  if (p || m.mode === "new") L.used = true;
+  /* A line blocked on every branch below it is not spent: should a branch
+     later carry enough to break the block, it is owed again. */
+  if (p || (m.mode === "new" && fired)) L.used = true;
   return added;
 }
 function applyCond(tab, seg, k){
@@ -761,25 +824,48 @@ function checkModel(mo){
 
 /* an open branch, read off as a structure */
 function modelOn(tab, seg){
-  var ws = worldsOn(tab, seg), idx = {};
-  ws.forEach(function(w, i){ idx[w] = i; });
-  var M = newModel(ws.length);
-  arrowsOn(tab, seg).forEach(function(R){ M.R[idx[R.a]][idx[R.b]] = true; });
-  /* a bare dead end gets a loop, so the structure really is serial */
-  if (S.on.serial)
-    for (var d = 0; d < M.n; d++) if (!M.R[d].some(Boolean)) M.R[d][d] = true;
+  /* A blocked world is not a world of the structure: it stands for the one
+     that blocks it, and every arrow into it is redirected there. */
+  var all = worldsOn(tab, seg), rep = {}, keep = [];
+  all.forEach(function(w){
+    var r = repOf(tab, seg, w);
+    rep[w] = r;
+    if (r === w) keep.push(w);
+  });
+  var idx = {};
+  keep.forEach(function(w, i){ idx[w] = i; });
+  var M = newModel(keep.length);
+  arrowsOn(tab, seg).forEach(function(R){ M.R[idx[rep[R.a]]][idx[rep[R.b]]] = true; });
+  /* quotienting can break what the branch had satisfied, so close it again */
+  closeFrame(M);
   var at = [];
   pathLines(tab, seg).forEach(function(id){
     var L = tab.lines[id];
     if (L.kind === "fml" && L.f.k === "atom" && at.indexOf(L.f.n) < 0) at.push(L.f.n);
   });
   at.sort();
-  at.forEach(function(a){ var row = []; for (var i = 0; i < ws.length; i++) row.push(false); M.V[a] = row; });
+  at.forEach(function(a){ var row = []; for (var i = 0; i < keep.length; i++) row.push(false); M.V[a] = row; });
   pathLines(tab, seg).forEach(function(id){
     var L = tab.lines[id];
-    if (L.kind === "fml" && L.f.k === "atom" && L.s === "T") M.V[L.f.n][idx[L.w]] = true;
+    if (L.kind === "fml" && L.f.k === "atom" && L.s === "T") M.V[L.f.n][idx[rep[L.w]]] = true;
   });
-  return {M:M, atoms:at, idx:idx, ws:ws};
+  return {M:M, atoms:at, idx:idx, ws:keep, rep:rep};
+}
+/* add whatever arrows the chosen conditions demand, until nothing is missing */
+function closeFrame(M){
+  var n = M.n, R = M.R, a, b, c, changed = true;
+  while (changed){
+    changed = false;
+    if (S.on.reflexive) for (a = 0; a < n; a++) if (!R[a][a]){ R[a][a] = true; changed = true; }
+    if (S.on.symmetric) for (a = 0; a < n; a++) for (b = 0; b < n; b++)
+      if (R[a][b] && !R[b][a]){ R[b][a] = true; changed = true; }
+    if (S.on.transitive) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
+      if (R[a][b] && R[b][c] && !R[a][c]){ R[a][c] = true; changed = true; }
+    if (S.on.euclidean) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
+      if (R[a][b] && R[a][c] && !R[b][c]){ R[b][c] = true; changed = true; }
+  }
+  /* a bare dead end gets a loop, so the structure really is serial */
+  if (S.on.serial) for (a = 0; a < n; a++) if (!R[a].some(Boolean)) R[a][a] = true;
 }
 function modelText(mo){
   var es = [];
@@ -831,9 +917,9 @@ function build(src){
       "make the same formula true and false; a branch that runs out of rules is a <b>countermodel</b> you " +
       "can open in the model lab. The logic is <b>" + logicName(S.on) + "</b>." +
       ((S.on.transitive || S.on.euclidean)
-        ? " <b>Note:</b> with transitivity or euclideanness the search need not stop — a ◇ can keep asking " +
-          "for a fresh world that the closure then reaches. Proofs still close; it is the <i>countermodels</i> " +
-          "that can run away, and when they do the repeating pattern is the model."
+        ? " With transitivity or euclideanness a ◇ would otherwise keep asking for a fresh world that the " +
+          "closure then reaches, so a <b>loop check</b> is on: a world that repeats one already there is not " +
+          "expanded, and the structure loops back to it instead. That is what makes the search stop."
         : ""));
   draw();
 }
@@ -894,12 +980,25 @@ function clickRule(code){
         (m ? "An existential rule makes its one world and is finished." : "Applying its rule again adds nothing."));
     return;
   }
+  if (m && m.mode === "new"){
+    var live = leaves(S.tab, L.seg, "active"), by = null, all = live.length > 0;
+    live.forEach(function(lf){
+      var b = blockedBy(S.tab, lf, L.w);
+      if (b === null) all = false; else if (by === null) by = b;
+    });
+    if (all){
+      say("err", "<b>Blocked.</b> " + WN(by) + " already carries every formula " + WN(L.w) +
+          " does, so a new world would only repeat what " + WN(by) + " has already been given. In " +
+          aLogic(S.on).replace(/(\S+)$/, "<b>$1</b>") + " frame " + WN(L.w) + " reaches whatever " + WN(by) +
+          " reaches, so the structure lets " + WN(L.w) + "’s arrow land on " + WN(by) + " instead. " +
+          "That is the loop check, and it is what makes the search stop.");
+      return;
+    }
+  }
   if (m && m.mode === "new" && worldsOn(S.tab, leaves(S.tab, L.seg, "active")[0]).length >= MAXWORLDS){
-    say("err", "This branch is up to " + MAXWORLDS + " worlds. With <b>transitivity</b> or " +
-        "<b>euclideanness</b> switched on, a ◇ can keep demanding a fresh world for ever: the new arrows " +
-        "the closure adds reach the new world, which wakes the ◇ again. That is not a mistake in your " +
-        "working — it is why S4 and S5 need a loop check, which this page does not do. Look at the " +
-        "formulas repeating at the last few worlds: that repetition is the countermodel.");
+    say("err", "This branch is up to " + MAXWORLDS + " worlds, which is as many as this page draws. " +
+        "The loop check should have stopped it well before here, so if you have got this far with a " +
+        "small formula it is worth reporting.");
     return;
   }
   snapshot();

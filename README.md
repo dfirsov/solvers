@@ -19,7 +19,7 @@ is why the set is not named after propositional logic.
 | `predseq.html`   | Predicate Sequents   | cut-free LK with ∀L ∀R ∃L ∃R                |
 | `clausal.html`   | Clausal Form         | prenex form, CNF, skolemisation             |
 | `kripke.html`    | Kripke Models        | worlds, arrows, valuations, frame conditions, K E D C |
-| `modaltab.html`  | Modal Tableaux       | labelled tableaux, K through S5             |
+| `modaltab.html`  | Modal Tableaux       | labelled tableaux: K through S5, K_a E D, PDL programs |
 | `corresp.html`   | Frame Correspondence | axiom ↔ frame condition, checked both ways  |
 | `ltl.html`       | Temporal Logic       | LTL on a lasso: X, G, F, U, R               |
 
@@ -122,6 +122,53 @@ The modal rules come in two kinds, which is the thing to learn:
 - `□T` and `◇F` say *every successor*, so they fire once per arrow and can fire
   again when a new arrow turns up. They are never finished.
 - `□F` and `◇T` say *some successor*, so they make one new world and are done.
+
+**Arrows carry the name of their relation.** `w0 R`<sub>`a`</sub>` w1` rather
+than plain `w0 R w1`, and that one change is what lets a single tree talk about
+several relations at once. `K_a` is then a box like any other — it travels along
+*a*'s arrows and uses the same `□T` and `□F` — and so is `[a]`. The frame
+condition switches come one row per relation, because nothing says two agents
+have to obey the same ones; lecture 13 makes every agent reflexive and
+transitive, which is `T` and `4` on each row.
+
+**E and D.** `E A` is the conjunction over the agents, so it is a rewrite:
+`(E)` trades it for `K_a A ∧ K_b A ∧ …`. `D A` cannot be rewritten — the
+intersection of the relations is not a program and not a conjunction — so it
+has its own pair: `DT` fires into the worlds *every* agent reaches, and `DF`
+makes one new world with an arrow from every agent at once, which is exactly
+what puts it in the intersection. Who the agents are is read off the formula,
+and the `+ agent` button adds more; a formula that names only one gets a
+warning, because `D` and `E` then quietly collapse to `K_a` and an exercise
+about two agents will come out wrong.
+
+**Programs.** `[α]A` and `⟨α⟩A` take a program built with `;` `∪` `*` and `A?`,
+written as in `kripke.html` so a formula can be pasted between the two pages.
+Each program operator is one *equivalence*, applied by the `π` row, and the
+sign plays no part in it:
+
+| rule | law |
+|------|-----|
+| `(;)` | `[α;β]A ≡ [α][β]A` |
+| `(∪)` | `[α∪β]A ≡ [α]A ∧ [β]A` |
+| `(?)` | `[ψ?]A ≡ ψ ⊃ A` |
+| `(*)` | `[α*]A ≡ A ∧ [α][α*]A` |
+
+Only an *atomic* program reaches the modal rules; everything else is traded
+down first. The `π` row is shown only when the formula has a program in it, and
+the `E`/`D` rules only when it has one of them, so a page about `□` and `◇`
+still looks like one.
+
+**What the page will not do.** `⟨α*⟩A` under a `T`, `[α*]A` under an `F`, and
+`C A` under an `F` are all *eventualities*: they promise that something is
+reached after finitely many steps, and `C A ≡ E(A ∧ C A)` is the same fixpoint
+in epistemic clothing. Unfolding one loops, and the loop check cannot tell a
+loop that keeps the promise from one that never does — so a surviving branch
+would be reported as a countermodel when it is not one. Rather than guess, the
+page refuses those lines and says why. The safe directions — `T [α*]A` and
+`F ⟨α*⟩A`, which are safety properties — go through normally, and that is
+enough for harjutus 8's second and third formulas. Deciding the rest needs a
+fulfilment check over the loops rather than a tree, which this page does not
+have.
 
 The logic is chosen by switching frame conditions on — the row of `D T 4 B 5`
 toggles — and each has a button that adds the arrows it demands. A branch

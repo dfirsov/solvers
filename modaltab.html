@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Labelled tableaux for modal logic: signed formulas carry a world, the accessibility arrows are written down, and a branch that survives is a Kripke countermodel you can open in the model lab.">
+<meta name="description" content="Labelled tableaux for modal logic: signed formulas carry a world, the arrows are written down and carry the name of their relation, so K_a, E, D and the programs of PDL all work, and a branch that survives is a Kripke countermodel you can open in the model lab.">
 <title>Modal Tableaux</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -142,8 +142,9 @@ input[type=text]:focus{outline:none; border-color:var(--accent)}
 .status .f{white-space:normal}
 .status.ok{color:var(--closed)}
 .status.err{color:var(--error)}
+.status.warn{color:var(--accent)}
 .status b{font-weight:500; color:var(--ink)}
-.status.ok b,.status.err b{color:inherit; font-weight:600}
+.status.ok b,.status.err b,.status.warn b{color:inherit; font-weight:600}
 .status .acts{display:flex; gap:2px; flex:none}
 
 /* ── formulas ──────────────────────────────────────────── */
@@ -237,6 +238,14 @@ button.line.pick{border-color:var(--error)}
 .line.rel .body{opacity:.95}
 .line.rel .wl{color:var(--ink-2)}
 .f .md{margin-right:.08em}
+.f .pop{color:var(--ink-3); margin:0 .04em}
+.f .pn2{font-style:italic}
+.rr sub{font-size:.75em}
+.line.stopped .body{opacity:.55}
+.line.stopped .num{color:var(--accent)}
+.rulerow .logicname{padding-left:8px}
+.agrow{align-items:center}
+.aglist{font-family:var(--serif); font-size:13px; padding-right:6px}
 .condwrap{display:inline-flex; align-items:stretch; gap:0}
 .condsw{
   font-family:var(--mono); font-size:10px; min-width:20px; padding:0 5px;
@@ -288,9 +297,21 @@ button.line.pick{border-color:var(--error)}
         <span class="gap"></span>
         <button type="button" data-sym="□" aria-label="Insert box" title="necessarily — also typed as []">□</button>
         <button type="button" data-sym="◇" aria-label="Insert diamond" title="possibly — also typed as &lt;&gt;">◇</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="K_a " aria-label="Insert agent knowledge" title="K_a A — agent a knows A">K<sub>a</sub></button>
+        <button type="button" data-sym="E " aria-label="Insert everyone knows" title="E A — everyone knows A, along the union of the agents">E</button>
+        <button type="button" data-sym="D " aria-label="Insert distributed knowledge" title="D A — distributed knowledge, along the intersection of the agents">D</button>
+        <span class="gap"></span>
+        <button type="button" data-sym="[a]" aria-label="Insert program box" title="[α]A — after every run of the program α, A">[α]</button>
+        <button type="button" data-sym="&lt;a&gt;" aria-label="Insert program diamond" title="⟨α⟩A — some run of α ends with A">⟨α⟩</button>
+        <button type="button" data-sym=";" aria-label="Insert sequence" title="α;β — α then β">;</button>
+        <button type="button" data-sym="∪" aria-label="Insert choice" title="α∪β — either one; also typed as +">∪</button>
+        <button type="button" data-sym="*" aria-label="Insert iteration" title="α* — α any number of times, zero included">*</button>
+        <button type="button" data-sym="?" aria-label="Insert test" title="A? — go nowhere, but only where A holds">?</button>
+        <span class="gap"></span>
         <button type="button" data-sym="(" aria-label="Insert opening bracket">(</button>
         <button type="button" data-sym=")" aria-label="Insert closing bracket">)</button>
-        <span class="padhint"><code>[]</code> is □ and <code>&lt;&gt;</code> is ◇; the switches below pick the logic</span>
+        <span class="padhint"><code>[]</code> is □ and <code>&lt;&gt;</code> is ◇; <code>[a]</code> and <code>&lt;a&gt;</code> take a program; the switches below pick the logic, one row per relation</span>
       </div>
     </form>
   </div>
@@ -338,18 +359,30 @@ function logFormula(data){
 
 
 /* ═════════════════════════════════════════════ formulas */
-/* Propositional, plus the two modalities. □ and ◇ bind as tightly as ¬ does,
-   so □p ∧ q is (□p) ∧ q and the other reading needs brackets. */
+/* Propositional, plus every modality the course uses. They all bind as
+   tightly as ¬ does, so □p ∧ q is (□p) ∧ q and the other reading needs
+   brackets.
+
+     □ A  ◇ A      along the one plain relation
+     K_a A         along agent a's arrows                      (lecture 13)
+     E A           along the union of every agent's arrows
+     D A           along the intersection of them
+     [α]A  ⟨α⟩A    along the relation the program α denotes     (lecture 14)
+
+   The syntax is kripke.html's, so a formula typed into one page can be
+   pasted straight into the other. */
 var OPCH = {and:"∧", or:"∨", imp:"⊃", iff:"≡"};
 var MDCH = {box:"□", dia:"◇"};
+var MODAL = {box:1, dia:1, ka:1, e:1, c:1, d:1};
+/* the ones that say "every successor"; dia is the only existential head */
+var UNIV = {box:1, ka:1, e:1, c:1, d:1};
 
 function show(g, esc, wrap, neg, opw, cst, mod){
   cst = cst || function(t){ return t; };
   mod = mod || function(m){ return m; };
   function needs(c, pk, left){
-    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" ||
-        c.k === "box" || c.k === "dia") return false;
-    if (pk === "not" || pk === "box" || pk === "dia") return true;
+    if (c.k === "atom" || c.k === "not" || c.k === "top" || c.k === "bot" || MODAL[c.k]) return false;
+    if (pk === "not" || MODAL[pk]) return true;
     if ((pk === "and" || pk === "or") && c.k === pk && left) return false;
     return true;
   }
@@ -359,7 +392,13 @@ function show(g, esc, wrap, neg, opw, cst, mod){
     if (h.k === "top") return cst("⊤");
     if (h.k === "bot") return cst("⊥");
     if (h.k === "not") return neg() + go(h.a, "not", false);
-    if (h.k === "box" || h.k === "dia") return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    if (h.k === "box" || h.k === "dia"){
+      if (h.pr) return mod(h.k === "box" ? "[" : "⟨", null, h.pr) + go(h.a, h.k, false);
+      return mod(MDCH[h.k]) + go(h.a, h.k, false);
+    }
+    if (h.k === "ka") return mod("K", h.ag) + go(h.a, h.k, false);
+    if (h.k === "e" || h.k === "c" || h.k === "d")
+      return mod(h.k.toUpperCase()) + go(h.a, h.k, false);
     return go(h.a, h.k, true) + opw(OPCH[h.k]) + go(h.b, h.k, false);
   }
   return body(g);
@@ -371,35 +410,116 @@ function fmtHTML(g){
     function(){ return '<span class="op neg">¬</span>'; },
     function(o){ return '<span class="op">' + o + "</span>"; },
     function(t){ return '<span class="cst">' + t + "</span>"; },
-    function(m){ return '<span class="md">' + m + "</span>"; });
+    function(m, ag, pr){
+      if (pr) return '<span class="md">' + m + "</span>" + progHTML(pr) +
+        '<span class="md">' + (m === "[" ? "]" : "⟩") + "</span>";
+      return '<span class="md">' + m + (ag ? "<sub>" + ag + "</sub>" : "") + "</span>";
+    });
 }
 function fmtText(g){
   return show(g, function(n){ return n; }, function(s){ return "(" + s + ")"; },
     function(){ return "¬"; }, function(o){ return o; }, function(t){ return t; },
-    function(m){ return m; });
+    /* A word operator needs a space or it runs into what follows: K_a p, not
+       K_ap, which would lex as one name and make the agent "ap". */
+    function(m, ag, pr){
+      if (pr) return (m === "[" ? "[" : "<") + progText(pr) + (m === "[" ? "]" : ">");
+      return /[A-Z]/.test(m) ? m + (ag ? "_" + ag : "") + " " : m;
+    });
+}
+/* ── programs ── */
+/* A program is a regular expression over the relation names: ; composes,
+   ∪ unions, * is the reflexive-transitive closure and A? is the identity cut
+   down to the worlds where A holds. */
+function progText(pr){ return progShow(pr, function(f){ return fmtText(f); }, false); }
+function progHTML(pr){ return progShow(pr, function(f){ return fmtHTML(f); }, true); }
+function progShow(pr, fml, html){
+  var op = html ? function(c){ return '<span class="pop">' + c + "</span>"; }
+                : function(c){ return c; };
+  var nm = html ? function(n){ return '<span class="pn2">' + n + "</span>"; }
+                : function(n){ return n; };
+  function go(x, lvl){
+    var s, need;
+    if (x.p === "atom"){ return nm(x.n); }
+    if (x.p === "test"){ return fml(x.f) + op("?"); }
+    if (x.p === "star"){ return go(x.a, 3) + op("*"); }
+    if (x.p === "seq"){ s = go(x.a, 2) + op(";") + go(x.b, 2); need = lvl > 2; }
+    else { s = go(x.a, 1) + op("∪") + go(x.b, 1); need = lvl > 1; }
+    return need ? op("(") + s + op(")") : s;
+  }
+  return go(pr, 0);
+}
+function progTests(pr, out){
+  out = out || [];
+  if (pr.p === "test"){ out.push(pr.f); return out; }
+  if (pr.p === "atom") return out;
+  if (pr.p === "star") return progTests(pr.a, out);
+  progTests(pr.a, out); progTests(pr.b, out);
+  return out;
+}
+function eqProg(a, b){
+  if (a.p !== b.p) return false;
+  if (a.p === "atom") return a.n === b.n;
+  if (a.p === "test") return eqF(a.f, b.f);
+  if (a.p === "star") return eqProg(a.a, b.a);
+  return eqProg(a.a, b.a) && eqProg(a.b, b.b);
 }
 function atomsOf(g, out){
   out = out || [];
   if (g.k === "atom"){ if (out.indexOf(g.n) < 0) out.push(g.n); }
   else if (g.k === "top" || g.k === "bot"){ /* none */ }
-  else if (g.k === "not" || g.k === "box" || g.k === "dia") atomsOf(g.a, out);
+  else if (g.k === "not" || MODAL[g.k]){
+    if (g.pr) progTests(g.pr).forEach(function(t){ atomsOf(t, out); });
+    atomsOf(g.a, out);
+  }
   else { atomsOf(g.a, out); atomsOf(g.b, out); }
   return out;
 }
+/* Every relation the formula travels along, as the labels the arrows will
+   carry. "" is the plain relation of □ and ◇; a name is an agent or an
+   atomic program, which are the same thing to the calculus. */
+function labelsOf(g, out){
+  out = out || [];
+  function add(n){ if (out.indexOf(n) < 0) out.push(n); }
+  function walk(h){
+    if (h.k === "atom" || h.k === "top" || h.k === "bot") return;
+    if (h.k === "ka"){ add(h.ag); walk(h.a); return; }
+    if (h.k === "box" || h.k === "dia"){
+      if (!h.pr) add("");
+      else {
+        progLabels(h.pr).forEach(add);
+        progTests(h.pr).forEach(walk);
+      }
+      walk(h.a); return;
+    }
+    if (h.k === "not" || MODAL[h.k]){ walk(h.a); return; }
+    walk(h.a); walk(h.b);
+  }
+  walk(g);
+  return out;
+}
+function progLabels(pr, out){
+  out = out || [];
+  if (pr.p === "atom"){ if (out.indexOf(pr.n) < 0) out.push(pr.n); return out; }
+  if (pr.p === "test") return out;
+  if (pr.p === "star") return progLabels(pr.a, out);
+  progLabels(pr.a, out); progLabels(pr.b, out);
+  return out;
+}
+/* the named relations only — E and D quantify over these, and the plain
+   relation of □ is not one of them */
+function agentsOf(g){ return labelsOf(g).filter(function(x){ return x !== ""; }); }
 function eqF(a, b){
   if (a.k !== b.k) return false;
   if (a.k === "atom") return a.n === b.n;
   if (a.k === "top" || a.k === "bot") return true;
-  if (a.k === "not" || a.k === "box" || a.k === "dia") return eqF(a.a, b.a);
+  if (a.k === "ka" && a.ag !== b.ag) return false;
+  if (a.k === "box" || a.k === "dia"){
+    if (!!a.pr !== !!b.pr) return false;
+    if (a.pr && !eqProg(a.pr, b.pr)) return false;
+    return eqF(a.a, b.a);
+  }
+  if (a.k === "not" || MODAL[a.k]) return eqF(a.a, b.a);
   return eqF(a.a, b.a) && eqF(a.b, b.b);
-}
-/* every subformula, innermost first, which is the order they get evaluated in */
-function subsOf(g, out){
-  out = out || [];
-  if (g.k === "not" || g.k === "box" || g.k === "dia") subsOf(g.a, out);
-  else if (g.k !== "atom" && g.k !== "top" && g.k !== "bot"){ subsOf(g.a, out); subsOf(g.b, out); }
-  if (!out.some(function(x){ return eqF(x, g); })) out.push(g);
-  return out;
 }
 
 /* ═════════════════════════════════════════════ parser */
@@ -411,8 +531,21 @@ var SYMS = [
   ["¬","not"], ["~","not"], ["!","not"],
   ["[]","box"], ["□","box"], ["<>","dia"], ["◇","dia"],
   ["⊤","top"], ["⊥","bot"], ["1","top"], ["0","bot"],
-  ["(","lp"], [")","rp"]
+  ["(","lp"], [")","rp"],
+  /* after the longer ones, so [] and <> still win: these open a program */
+  ["[","lbox"], ["]","rbox"], ["⟨","lang"], ["<","lang"], ["⟩","rang"], [">","rang"],
+  [";","seq"], ["∪","alt"], ["+","alt"], ["*","star"], ["?","test"]
 ];
+/* K_a is one word to the tokeniser, which is exactly what makes it readable:
+   the agent travels with the operator instead of being a separate token. */
+function wordOp(v){
+  var m = /^K_(.+)$/.exec(v);
+  if (m) return {k:"ka", ag:m[1]};
+  if (v === "E") return {k:"e"};
+  if (v === "C") return {k:"c"};
+  if (v === "D") return {k:"d"};
+  return null;
+}
 function tokenize(src){
   var t = [], i = 0;
   outer: while (i < src.length){
@@ -434,7 +567,7 @@ function tokenize(src){
   return t;
 }
 function parse(src){
-  if (!src.trim()) throw new Error("Nothing to evaluate — type a formula.");
+  if (!src.trim()) throw new Error("Nothing to build a tree for — type a formula.");
   var t = tokenize(src), p = 0;
   function peek(){ return t[p].t; }
   function eat(k){ return t[p].t === k ? t[p++] : null; }
@@ -442,15 +575,76 @@ function parse(src){
   function impR(){ var l = or(); if (peek() === "imp"){ p++; return {k:"imp", a:l, b:impR()}; } return l; }
   function or(){ var l = and(); while (peek() === "or"){ p++; l = {k:"or", a:l, b:and()}; } return l; }
   function and(){ var l = un(); while (peek() === "and"){ p++; l = {k:"and", a:l, b:un()}; } return l; }
+  /* a program: ∪ loosest, then ;, then * and ? tightest */
+  function prog(){
+    var l = pseq();
+    while (peek() === "alt"){ p++; l = {p:"alt", a:l, b:pseq()}; }
+    return l;
+  }
+  function pseq(){
+    var l = pstar();
+    while (peek() === "seq"){ p++; l = {p:"seq", a:l, b:pstar()}; }
+    return l;
+  }
+  function pstar(){
+    var l = patom();
+    while (peek() === "star"){ p++; l = {p:"star", a:l}; }
+    return l;
+  }
+  function patom(){
+    if (eat("lp")){
+      /* (…) is a sub-program, unless a ? follows, in which case what is in
+         the brackets was a formula all along and this is a test */
+      var save = p - 1;
+      try {
+        var x = prog();
+        if (eat("rp")){
+          if (eat("test")){ p = save; throw 0; }
+          return x;
+        }
+        throw 0;
+      } catch (e){
+        p = save;
+        if (!eat("lp")) throw new Error("A “(” in the program is never closed.");
+        var f2 = iff();
+        if (!eat("rp")) throw new Error("A “(” in the program is never closed.");
+        if (!eat("test")) throw new Error("A bracketed formula in a program has to be a test — write (A)?");
+        return {p:"test", f:f2};
+      }
+    }
+    var a = eat("atom");
+    if (!a) throw new Error("Expected an action or a test at position " + (t[p].i + 1) +
+      ", found “" + t[p].v + "”. A program is built from the relation names with ; ∪ * and A?");
+    if (eat("test")) return {p:"test", f:{k:"atom", n:a.v}};
+    return {p:"atom", n:a.v};
+  }
   function un(){
     if (peek() === "not"){ p++; return {k:"not", a:un()}; }
     if (peek() === "box"){ p++; return {k:"box", a:un()}; }
     if (peek() === "dia"){ p++; return {k:"dia", a:un()}; }
+    if (peek() === "lbox"){
+      p++; var pb = prog();
+      if (!eat("rbox")) throw new Error("A “[” is never closed — write [a]A.");
+      return {k:"box", pr:pb, a:un()};
+    }
+    if (peek() === "lang"){
+      p++; var pd = prog();
+      if (!eat("rang")) throw new Error("A “⟨” is never closed — write ⟨a⟩A.");
+      return {k:"dia", pr:pd, a:un()};
+    }
+    if (peek() === "atom"){
+      var op = wordOp(t[p].v);
+      if (op){ p++; var node = {k:op.k, a:un()}; if (op.ag) node.ag = op.ag; return node; }
+    }
     if (eat("top")) return {k:"top"};
     if (eat("bot")) return {k:"bot"};
     if (eat("lp")){ var f = iff(); if (!eat("rp")) throw new Error("A “(” is never closed — add the matching “)”."); return f; }
     var a = eat("atom");
-    if (a) return {k:"atom", n:a.v};
+    if (a){
+      if (/^K$/.test(a.v))
+        throw new Error("Write the agent on the K, as in <i>K_a</i> — that is how the operator says whose knowledge it is.");
+      return {k:"atom", n:a.v};
+    }
     if (peek() === "rp") throw new Error("There is a “)” with no “(” to match it.");
     if (peek() === "end") throw new Error("The formula stops early — something is missing after the last connective.");
     throw new Error("Expected a letter, a modality or “(” at position " + (t[p].i + 1) + ", found “" + t[p].v + "”.");
@@ -462,21 +656,56 @@ function parse(src){
 
 /* ═════════════════════════════════════════════ the calculus */
 /* Labelled tableaux. A line is either a signed formula at a world, w: T A,
-   or an accessibility atom, w R v. Writing the relation down rather than
-   hiding it in the shape of the prefixes is what lets an open branch be read
-   straight off as a Kripke structure — the worlds are the labels, the arrows
-   are the R-lines, and the valuation is the atoms. */
+   or an accessibility atom, w R v — and the arrow now carries the name of the
+   relation it belongs to, so one tree can talk about several at once. That is
+   all it takes to cover the multi-agent operators of lecture 13 and the
+   programs of lecture 14: K_a and [a] are the same rule along different
+   arrows. Writing the relation down rather than hiding it in the shape of the
+   prefixes is what lets an open branch be read straight off as a Kripke
+   structure. */
 function T(f){ return {s:"T", f:f}; }
 function F(f){ return {s:"F", f:f}; }
 function key(g){ return fmtText(g); }
-function lkey(L){ return L.kind === "rel" ? "R" + L.a + ">" + L.b : L.w + L.s + key(L.f); }
+function lkey(L){ return L.kind === "rel" ? "R" + L.lab + "|" + L.a + ">" + L.b : L.w + L.s + key(L.f); }
 var WN = function(i){ return "w" + i; };
+/* how a relation is written in the tree: R for the plain one, R with the name
+   under it for an agent or an atomic program */
+function labName(lab){ return lab === "" ? "" : lab; }
 
-/* The propositional rules are the ones from the tableaux page, applied at the
-   line's own world: a connective cannot move you between worlds. */
-function propRule(s, f){
+/* The relation a modality travels along, or null if the formula has to be
+   rewritten before it travels anywhere. */
+function labOf(f){
+  if (f.k === "ka") return f.ag;
+  if (f.k === "box" || f.k === "dia"){
+    if (!f.pr) return "";
+    if (f.pr.p === "atom") return f.pr.n;
+  }
+  return null;
+}
+/* the equivalence a program rule rewrites along; sign plays no part, which is
+   why these read as laws rather than as a pair of rules */
+function progLaw(f){
+  var pr = f.pr, bx = f.k === "box", inner = f.a;
+  function M(p, a){ return {k:f.k, pr:p, a:a}; }
+  if (pr.p === "seq")  return {code:"(;)", f: M(pr.a, M(pr.b, inner))};
+  if (pr.p === "alt")  return {code:"(∪)", f: bx ? {k:"and", a:M(pr.a, inner), b:M(pr.b, inner)}
+                                                 : {k:"or",  a:M(pr.a, inner), b:M(pr.b, inner)}};
+  if (pr.p === "test") return {code:"(?)", f: bx ? {k:"imp", a:pr.f, b:inner}
+                                                 : {k:"and", a:pr.f, b:inner}};
+  if (pr.p === "star") return {code:"(*)", f: bx ? {k:"and", a:inner, b:M(pr.a, M(pr, inner))}
+                                                 : {k:"or",  a:inner, b:M(pr.a, M(pr, inner))}};
+  return null;
+}
+/* Which rule a signed formula calls for — one function, so there is exactly
+   one answer and nothing can disagree with anything else.
+
+     alpha / beta   stay at the world and break the formula down
+     all            fires once per arrow, and again when a new arrow turns up
+     new            makes one fresh world and is done
+     allD / newD    the same two, along the intersection of every agent
+     stop           the rule exists but this tool will not take it            */
+function ruleFor(s, f){
   if (f.k === "atom" || f.k === "top" || f.k === "bot") return null;
-  if (f.k === "box" || f.k === "dia") return null;
   if (f.k === "not") return {code: s === "T" ? "¬T" : "¬F", kind:"alpha",
                              out:[[ s === "T" ? F(f.a) : T(f.a) ]]};
   var a = f.a, b = f.b;
@@ -490,18 +719,79 @@ function propRule(s, f){
     case "iff": return s === "T" ? {code:"≡T", kind:"beta",  out:[[T(a), T(b)], [F(a), F(b)]]}
                                  : {code:"≡F", kind:"beta",  out:[[T(a), F(b)], [F(a), T(b)]]};
   }
+  /* K_a is a box, along agent a's own arrows — the same rule as □, which is
+     why it shares the code */
+  if (f.k === "ka") return s === "T" ? {code:"□T", kind:"all", lab:f.ag, inner:"T"}
+                                     : {code:"□F", kind:"new", lab:f.ag, inner:"F"};
+  /* common knowledge is a fixpoint: see the note on (C) below */
+  if (f.k === "c") return {code:"(C)", kind:"stop", why:"c"};
+  /* everyone-knows is the conjunction of the agents, so it is a rewrite */
+  if (f.k === "e"){
+    var ag = S.ags || [];
+    if (!ag.length) return {code:"(E)", kind:"stop", why:"noagents"};
+    var conj = ag.map(function(g){ return {k:"ka", ag:g, a:f.a}; })
+                 .reduce(function(x, y){ return {k:"and", a:x, b:y}; });
+    return {code:"(E)", kind:"alpha", out:[[ {s:s, f:conj} ]]};
+  }
+  /* distributed knowledge travels along the intersection, which is not a
+     program and not a conjunction — it needs its own pair of rules */
+  if (f.k === "d"){
+    if (!(S.ags || []).length) return {code:"(D)", kind:"stop", why:"noagents"};
+    return s === "T" ? {code:"DT", kind:"allD", inner:"T"}
+                     : {code:"DF", kind:"newD", inner:"F"};
+  }
+  if (f.k === "box" || f.k === "dia"){
+    var lab = labOf(f);
+    if (lab === null){
+      /* a compound program: rewrite by the law for its outermost operator */
+      var univ = (f.k === "box") === (s === "T");   /* true when this side is the safe one */
+      if (f.pr.p === "star" && !univ)
+        return {code:"(*)", kind:"stop", why:"star"};
+      var law = progLaw(f);
+      return {code:law.code, kind:"alpha", out:[[ {s:s, f:law.f} ]]};
+    }
+    if (f.k === "box") return s === "T" ? {code:"□T", kind:"all", lab:lab, inner:"T"}
+                                        : {code:"□F", kind:"new", lab:lab, inner:"F"};
+    return s === "T" ? {code:"◇T", kind:"new", lab:lab, inner:"T"}
+                     : {code:"◇F", kind:"all", lab:lab, inner:"F"};
+  }
   return null;
 }
-/* Which modal rule a signed modality calls for. The two that say "every
-   successor" are universal: they fire once per arrow, and may fire again when
-   a new arrow turns up. The two that say "some successor" are existential:
-   they make one new world and are done. */
+/* the three views the rest of the page asks for */
+function propRule(s, f){
+  var r = ruleFor(s, f);
+  return r && (r.kind === "alpha" || r.kind === "beta") ? r : null;
+}
 function modalRule(s, f){
-  if (f.k === "box") return s === "T" ? {code:"□T", mode:"all", inner:"T"}
-                                      : {code:"□F", mode:"new", inner:"F"};
-  if (f.k === "dia") return s === "T" ? {code:"◇T", mode:"new", inner:"T"}
-                                      : {code:"◇F", mode:"all", inner:"F"};
+  var r = ruleFor(s, f);
+  if (!r) return null;
+  if (r.kind === "all" || r.kind === "allD") return {code:r.code, mode:"all", lab:r.lab, inner:r.inner, kind:r.kind};
+  if (r.kind === "new" || r.kind === "newD") return {code:r.code, mode:"new", lab:r.lab, inner:r.inner, kind:r.kind};
   return null;
+}
+function stopRule(s, f){
+  var r = ruleFor(s, f);
+  return r && r.kind === "stop" ? r : null;
+}
+/* What a refused rule is refused for. These are the two places where a tree
+   with a loop check in it stops being a decision procedure, so the page says
+   so rather than guessing. */
+function stopWhy(r, L){
+  if (r.why === "noagents")
+    return "<b>No agents.</b> " + (L.f.k === "e" ? "E" : "D") + " quantifies over the agents, and this " +
+      "formula never names one. Write <code>K_a</code>, or <code>[a]</code>, somewhere so the tool knows " +
+      "whose arrows to take the union or the intersection of.";
+  if (r.why === "c")
+    return "<b>Common knowledge is a fixpoint.</b> C <i>A</i> ≡ E(<i>A</i> ∧ C <i>A</i>), so a branch " +
+      "carrying F C <i>A</i> promises a chain of arrows that reaches a world where <i>A</i> fails — and the " +
+      "loop check cannot tell a loop that keeps that promise from one that does not. Rather than draw a " +
+      "tree and call a loop a countermodel, this page stops here. The model lab will still evaluate C on " +
+      "a structure you build by hand.";
+  return "<b>A star on the existential side.</b> " + sf(L.w, L.s, L.f) + " promises that " + fh(L.f.a) +
+    " is reached after <i>finitely many</i> steps. Unfolding it would loop, and the loop check cannot tell " +
+    "a loop that keeps the promise from one that never does — so a branch that survived would be reported " +
+    "as a countermodel when it is not one. This page stops here instead. A star under the universal side " +
+    "— T [α*]φ or F ⟨α*⟩φ — is a safety property and does go through.";
 }
 var RULES = [
   {code:"¬T", kind:"alpha", prem:"w: T ¬φ",      out:[["w: F φ"]]},
@@ -514,12 +804,26 @@ var RULES = [
   {code:"⊃T", kind:"beta",  prem:"w: T (φ ⊃ ψ)", out:[["w: F φ"],["w: T ψ"]]},
   {code:"≡T", kind:"beta",  prem:"w: T (φ ≡ ψ)", out:[["w: T φ","w: T ψ"],["w: F φ","w: F ψ"]]},
   {code:"≡F", kind:"beta",  prem:"w: F (φ ≡ ψ)", out:[["w: T φ","w: F ψ"],["w: F φ","w: T ψ"]]},
-  {code:"□T", kind:"all",   prem:"w: T □φ, wRv", out:[["v: T φ"]]},
-  {code:"◇F", kind:"all",   prem:"w: F ◇φ, wRv", out:[["v: F φ"]]},
-  {code:"□F", kind:"new",   prem:"w: F □φ",      out:[["wRv","v: F φ"]]},
-  {code:"◇T", kind:"new",   prem:"w: T ◇φ",      out:[["wRv","v: T φ"]]}
+  {code:"□T", kind:"all",   prem:"w: T □φ, wR<sub>α</sub>v", out:[["v: T φ"]]},
+  {code:"◇F", kind:"all",   prem:"w: F ◇φ, wR<sub>α</sub>v", out:[["v: F φ"]]},
+  {code:"□F", kind:"new",   prem:"w: F □φ",      out:[["wR<sub>α</sub>v","v: F φ"]]},
+  {code:"◇T", kind:"new",   prem:"w: T ◇φ",      out:[["wR<sub>α</sub>v","v: T φ"]]},
+  /* the program laws: one equivalence each, and the sign plays no part */
+  {code:"(;)", kind:"prog", prem:"[α;β]φ",  out:[["[α][β]φ"]]},
+  {code:"(∪)", kind:"prog", prem:"[α∪β]φ",  out:[["[α]φ ∧ [β]φ"]]},
+  {code:"(?)", kind:"prog", prem:"[ψ?]φ",   out:[["ψ ⊃ φ"]]},
+  {code:"(*)", kind:"prog", prem:"[α*]φ",   out:[["φ ∧ [α][α*]φ"]]},
+  /* and the epistemic ones */
+  {code:"(E)", kind:"prog", prem:"E φ",     out:[["K_a φ ∧ K_b φ ∧ …"]]},
+  {code:"DT",  kind:"all",  prem:"w: T Dφ, wRₐv for every a", out:[["v: T φ"]]},
+  {code:"DF",  kind:"new",  prem:"w: F Dφ", out:[["wRₐv for every a","v: F φ"]]}
 ];
-/* The frame conditions, as rules that add the arrows the condition demands. */
+/* which rule codes belong to which family, for the panel */
+var PROGCODES = {"(;)":1, "(∪)":1, "(?)":1, "(*)":1};
+var EPICODES  = {"(E)":1, "DT":1, "DF":1};
+/* The frame conditions, as rules that add the arrows the condition demands.
+   Each relation gets its own set: in lecture 13 every agent's relation is
+   reflexive and transitive, and nothing says they have to agree. */
 var COND = [
   {k:"serial",     ax:"D", lbl:"ser", law:"every world needs a successor, so give one to any that has none"},
   {k:"reflexive",  ax:"T", lbl:"refl", law:"every world sees itself: add wRw"},
@@ -527,19 +831,38 @@ var COND = [
   {k:"symmetric",  ax:"B", lbl:"symm", law:"from wRv, add vRw"},
   {k:"euclidean",  ax:"5", lbl:"eucl", law:"from wRv and wRu, add vRu"}
 ];
-/* "an S4 frame", but "a K4 frame" — S is the only one that starts with a vowel sound */
-function aLogic(on){ var n = logicName(on); return (n.charAt(0) === "S" ? "an " : "a ") + n; }
-function logicName(on){
+function blankOn(){ return {serial:false, reflexive:false, transitive:false, symmetric:false, euclidean:false}; }
+/* the switches for one relation, made on demand */
+function onOf(lab){
+  if (!S.on[lab]) S.on[lab] = blankOn();
+  return S.on[lab];
+}
+function logicOf(lab){
+  var on = onOf(lab);
   var ls = COND.filter(function(c){ return on[c.k]; }).map(function(c){ return c.ax; }).join("");
   var pretty = {"":"K", "D":"D", "T":"T", "T4":"S4", "TB":"B", "T4B":"S5", "T5":"S5", "T4B5":"S5",
                 "T45":"S5", "TB5":"S5", "DT":"T", "4":"K4", "B":"KB", "5":"K5", "D4":"KD4", "DB":"KDB"};
   return pretty[ls] !== undefined ? pretty[ls] : "K" + ls;
 }
+/* the name of the whole setting: one logic if every relation agrees, and the
+   relations listed one by one if they do not */
+function logicName(){
+  var ls = (S.labs || [""]).map(logicOf);
+  if (ls.every(function(x){ return x === ls[0]; })) return ls[0];
+  return (S.labs || [""]).map(function(l, i){ return (l || "R") + " " + ls[i]; }).join(", ");
+}
+function aLogic(){ var n = logicName(); return (n.charAt(0) === "S" ? "an " : "a ") + n; }
+function anyCond(k){ return (S.labs || [""]).some(function(l){ return onOf(l)[k]; }); }
 
-function newModel(n){
+function newModel(n, labs){
+  var M = {n:n, R:{}, V:{}};
+  (labs || [""]).forEach(function(l){ M.R[l] = blank(n); });
+  return M;
+}
+function blank(n){
   var R = [];
   for (var i = 0; i < n; i++){ R.push([]); for (var j = 0; j < n; j++) R[i].push(false); }
-  return {n:n, R:R, V:{}};
+  return R;
 }
 
 /* ═════════════════════════════════════════════ tableau */
@@ -556,9 +879,9 @@ function addFml(tab, seg, w, s, f, src, rule){
   tab.segs[seg].lines.push(id);
   return id;
 }
-function addRel(tab, seg, a, b, src, rule){
+function addRel(tab, seg, a, b, lab, src, rule){
   var id = tab.nextLine++;
-  tab.lines[id] = {id:id, kind:"rel", a:a, b:b, src:src, rule:rule, seg:seg, used:true};
+  tab.lines[id] = {id:id, kind:"rel", a:a, b:b, lab:lab || "", src:src, rule:rule, seg:seg, used:true};
   tab.segs[seg].lines.push(id);
   return id;
 }
@@ -613,9 +936,37 @@ function clashOn(tab, seg){
    anything u has not already been given, so w need not be expanded at all —
    the model simply lets w's arrows land on u instead.
 
-   Only transitive and euclidean logics get this. K, D, T and the symmetric
-   ones terminate on their own, and there the loop back is not licensed. */
-function blocking(){ return !!(S.on.transitive || S.on.euclidean); }
+   Transitive and euclidean logics need it, and so does any formula with a
+   star in it. K, D, T and the symmetric ones terminate on their own, and
+   there the loop back is not licensed.
+
+   A star earns the check even with no frame condition at all. A star never
+   makes a world by itself — F ⟨α*⟩φ unfolds to F φ and F ⟨α⟩⟨α*⟩φ, and ⟨α⟩
+   under F is universal — but φ may contain something that does make one, and
+   the star formula then travels into it and unfolds again there.
+   F ⟨(a∪a)*⟩(¬p ⊃ [a∪b]p) is the smallest case: in plain K it grows for ever.
+   The loop back is sound for the usual reason — a world that repeats one
+   already on the branch asks for nothing new — and a star unfolds into
+   finitely many formulas, so the signatures do run out. */
+function blocking(){ return anyCond("transitive") || anyCond("euclidean") || !!S.star; }
+/* is there a star anywhere in the formula, tests included? */
+function hasStar(g){
+  var hit = false;
+  function pw(pr){
+    if (hit || !pr) return;
+    if (pr.p === "star"){ hit = true; return; }
+    if (pr.p === "test"){ walk(pr.f); return; }
+    if (pr.p === "atom") return;
+    pw(pr.a); pw(pr.b);
+  }
+  function walk(h){
+    if (hit || !h || h.k === "atom" || h.k === "top" || h.k === "bot") return;
+    if (h.k === "not" || MODAL[h.k]){ if (h.pr) pw(h.pr); walk(h.a); return; }
+    walk(h.a); walk(h.b);
+  }
+  walk(g);
+  return hit;
+}
 /* These are asked for constantly while a branch is being worked on and the
    answers only change when a line is added, so they are cached against a
    stamp the tableau bumps on every write. Without that the check is the
@@ -643,6 +994,12 @@ function blockedBy(tab, seg, w){
   if (c.blk[k] !== undefined) return c.blk[k];
   c.blk[k] = null;                               /* guards the recursion below */
   var ws = worldsOn(tab, seg), mine = sigma(tab, seg, w), hit = null;
+  /* A world carrying no formula at all is covered by every other world, and
+     folding it onto one of them would hand that world an incoming arrow it was
+     never asked to cope with — which is how T □s came out false at w0 in KD5.
+     A bare world constrains nothing, so it is left where it is and seriality
+     gives it a loop, exactly as the note on seriality says. */
+  if (!Object.keys(mine).length){ c.blk[k] = null; return null; }
   for (var i = 0; i < ws.length && hit === null; i++){
     var u = ws[i];
     if (u >= w) break;
@@ -662,40 +1019,65 @@ function repOf(tab, seg, w){
 /* An α, β or existential line is owed until it has been used. A universal line
    is owed whenever an arrow exists whose target does not yet carry its inner
    formula — which is why a new arrow can wake an old line up again. A frame
-   condition is owed whenever it demands an arrow the branch has not got. */
+   condition is owed whenever it demands an arrow the branch has not got. A
+   refused line is owed for ever, which is the point: a branch carrying one
+   can never be declared open. */
 function owedFml(tab, seg){
   var out = [];
   pathLines(tab, seg).forEach(function(id){
     var L = tab.lines[id];
     if (L.kind !== "fml") return;
-    var p = propRule(L.s, L.f), m = modalRule(L.s, L.f);
-    if (p && !L.used) out.push({id:id, why:p.code});
-    else if (m && m.mode === "new" && !L.used && blockedBy(tab, seg, L.w) === null)
-      out.push({id:id, why:m.code});
-    else if (m && m.mode === "all" && allTargets(tab, seg, L).length) out.push({id:id, why:m.code});
+    var r = ruleFor(L.s, L.f);
+    if (!r) return;
+    if (r.kind === "stop"){ out.push({id:id, why:r.code, stop:r}); return; }
+    if (r.kind === "alpha" || r.kind === "beta"){ if (!L.used) out.push({id:id, why:r.code}); return; }
+    if (r.kind === "new" || r.kind === "newD"){
+      if (!L.used && blockedBy(tab, seg, L.w) === null) out.push({id:id, why:r.code});
+      return;
+    }
+    if (allTargets(tab, seg, L).length) out.push({id:id, why:r.code});
   });
   return out;
 }
+/* a branch where everything left is a refused rule has nowhere to go */
+function stuckOn(tab, seg){
+  var o = owedFml(tab, seg);
+  return o.length && o.every(function(x){ return x.stop; }) && !owedCond(tab, seg).length ? o[0] : null;
+}
+function uniq(xs){ return xs.filter(function(v, i, arr){ return arr.indexOf(v) === i; }); }
 function allTargets(tab, seg, L){
   var m = modalRule(L.s, L.f);
   if (!m || m.mode !== "all") return [];
-  return arrowsOn(tab, seg).filter(function(R){ return R.a === L.w; })
-    .map(function(R){ return R.b; })
-    .filter(function(v, i, arr){ return arr.indexOf(v) === i; })
-    .filter(function(v){ return !hasLine(tab, seg, v + m.inner + key(L.f.a)); });
+  var ar = arrowsOn(tab, seg), cands;
+  if (m.kind === "allD"){
+    /* distributed knowledge reaches only the worlds every agent reaches */
+    var ags = S.ags || [];
+    cands = uniq(ar.filter(function(R){ return R.a === L.w; }).map(function(R){ return R.b; }))
+      .filter(function(v){
+        return ags.length && ags.every(function(g){
+          return ar.some(function(R){ return R.a === L.w && R.b === v && R.lab === g; }); });
+      });
+  } else {
+    cands = uniq(ar.filter(function(R){ return R.a === L.w && R.lab === m.lab; })
+                   .map(function(R){ return R.b; }));
+  }
+  return cands.filter(function(v){ return !hasLine(tab, seg, v + m.inner + key(L.f.a)); });
 }
 function owedCond(tab, seg){
   var out = [];
-  COND.forEach(function(C){
-    if (!S.on[C.k]) return;
-    if (condWork(tab, seg, C.k).length) out.push(C);
+  (S.labs || [""]).forEach(function(lab){
+    COND.forEach(function(C){
+      if (!onOf(lab)[C.k]) return;
+      if (condWork(tab, seg, lab, C.k).length) out.push({lab:lab, C:C, k:C.k, lbl:C.lbl});
+    });
   });
   return out;
 }
 /* the arrows a condition is missing on this branch, as [from, to] pairs;
    seriality instead reports the worlds that need a successor */
-function condWork(tab, seg, k){
-  var ws = worldsOn(tab, seg), ar = arrowsOn(tab, seg), has = {};
+function condWork(tab, seg, lab, k){
+  var ws = worldsOn(tab, seg), has = {};
+  var ar = arrowsOn(tab, seg).filter(function(R){ return R.lab === lab; });
   ar.forEach(function(R){ has[R.a + ">" + R.b] = 1; });
   var out = [];
   function want(a, b){ if (!has[a + ">" + b]) out.push([a, b]); }
@@ -708,15 +1090,21 @@ function condWork(tab, seg, k){
   else if (k === "serial"){
     /* Only a world that carries a formula is asked for a successor. One that
        carries none constrains nothing — a saturated branch could only have
-       left it bare if no T□ or F◇ pointed at it — so it can be closed off
-       with a loop when the structure is read, and the chain stops instead of
-       running forever. */
+       left it bare if no universal line pointed at it — so it can be closed
+       off with a loop when the structure is read, and the chain stops instead
+       of running forever. */
     var holds = {};
     pathLines(tab, seg).forEach(function(id){
       var L = tab.lines[id];
       if (L.kind === "fml") holds[L.w] = 1;
     });
     ws.forEach(function(w){
+      /* A blocked world is not asked for a successor either. It stands for the
+         world that blocks it and reaches whatever that one reaches, so it is
+         already as serial as it needs to be — and without this the chain of
+         fresh successors never ends in a logic that is serial and transitive
+         but not reflexive, which is to say in KD4. */
+      if (blockedBy(tab, seg, w) !== null) return;
       if (holds[w] && !ar.some(function(R){ return R.a === w; })) out.push([w, null]);
     });
   }
@@ -727,101 +1115,213 @@ function condWork(tab, seg, k){
 /* ── applying ── */
 function applyFml(tab, lineId){
   var L = tab.lines[lineId];
-  var p = propRule(L.s, L.f), m = modalRule(L.s, L.f);
+  var r = ruleFor(L.s, L.f);
+  if (!r || r.kind === "stop") return 0;
   var tgt = leaves(tab, L.seg, "active"), added = 0, fired = 0;
   tgt.forEach(function(lf){
-    if (p){
-      if (p.kind === "alpha"){
-        p.out[0].forEach(function(x){
-          if (!hasLine(tab, lf, L.w + x.s + key(x.f))){ addFml(tab, lf, L.w, x.s, x.f, lineId, p.code); added++; }
-        });
-      } else {
-        p.out.forEach(function(br){
-          var c = addSeg(tab, lf);
-          br.forEach(function(x){ addFml(tab, c, L.w, x.s, x.f, lineId, p.code); added++; });
-        });
-      }
+    if (r.kind === "alpha"){
+      r.out[0].forEach(function(x){
+        if (!hasLine(tab, lf, L.w + x.s + key(x.f))){ addFml(tab, lf, L.w, x.s, x.f, lineId, r.code); added++; }
+      });
       return;
     }
-    if (m.mode === "new"){
+    if (r.kind === "beta"){
+      r.out.forEach(function(br){
+        var c = addSeg(tab, lf);
+        br.forEach(function(x){ addFml(tab, c, L.w, x.s, x.f, lineId, r.code); added++; });
+      });
+      return;
+    }
+    if (r.kind === "new" || r.kind === "newD"){
       /* Blocking is a fact about a branch, not about a line, so it is asked
          here, once per branch: the ones where the world is blocked get
          nothing and loop back instead. */
       if (blockedBy(tab, lf, L.w) !== null) return;
       var v = tab.nextW++;
-      addRel(tab, lf, L.w, v, lineId, m.code);
-      addFml(tab, lf, v, m.inner, L.f.a, lineId, m.code);
-      added += 2;
+      if (r.kind === "newD"){
+        /* an arrow from every agent at once, which is what makes v lie in the
+           intersection */
+        (S.ags || []).forEach(function(g){ addRel(tab, lf, L.w, v, g, lineId, r.code); added++; });
+      } else {
+        addRel(tab, lf, L.w, v, r.lab, lineId, r.code); added++;
+      }
+      addFml(tab, lf, v, r.inner, L.f.a, lineId, r.code);
+      added++;
       fired++;
-    } else {
-      allTargets(tab, lf, L).forEach(function(v){
-        addFml(tab, lf, v, m.inner, L.f.a, lineId, m.code); added++;
-      });
+      return;
     }
+    allTargets(tab, lf, L).forEach(function(v){
+      addFml(tab, lf, v, r.inner, L.f.a, lineId, r.code); added++;
+    });
   });
   /* A line blocked on every branch below it is not spent: should a branch
      later carry enough to break the block, it is owed again. */
-  if (p || (m.mode === "new" && fired)) L.used = true;
+  if (r.kind === "alpha" || r.kind === "beta" ||
+      ((r.kind === "new" || r.kind === "newD") && fired)) L.used = true;
   return added;
 }
-function applyCond(tab, seg, k){
+function applyCond(tab, seg, lab, k){
   var tgt = leaves(tab, seg, "active"), added = 0;
+  var lbl = COND.filter(function(c){ return c.k === k; })[0].lbl;
   tgt.forEach(function(lf){
-    condWork(tab, lf, k).forEach(function(pr){
+    condWork(tab, lf, lab, k).forEach(function(pr){
       if (pr[1] === null){                    /* seriality: a successor out of nothing */
         var v = tab.nextW++;
-        addRel(tab, lf, pr[0], v, null, "ser"); added++;
-      } else if (!hasLine(tab, lf, "R" + pr[0] + ">" + pr[1])){
-        addRel(tab, lf, pr[0], pr[1], null, COND.filter(function(c){ return c.k === k; })[0].lbl);
+        addRel(tab, lf, pr[0], v, lab, null, lbl); added++;
+      } else if (!hasLine(tab, lf, "R" + lab + "|" + pr[0] + ">" + pr[1])){
+        addRel(tab, lf, pr[0], pr[1], lab, null, lbl);
         added++;
       }
     });
   });
   return added;
 }
-/* The semantics, used for one thing only: checking a countermodel before the
-   page claims it is one. A tool that hands you a structure should have looked
-   at it first. */
-function holdsAt(g, Mo, w){
+
+/* ═════════════════════════════════════════════ semantics */
+/* Used for one thing only: checking a countermodel before the page claims it
+   is one. A tool that hands you a structure should have looked at it first. */
+function unionR(M, ags){
+  var R = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++)
+    R[i][j] = ags.some(function(g){ return M.R[g] && M.R[g][i][j]; });
+  return R;
+}
+function interR(M, ags){
+  var R = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++)
+    R[i][j] = ags.length > 0 && ags.every(function(g){ return M.R[g] && M.R[g][i][j]; });
+  return R;
+}
+function closeR(R, n){
+  var C = R.map(function(r){ return r.slice(); });
+  for (var k = 0; k < n; k++) for (var i = 0; i < n; i++) for (var j = 0; j < n; j++)
+    if (C[i][k] && C[k][j]) C[i][j] = true;
+  return C;
+}
+function compose(A, B, n){
+  var R = blank(n);
+  for (var i = 0; i < n; i++) for (var k = 0; k < n; k++){
+    if (!A[i][k]) continue;
+    for (var j = 0; j < n; j++) if (B[k][j]) R[i][j] = true;
+  }
+  return R;
+}
+function starR(A, n){
+  var R = A.map(function(r){ return r.slice(); });
+  for (var i = 0; i < n; i++) R[i][i] = true;          /* reflexive, then transitive */
+  for (var k = 0; k < n; k++) for (var i = 0; i < n; i++) for (var j = 0; j < n; j++)
+    if (R[i][k] && R[k][j]) R[i][j] = true;
+  return R;
+}
+function relProg(M, pr){
+  if (pr.p === "atom") return M.R[pr.n] || blank(M.n);
+  if (pr.p === "test"){
+    var R = blank(M.n);
+    for (var w = 0; w < M.n; w++) if (holdsAt(pr.f, M, w)) R[w][w] = true;
+    return R;
+  }
+  if (pr.p === "star") return starR(relProg(M, pr.a), M.n);
+  if (pr.p === "seq") return compose(relProg(M, pr.a), relProg(M, pr.b), M.n);
+  var A = relProg(M, pr.a), B = relProg(M, pr.b), U = blank(M.n);
+  for (var i = 0; i < M.n; i++) for (var j = 0; j < M.n; j++) U[i][j] = A[i][j] || B[i][j];
+  return U;
+}
+function relOf(M, g){
+  if (g.k === "box" || g.k === "dia")
+    return g.pr ? relProg(M, g.pr) : (M.R[""] || blank(M.n));
+  if (g.k === "ka") return M.R[g.ag] || blank(M.n);
+  var ags = S.ags || [];
+  if (g.k === "e") return unionR(M, ags);
+  if (g.k === "d") return interR(M, ags);
+  return closeR(unionR(M, ags), M.n);               /* C: any non-empty chain */
+}
+function holdsAt(g, M, w){
   switch (g.k){
-    case "atom": return !!(Mo.V[g.n] && Mo.V[g.n][w]);
+    case "atom": return !!(M.V[g.n] && M.V[g.n][w]);
     case "top":  return true;
     case "bot":  return false;
-    case "not":  return !holdsAt(g.a, Mo, w);
-    case "and":  return holdsAt(g.a, Mo, w) && holdsAt(g.b, Mo, w);
-    case "or":   return holdsAt(g.a, Mo, w) || holdsAt(g.b, Mo, w);
-    case "imp":  return !holdsAt(g.a, Mo, w) || holdsAt(g.b, Mo, w);
-    case "iff":  return holdsAt(g.a, Mo, w) === holdsAt(g.b, Mo, w);
-    case "box":
-      for (var u = 0; u < Mo.n; u++) if (Mo.R[w][u] && !holdsAt(g.a, Mo, u)) return false;
-      return true;
-    case "dia":
-      for (var v = 0; v < Mo.n; v++) if (Mo.R[w][v] && holdsAt(g.a, Mo, v)) return true;
+    case "not":  return !holdsAt(g.a, M, w);
+    case "and":  return holdsAt(g.a, M, w) && holdsAt(g.b, M, w);
+    case "or":   return holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
+    case "imp":  return !holdsAt(g.a, M, w) || holdsAt(g.b, M, w);
+    case "iff":  return holdsAt(g.a, M, w) === holdsAt(g.b, M, w);
+    case "dia": {
+      var Rd = relOf(M, g);
+      for (var v = 0; v < M.n; v++) if (Rd[w][v] && holdsAt(g.a, M, v)) return true;
       return false;
+    }
+    default: {                                   /* □, K_a, E, D, C all say "every" */
+      var R = relOf(M, g);
+      for (var u = 0; u < M.n; u++) if (R[w][u] && !holdsAt(g.a, M, u)) return false;
+      return true;
+    }
   }
-  return false;
 }
-function badFrame(Mo){
-  var n = Mo.n, R = Mo.R, a, b, c;
-  if (S.on.serial) for (a = 0; a < n; a++) if (!R[a].some(Boolean)) return "serial";
-  if (S.on.reflexive) for (a = 0; a < n; a++) if (!R[a][a]) return "reflexive";
-  if (S.on.symmetric) for (a = 0; a < n; a++) for (b = 0; b < n; b++) if (R[a][b] && !R[b][a]) return "symmetric";
-  if (S.on.transitive) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
-    if (R[a][b] && R[b][c] && !R[a][c]) return "transitive";
-  if (S.on.euclidean) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
-    if (R[a][b] && R[a][c] && !R[b][c]) return "euclidean";
-  return null;
+function badFrame(M){
+  var labs = S.labs || [""], bad = null;
+  labs.forEach(function(lab){
+    if (bad) return;
+    var on = onOf(lab), R = M.R[lab] || blank(M.n), n = M.n, a, b, c;
+    function no(w){ bad = {lab:lab, k:w}; }
+    if (on.serial) for (a = 0; a < n && !bad; a++) if (!R[a].some(Boolean)) no("serial");
+    if (on.reflexive) for (a = 0; a < n && !bad; a++) if (!R[a][a]) no("reflexive");
+    if (on.symmetric) for (a = 0; a < n && !bad; a++) for (b = 0; b < n && !bad; b++)
+      if (R[a][b] && !R[b][a]) no("symmetric");
+    if (on.transitive) for (a = 0; a < n && !bad; a++) for (b = 0; b < n && !bad; b++) for (c = 0; c < n && !bad; c++)
+      if (R[a][b] && R[b][c] && !R[a][c]) no("transitive");
+    if (on.euclidean) for (a = 0; a < n && !bad; a++) for (b = 0; b < n && !bad; b++) for (c = 0; c < n && !bad; c++)
+      if (R[a][b] && R[a][c] && !R[b][c]) no("euclidean");
+  });
+  return bad;
 }
 /* does the structure read off the branch actually do what is claimed of it? */
 function checkModel(mo){
   var bad = badFrame(mo.M);
-  if (bad) return "the structure it gives is not " + bad + ", so it is not a frame of " + logicName(S.on);
+  if (bad) return "the structure it gives is not " + bad.k +
+    (bad.lab ? " on " + bad.lab : "") + ", so it is not a frame of " + logicName();
   var v = holdsAt(S.root, mo.M, 0);
   if (v === (S.sign === "T")) return null;
   return "the structure it gives makes the root formula " + (v ? "true" : "false") +
          " at " + WN(0) + ", which is not what the branch says";
 }
+/* add whatever arrows the chosen conditions demand, until nothing is missing */
+function closeFrame(M){
+  (S.labs || [""]).forEach(function(lab){
+    var on = onOf(lab), R = M.R[lab], n = M.n, a, b, c, changed = true;
+    if (!R) return;
+    while (changed){
+      changed = false;
+      if (on.reflexive) for (a = 0; a < n; a++) if (!R[a][a]){ R[a][a] = true; changed = true; }
+      if (on.symmetric) for (a = 0; a < n; a++) for (b = 0; b < n; b++)
+        if (R[a][b] && !R[b][a]){ R[b][a] = true; changed = true; }
+      if (on.transitive) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
+        if (R[a][b] && R[b][c] && !R[a][c]){ R[a][c] = true; changed = true; }
+      if (on.euclidean) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
+        if (R[a][b] && R[a][c] && !R[b][c]){ R[b][c] = true; changed = true; }
+    }
+    /* a bare dead end gets a loop, so the structure really is serial */
+    if (on.serial) for (a = 0; a < n; a++) if (!R[a].some(Boolean)) R[a][a] = true;
+  });
+}
 
+/* When the structure a branch folds down to does not do what the branch says,
+   there are two quite different reasons, and the student deserves to be told
+   which. With the loop check off it is a bug and should be reported. With it
+   on it is the loop check being eager: subset blocking sends a world back to
+   an earlier one, the frame conditions are then closed up over the folded
+   structure, and the arrows that closure adds can undo a □ that the branch had
+   satisfied. That is a limit of the check, not an error in the working, and it
+   shows up most with two relations and a transitive or euclidean logic. */
+function badModelWhy(why){
+  if (!blocking())
+    return "Something is wrong: " + why + ". This is a bug in the tool, not in your working — " +
+           "please report it.";
+  return "<b>The loop check was too eager here.</b> The branch has no rules left, but " + why +
+    ". The loop sends a repeated world back to an earlier one, and closing the frame conditions over " +
+    "the folded structure can add arrows that undo a □ the branch had satisfied. So this branch cannot " +
+    "be <i>certified</i> as a countermodel — which is not the same as saying there is none. Try closing " +
+    "it instead, or build a structure by hand in the model lab.";
+}
 /* an open branch, read off as a structure */
 function modelOn(tab, seg){
   /* A blocked world is not a world of the structure: it stands for the one
@@ -834,8 +1334,19 @@ function modelOn(tab, seg){
   });
   var idx = {};
   keep.forEach(function(w, i){ idx[w] = i; });
-  var M = newModel(keep.length);
-  arrowsOn(tab, seg).forEach(function(R){ M.R[idx[rep[R.a]]][idx[rep[R.b]]] = true; });
+  var labs = S.labs || [""];
+  var M = newModel(keep.length, labs);
+  arrowsOn(tab, seg).forEach(function(R){
+    /* An arrow *into* a blocked world is redirected to the world that blocks
+       it — that is the whole idea of the loop back. An arrow *out of* one is
+       dropped, because a blocked world is not a world of the structure at all:
+       its blocker stands in for it and has arrows of its own, already expanded.
+       Carrying the outgoing arrows over instead would hand the blocker a
+       successor it was never asked to satisfy its □ along, and the structure
+       would stop being a model of the branch. */
+    if (rep[R.a] !== R.a) return;
+    if (M.R[R.lab]) M.R[R.lab][idx[R.a]][idx[rep[R.b]]] = true;
+  });
   /* quotienting can break what the branch had satisfied, so close it again */
   closeFrame(M);
   var at = [];
@@ -851,37 +1362,42 @@ function modelOn(tab, seg){
   });
   return {M:M, atoms:at, idx:idx, ws:keep, rep:rep};
 }
-/* add whatever arrows the chosen conditions demand, until nothing is missing */
-function closeFrame(M){
-  var n = M.n, R = M.R, a, b, c, changed = true;
-  while (changed){
-    changed = false;
-    if (S.on.reflexive) for (a = 0; a < n; a++) if (!R[a][a]){ R[a][a] = true; changed = true; }
-    if (S.on.symmetric) for (a = 0; a < n; a++) for (b = 0; b < n; b++)
-      if (R[a][b] && !R[b][a]){ R[b][a] = true; changed = true; }
-    if (S.on.transitive) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
-      if (R[a][b] && R[b][c] && !R[a][c]){ R[a][c] = true; changed = true; }
-    if (S.on.euclidean) for (a = 0; a < n; a++) for (b = 0; b < n; b++) for (c = 0; c < n; c++)
-      if (R[a][b] && R[a][c] && !R[b][c]){ R[b][c] = true; changed = true; }
+/* The model lab writes the plain relation as R and a named one as Ra. If a
+   formula uses both — □ beside [a] — the plain one is given a name of its own
+   so nothing collides. */
+function aliasOf(labs){
+  var out = {}, named = labs.filter(function(l){ return l !== ""; });
+  labs.forEach(function(l){ out[l] = l; });
+  if (labs.indexOf("") >= 0 && named.length){
+    var pick = "rqsmnu".split("").filter(function(c){ return named.indexOf(c) < 0; })[0] || "r0";
+    out[""] = pick;
   }
-  /* a bare dead end gets a loop, so the structure really is serial */
-  if (S.on.serial) for (a = 0; a < n; a++) if (!R[a].some(Boolean)) R[a][a] = true;
+  return out;
 }
 function modelText(mo){
-  var es = [];
-  for (var a = 0; a < mo.M.n; a++) for (var b = 0; b < mo.M.n; b++) if (mo.M.R[a][b]) es.push(a + ">" + b);
+  var labs = S.labs || [""], al = aliasOf(labs), parts = [];
+  labs.forEach(function(lab){
+    var es = [], R = mo.M.R[lab];
+    if (!R) return;
+    for (var a = 0; a < mo.M.n; a++) for (var b = 0; b < mo.M.n; b++) if (R[a][b]) es.push(a + ">" + b);
+    parts.push("R" + al[lab] + "=" + es.join(","));
+  });
   var vs = mo.atoms.map(function(at){
     var w = [];
     for (var i = 0; i < mo.M.n; i++) if (mo.M.V[at][i]) w.push(i);
     return at + "=" + w.join(",");
   });
-  return "W=" + mo.M.n + "; R=" + es.join(",") + (vs.length ? "; " + vs.join("; ") : "");
+  return "W=" + mo.M.n + "; " + parts.join("; ") + (vs.length ? "; " + vs.join("; ") : "");
 }
-
 /* ═════════════════════════════════════════════ state */
 var MAXWORLDS = 40;
+/* S.labs are the relations the current formula travels along — "" is the
+   plain one of □ and ◇, a name is an agent or an atomic program. S.ags is the
+   named ones, which are what E and D quantify over. S.on holds a set of frame
+   condition switches per relation, because nothing says two agents have to
+   obey the same ones. */
 var S = {sign:"F", root:null, tab:null, sel:null, closing:null, undo:[], newLines:null,
-         on:{serial:false, reflexive:false, transitive:false, symmetric:false, euclidean:false}};
+         labs:[""], ags:[], extra:[], star:false, on:{}};
 
 var $ = function(s){ return document.querySelector(s); };
 var fh = function(f){ return '<span class="f">' + fmtHTML(f) + "</span>"; };
@@ -889,8 +1405,9 @@ var sf = function(w, s, f){
   return '<span class="wl">' + WN(w) + "</span>" +
     '<span class="f"><span class="sg ' + s + '">' + s + "</span>" + fmtHTML(f) + "</span>";
 };
-var rf = function(a, b){
-  return '<span class="f"><span class="wl">' + WN(a) + '</span><span class="rr">R</span>' +
+var rf = function(a, b, lab){
+  return '<span class="f"><span class="wl">' + WN(a) + '</span><span class="rr">R' +
+    (lab ? "<sub>" + lab + "</sub>" : "") + '</span>' +
     '<span class="wl">' + WN(b) + "</span></span>";
 };
 function say(tone, html){
@@ -909,18 +1426,45 @@ function build(src){
   catch (e){ if (LOG_READY) logFormula({f:src, err:"parse", sign:S.sign}); say("err", e.message); return; }
   if (LOG_READY) logFormula({f:src, sign:S.sign});
   S.root = f;
+  /* the relations this formula needs, and the switches that go with them;
+     a relation that has been set up before keeps its settings */
+  var found = labelsOf(f);
+  /* E, D and C quantify over the agents, and a formula like Ep ⊃ Dp names
+     none. Two is the interesting number and the one lecture 13 works with, so
+     that is what such a formula gets until the student says otherwise. */
+  if (usesEpi(f) && !found.filter(function(l){ return l !== ""; }).length && !S.extra.length)
+    S.extra = ["a", "b"];
+  S.star = hasStar(f);
+  S.labs = found.concat(S.extra.filter(function(l){ return found.indexOf(l) < 0; }));
+  if (!S.labs.length) S.labs = [""];
+  S.ags = S.labs.filter(function(l){ return l !== ""; });
+  S.labs.forEach(onOf);
   S.tab = newTab();
   S.tab.root = addSeg(S.tab, null);
   addFml(S.tab, S.tab.root, 0, S.sign, f, null, null);
   S.sel = null; S.closing = null; S.undo = []; S.newLines = null;
   say("", "Start at <b>" + WN(0) + "</b> with " + sf(0, S.sign, f) + ". A branch dies when one world has to " +
       "make the same formula true and false; a branch that runs out of rules is a <b>countermodel</b> you " +
-      "can open in the model lab. The logic is <b>" + logicName(S.on) + "</b>." +
-      ((S.on.transitive || S.on.euclidean)
-        ? " With transitivity or euclideanness a ◇ would otherwise keep asking for a fresh world that the " +
-          "closure then reaches, so a <b>loop check</b> is on: a world that repeats one already there is not " +
-          "expanded, and the structure loops back to it instead. That is what makes the search stop."
-        : ""));
+      "can open in the model lab. " +
+      (usesEpi(f) && S.ags.length === 1
+        ? "<b>One agent.</b> E and D range over the agents, and this formula names only <i>" + S.ags[0] +
+          "</i> — so here they both come to the same thing as K<sub>" + S.ags[0] + "</sub>, and a formula " +
+          "that is about two agents will come out wrong. Press <b>+ agent</b> if you meant more. "
+        : "") +
+      (S.labs.length > 1
+        ? "This formula uses <b>" + S.labs.length + " relations</b> — " +
+          S.labs.map(function(l){ return l === "" ? "the plain one" : "<i>" + l + "</i>"; }).join(", ") +
+          " — so the arrows are labelled and each gets its own switches below. "
+        : "") +
+      "The logic is <b>" + logicName() + "</b>." +
+            (!blocking() ? ""
+        : (S.star && !anyCond("transitive") && !anyCond("euclidean"))
+        ? " There is a <b>star</b> in it, so the <b>loop check</b> is on: a star travels into every world the "
+          + "other rules make and unfolds again there, which on its own never stops. A world that repeats one "
+          + "already on the branch is left unexpanded, and the structure loops back to it instead."
+        : " With transitivity or euclideanness a ◇ would otherwise keep asking for a fresh world that the "
+          + "closure then reaches, so a <b>loop check</b> is on: a world that repeats one already there is not "
+          + "expanded, and the structure loops back to it instead. That is what makes the search stop."));
   draw();
 }
 
@@ -930,9 +1474,13 @@ function selectLine(id){
   var L = S.tab.lines[id];
   S.sel = (S.sel === id) ? null : id;
   if (S.sel !== null){
+    var st = L.kind === "fml" ? stopRule(L.s, L.f) : null;
     if (L.kind === "rel")
-      say("", "Line " + id + " is the arrow " + rf(L.a, L.b) + ". Arrows are not broken down — they are what " +
-          "the □ and ◇ rules travel along.");
+      say("", "Line " + id + " is the arrow " + rf(L.a, L.b, L.lab) + ". Arrows are not broken down — they " +
+          "are what the universal and existential rules travel along" +
+          (L.lab ? ", and this one belongs to <i>" + L.lab + "</i>, so only <i>" + L.lab +
+                   "</i>’s modalities use it." : "."));
+    else if (st) say("warn", stopWhy(st, L));
     else if (L.f.k === "atom" || L.f.k === "top" || L.f.k === "bot")
       say("", "Line " + id + " is atomic. Nothing to break down — atoms are what closes a branch.");
     else if (L.used && !modalRule(L.s, L.f))
@@ -947,32 +1495,38 @@ function clickRule(code){
   var L = S.tab.lines[S.sel];
   var want = RULES.filter(function(x){ return x.code === code; })[0];
   if (L.kind === "rel"){
-    say("err", "(" + code + ") needs a signed formula. Line " + S.sel + " is the arrow " + rf(L.a, L.b) + ".");
+    say("err", "(" + code + ") needs a signed formula. Line " + S.sel + " is the arrow " +
+        rf(L.a, L.b, L.lab) + ".");
     return;
   }
-  var r = propRule(L.s, L.f), m = modalRule(L.s, L.f);
-  if (!r && !m){
+  var r = ruleFor(L.s, L.f);
+  if (!r){
     say("err", "(" + code + ") needs a compound formula. Line " + S.sel + " is atomic — nothing breaks down.");
     return;
   }
-  var mine = r ? r.code : m.code;
-  if (mine !== code){
+  if (r.kind === "stop"){ say("warn", stopWhy(r, L)); return; }
+  if (r.code !== code){
     say("err", "(" + code + ") applies to " + want.prem + ". Line " + S.sel + " is " + sf(L.w, L.s, L.f) +
-        ", so its rule is <b>(" + mine + ")</b>.");
+        ", so its rule is <b>(" + r.code + ")</b>.");
     return;
   }
   if (!leaves(S.tab, L.seg, "active").length){
     say("err", "Every branch through line " + S.sel + " is already closed — nothing left to expand.");
     return;
   }
+  var m = modalRule(L.s, L.f);
   if (m && m.mode === "all"){
     var tg = leaves(S.tab, L.seg, "active").reduce(function(t, lf){ return t + allTargets(S.tab, lf, L).length; }, 0);
     if (!tg){
-      say("err", "(" + code + ") sends " + fh(L.f.a) + " along every arrow out of " + WN(L.w) +
+      var ar = arrowsOn(S.tab, leaves(S.tab, L.seg, "active")[0]);
+      var reach = m.kind === "allD"
+        ? "every arrow out of " + WN(L.w) + " that every agent agrees on"
+        : "every" + (m.lab ? " <i>" + m.lab + "</i>-" : " ") + "arrow out of " + WN(L.w);
+      say("err", "(" + code + ") sends " + fh(L.f.a) + " along " + reach +
           ", and every such world already carries it" +
-          (arrowsOn(S.tab, leaves(S.tab, L.seg, "active")[0]).some(function(R){ return R.a === L.w; })
-            ? "." : " — in fact " + WN(L.w) + " has no arrows out of it yet, so the rule has nowhere to send it.") +
-          " Make an arrow first, with (□F), (◇T) or a frame condition.");
+          (ar.some(function(R){ return R.a === L.w && (m.kind === "allD" || R.lab === m.lab); })
+            ? "." : " — in fact " + WN(L.w) + " has no such arrow yet, so the rule has nowhere to send it.") +
+          " Make an arrow first, with an existential rule or a frame condition.");
       return;
     }
   } else if (L.used){
@@ -989,7 +1543,7 @@ function clickRule(code){
     if (all){
       say("err", "<b>Blocked.</b> " + WN(by) + " already carries every formula " + WN(L.w) +
           " does, so a new world would only repeat what " + WN(by) + " has already been given. In " +
-          aLogic(S.on).replace(/(\S+)$/, "<b>$1</b>") + " frame " + WN(L.w) + " reaches whatever " + WN(by) +
+          aLogic().replace(/(\S+)$/, "<b>$1</b>") + " frame " + WN(L.w) + " reaches whatever " + WN(by) +
           " reaches, so the structure lets " + WN(L.w) + "’s arrow land on " + WN(by) + " instead. " +
           "That is the loop check, and it is what makes the search stop.");
       return;
@@ -1003,40 +1557,65 @@ function clickRule(code){
   }
   snapshot();
   var before = S.tab.nextLine;
-  var n = applyFml(S.tab, S.sel);
+  applyFml(S.tab, S.sel);
   S.sel = null; S.newLines = [];
   for (var i = before; i < S.tab.nextLine; i++) S.newLines.push(i);
-  say("ok", "(" + mine + ") applied — " + (
-    r ? (r.kind === "beta" ? "a β-rule, so the branch splits in two." : "an α-rule, so the branch just grows.")
+  say("ok", "(" + r.code + ") applied — " + (
+    PROGCODES[r.code] ? "the law for that program, so the modality is traded for a smaller one."
+      : r.code === "(E)" ? "everyone-knows is the conjunction over the agents."
+      : r.kind === "beta" ? "a β-rule, so the branch splits in two."
+      : r.kind === "alpha" ? "an α-rule, so the branch just grows."
+      : r.kind === "newD" ? "a new world, with an arrow from every agent — which is what puts it in the " +
+                            "intersection."
       : m.mode === "new" ? "a new world, with the arrow that reaches it."
-                         : "sent along every arrow out of " + WN(L.w) + "."));
+      : "sent along every arrow out of " + WN(L.w) + "."));
   draw(true);
   checkDone();
 }
-function clickCond(k){
+function clickCond(lab, k){
   if (!S.tab) return;
   var C = COND.filter(function(c){ return c.k === k; })[0];
-  if (!S.on[k]){
-    say("err", "The logic is <b>" + logicName(S.on) + "</b>, which does not assume " + k +
+  var which = lab === "" ? "" : " on <i>" + lab + "</i>";
+  if (!onOf(lab)[k]){
+    say("err", "The logic" + which + " is <b>" + logicOf(lab) + "</b>, which does not assume " + k +
         " frames. Switch " + k + " on above if that is the logic you want.");
     return;
   }
   var live = leaves(S.tab, S.tab.root, "active");
-  var work = live.reduce(function(t, lf){ return t + condWork(S.tab, lf, k).length; }, 0);
-  if (!work){ say("err", "Nothing to add: every open branch already satisfies " + k + "."); return; }
+  var work = live.reduce(function(t, lf){ return t + condWork(S.tab, lf, lab, k).length; }, 0);
+  if (!work){ say("err", "Nothing to add: every open branch already satisfies " + k + which + "."); return; }
   snapshot();
   var before = S.tab.nextLine;
-  applyCond(S.tab, S.tab.root, k);
+  applyCond(S.tab, S.tab.root, lab, k);
   S.sel = null; S.newLines = [];
   for (var i = before; i < S.tab.nextLine; i++) S.newLines.push(i);
-  say("ok", "<b>" + k + "</b> — " + C.law + ". " +
-      "Those arrows may wake a (□T) or (◇F) line that had nowhere to go.");
+  say("ok", "<b>" + k + which + "</b> — " + C.law + ". " +
+      "Those arrows may wake a universal line that had nowhere to go.");
   draw(true);
   checkDone();
 }
-function toggleCond(k){
-  S.on[k] = !S.on[k];
-  say("", "The logic is now <b>" + logicName(S.on) + "</b>" +
+function addAgent(){
+  var used = S.labs, pick = null;
+  "abcdefghij".split("").forEach(function(c){ if (!pick && used.indexOf(c) < 0) pick = c; });
+  if (!pick){ say("err", "Ten agents is as many as this page names."); return; }
+  S.extra.push(pick);
+  say("", "Added agent <b>" + pick + "</b>. E and D now range over " +
+      S.ags.concat([pick]).join(", ") + ". The tree starts again.");
+  var was = LOG_READY; LOG_READY = false; build($("#formula").value); LOG_READY = was;
+}
+function dropAgent(){
+  if (!S.extra.length){
+    say("err", "Every agent left is one the formula names — write it out of the formula to be rid of it.");
+    return;
+  }
+  var gone = S.extra.pop();
+  say("", "Dropped agent <b>" + gone + "</b>. The tree starts again.");
+  var was = LOG_READY; LOG_READY = false; build($("#formula").value); LOG_READY = was;
+}
+function toggleCond(lab, k){
+  var on = onOf(lab);
+  on[k] = !on[k];
+  say("", "The logic is now <b>" + logicName() + "</b>" +
       (S.tab ? ". Rules already applied stay; the frame conditions only ever add arrows, so turning one on " +
                "mid-proof is safe." : "."));
   draw();
@@ -1093,6 +1672,8 @@ function markOpen(seg){
     return;
   }
   var owed = owedFml(tab, seg), oc = owedCond(tab, seg);
+  var st = owed.filter(function(x){ return x.stop; })[0];
+  if (st){ say("warn", stopWhy(st.stop, tab.lines[st.id])); return; }
   if (owed.length){
     var L2 = tab.lines[owed[0].id];
     say("err", "Not finished: line " + L2.id + ", " + sf(L2.w, L2.s, L2.f) + ", still owes its (" +
@@ -1100,41 +1681,53 @@ function markOpen(seg){
     return;
   }
   if (oc.length){
-    say("err", "Not finished: the logic is <b>" + logicName(S.on) + "</b> and this branch is not yet " +
-        oc[0].k + ". Apply <b>" + oc[0].lbl + "</b> first — a countermodel has to be a frame of the logic.");
+    say("err", "Not finished: the logic is <b>" + logicName() + "</b> and this branch is not yet " +
+        oc[0].k + (oc[0].lab ? " on <i>" + oc[0].lab + "</i>" : "") + ". Apply <b>" + oc[0].lbl +
+        "</b> first — a countermodel has to be a frame of the logic.");
     return;
   }
   var mo0 = modelOn(tab, seg), why = checkModel(mo0);
-  if (why){
-    say("err", "Something is wrong: " + why + ". This is a bug in the tool, not in your working — " +
-        "please report it.");
-    return;
-  }
+  if (why){ say(blocking() ? "warn" : "err", badModelWhy(why)); return; }
   snapshot();
   tab.segs[seg].state = "open";
   var mo = modelOn(tab, seg);
   say("ok", "Branch open. It reads off as <code>" + modelText(mo) + "</code> — " +
-      plural(mo.M.n, "world") + ", " + plural(mo.M.R.reduce(function(t, r){
-        return t + r.filter(Boolean).length; }, 0), "arrow") + ".");
+      plural(mo.M.n, "world") + ", " + plural(arrowCount(mo.M), "arrow") + ".");
   draw();
   checkDone();
+}
+function arrowCount(M){
+  var t = 0;
+  Object.keys(M.R).forEach(function(l){
+    M.R[l].forEach(function(r){ t += r.filter(Boolean).length; });
+  });
+  return t;
 }
 function plural(n, w, pl){ return n + " " + (n === 1 ? w : (pl || w + "s")); }
 
 function checkDone(){
   var tab = S.tab, lv = leaves(tab, tab.root);
-  if (lv.some(function(s){ return tab.segs[s].state === "active"; })) return;
+  var act = lv.filter(function(s){ return tab.segs[s].state === "active"; });
+  if (act.length){
+    /* a branch where every rule left is a refused one will never finish, and
+       saying so beats letting the student hunt for a move that is not there */
+    var stuck = null;
+    act.forEach(function(s){ if (!stuck) stuck = stuckOn(tab, s); });
+    if (stuck && act.every(function(s){ return stuckOn(tab, s) || clashOn(tab, s); }))
+      say("warn", "<b>As far as this page goes.</b> " + stopWhy(stuck.stop, tab.lines[stuck.id]));
+    return;
+  }
   var open = lv.filter(function(s){ return tab.segs[s].state === "open"; });
   if (!open.length){
     say("ok", "<b>Tableau closed.</b> All " + plural(lv.length, "branch", "branches") + " died, so no " +
-        logicName(S.on) + " structure makes " + sf(0, S.sign, S.root) + " — " +
-        (S.sign === "F" ? "the formula is <b>valid in " + logicName(S.on) + "</b>."
-                        : "the formula is <b>unsatisfiable in " + logicName(S.on) + "</b>."));
+        logicName() + " structure makes " + sf(0, S.sign, S.root) + " — " +
+        (S.sign === "F" ? "the formula is <b>valid in " + logicName() + "</b>."
+                        : "the formula is <b>unsatisfiable in " + logicName() + "</b>."));
   } else {
     var mo = modelOn(tab, open[0]), why2 = checkModel(mo);
-    if (why2){ say("err", "Something is wrong: " + why2 + " — please report it."); return; }
+    if (why2){ say(blocking() ? "warn" : "err", badModelWhy(why2)); return; }
     say("ok", "<b>Tableau open.</b> The branch marked ○ gives a structure making " + sf(0, S.sign, S.root) +
-        " — " + (S.sign === "F" ? "a <b>countermodel</b>, so the formula is not valid in " + logicName(S.on)
+        " — " + (S.sign === "F" ? "a <b>countermodel</b>, so the formula is not valid in " + logicName()
                                 : "a <b>model</b>, so it is satisfiable") + ". " +
         '<a class="golink" href="kripke.html#' + encodeURIComponent(modelText(mo)) +
         '" target="_blank" rel="noopener">Open it in the model lab →</a>');
@@ -1177,17 +1770,20 @@ function lineHTML(tab, id){
   var L = tab.lines[id], cls = ["line"];
   if (L.kind === "rel") cls.push("rel");
   else {
-    var m = modalRule(L.s, L.f);
-    var spent = m && m.mode === "all"
-      ? !leaves(tab, L.seg, "active").some(function(lf){ return allTargets(tab, lf, L).length; })
-      : L.used;
-    if (spent && (propRule(L.s, L.f) || m)) cls.push("used");
+    var r = ruleFor(L.s, L.f);
+    if (r && r.kind === "stop") cls.push("stopped");
+    else {
+      var spent = (r && (r.kind === "all" || r.kind === "allD"))
+        ? !leaves(tab, L.seg, "active").some(function(lf){ return allTargets(tab, lf, L).length; })
+        : L.used;
+      if (spent && r) cls.push("used");
+    }
   }
   if (S.sel === id) cls.push("sel");
   if (S.closing && S.closing.picks.indexOf(id) >= 0) cls.push("pick");
   return '<button type="button" class="' + cls.join(" ") + '" data-line="' + id + '">' +
     '<span class="num">' + id + '</span><span class="tick">✓</span>' +
-    '<span class="body">' + (L.kind === "rel" ? rf(L.a, L.b) : sf(L.w, L.s, L.f)) + "</span>" +
+    '<span class="body">' + (L.kind === "rel" ? rf(L.a, L.b, L.lab) : sf(L.w, L.s, L.f)) + "</span>" +
     '<span class="just">' + (L.src ? L.src + ' <span class="rc">' + L.rule + "</span>"
                                    : L.rule ? '<span class="rc">' + L.rule + "</span>" : "") + "</span></button>";
 }
@@ -1207,6 +1803,8 @@ function tipHTML(tab, seg){
     return '<div class="tip"><span class="prompt">pick ' + left + " more line" + (left === 1 ? "" : "s") +
       '</span><button class="tipbtn" data-act="cancel">cancel</button></div>';
   }
+  if (stuckOn(tab, seg))
+    return '<div class="tip"><span class="prompt">no rule left that this page will take</span></div>';
   return '<div class="tip"><div class="acts">' +
     '<button class="tipbtn c" data-act="close" data-seg="' + seg + '">Close ×</button>' +
     '<button class="tipbtn o" data-act="open" data-seg="' + seg + '">Open ○</button></div></div>';
@@ -1223,18 +1821,56 @@ function equalize(root){
     kids.forEach(function(k){ k.style.width = w + "px"; });
   });
 }
+/* Which families of rule are on show depends on the formula: a page about
+   □ and ◇ should not be carrying a row of program laws it will never need. */
+function usesProg(g){
+  var hit = false;
+  (function walk(h){
+    if (hit || !h || h.k === "atom" || h.k === "top" || h.k === "bot") return;
+    if ((h.k === "box" || h.k === "dia") && h.pr && h.pr.p !== "atom"){ hit = true; return; }
+    if (h.k === "not" || MODAL[h.k]){
+      if (h.pr) progTests(h.pr).forEach(walk);
+      walk(h.a); return;
+    }
+    walk(h.a); walk(h.b);
+  })(g);
+  return hit;
+}
+function usesEpi(g){
+  var hit = false;
+  (function walk(h){
+    if (hit || !h || h.k === "atom" || h.k === "top" || h.k === "bot") return;
+    if (h.k === "e" || h.k === "d" || h.k === "c"){ hit = true; return; }
+    if (h.k === "not" || MODAL[h.k]){
+      if (h.pr) progTests(h.pr).forEach(walk);
+      walk(h.a); return;
+    }
+    walk(h.a); walk(h.b);
+  })(g);
+  return hit;
+}
 function drawRules(){
   var L = (S.tab && S.sel !== null) ? S.tab.lines[S.sel] : null;
   var mine = null;
   if (L && L.kind === "fml"){
-    var p = propRule(L.s, L.f), m = modalRule(L.s, L.f);
-    mine = p ? p.code : m ? m.code : null;
+    var r = ruleFor(L.s, L.f);
+    mine = r && r.kind !== "stop" ? r.code : null;
   }
+  var groups = [["alpha","α","extends the branch"], ["beta","β","splits the branch"],
+                ["all","∀","sends it along every arrow"], ["new","∃","makes a new world"]];
+  if (S.root && usesProg(S.root)) groups.splice(2, 0, ["prog","π","trades a program for a smaller one"]);
+  var showEpi = S.root && usesEpi(S.root);
   var h = "";
-  [["alpha","α","extends the branch"], ["beta","β","splits the branch"],
-   ["all","∀","sends it along every arrow"], ["new","∃","makes a new world"]].forEach(function(g){
+  groups.forEach(function(g){
+    var rs = RULES.filter(function(x){
+      if (x.kind !== g[0]) return false;
+      if (PROGCODES[x.code]) return true;
+      if (EPICODES[x.code]) return showEpi;
+      return true;
+    });
+    if (!rs.length) return;
     h += '<div class="rulegroup"><span class="glyph" title="' + g[2] + '">' + g[1] + '</span><div class="rulerow">';
-    RULES.filter(function(x){ return x.kind === g[0]; }).forEach(function(R){
+    rs.forEach(function(R){
       var cls = "rule" + (mine ? (mine === R.code ? " armed" : " dim") : "");
       h += '<button type="button" class="' + cls + '" data-rule="' + R.code + '">' +
         '<span class="code">' + R.code + '</span><span class="sch">' + R.prem + '<span class="ar">⇒</span>' +
@@ -1242,22 +1878,37 @@ function drawRules(){
     });
     h += "</div></div>";
   });
-  /* the frame conditions: a switch for the logic, and a button to apply one */
-  h += '<div class="rulegroup"><span class="glyph" title="the frame conditions of the logic">R</span>' +
-       '<div class="rulerow">';
-  COND.forEach(function(C){
-    var live = S.on[C.k];
-    var work = live && S.tab ? leaves(S.tab, S.tab.root, "active")
-      .reduce(function(t, lf){ return t + condWork(S.tab, lf, C.k).length; }, 0) : 0;
-    h += '<span class="condwrap">' +
-      '<button type="button" class="condsw' + (live ? " on" : "") + '" data-cond-toggle="' + C.k +
-        '" title="' + (live ? "On: " : "Off: ") + C.k + ' frames — axiom ' + C.ax + '">' + C.ax + "</button>" +
-      '<button type="button" class="rule cond' + (live ? (work ? " armed" : " dim") : " off") +
-        '" data-cond="' + C.k + '" title="' + C.law + '">' +
-        '<span class="code">' + C.lbl + '</span><span class="sch">' + C.k + "</span></button></span>";
+  /* who the agents are, when the formula has an operator that quantifies over
+     them and so cannot say on its own */
+  if (showEpi){
+    h += '<div class="rulegroup"><span class="glyph" title="the agents E and D range over">ag</span>' +
+         '<div class="rulerow agrow"><span class="aglist">' +
+         (S.ags.length ? S.ags.map(function(g){ return "<i>" + g + "</i>"; }).join(" ") : "none") +
+         '</span><button type="button" class="tipbtn" data-act="agadd">+ agent</button>' +
+         '<button type="button" class="tipbtn" data-act="agdrop">− agent</button></div></div>';
+  }
+  /* the frame conditions: a switch for the logic, and a button to apply one,
+     one row per relation the formula uses */
+  (S.labs || [""]).forEach(function(lab){
+    var on = onOf(lab);
+    h += '<div class="rulegroup"><span class="glyph" title="the frame conditions of the logic">' +
+         (lab === "" ? "R" : "R<sub>" + lab + "</sub>") + '</span><div class="rulerow">';
+    COND.forEach(function(C){
+      var live = on[C.k];
+      var work = live && S.tab ? leaves(S.tab, S.tab.root, "active")
+        .reduce(function(t, lf){ return t + condWork(S.tab, lf, lab, C.k).length; }, 0) : 0;
+      h += '<span class="condwrap">' +
+        '<button type="button" class="condsw' + (live ? " on" : "") + '" data-cond-toggle="' + lab +
+          '|' + C.k + '" title="' + (live ? "On: " : "Off: ") + C.k + ' frames' +
+          (lab ? " for " + lab : "") + ' — axiom ' + C.ax + '">' + C.ax + "</button>" +
+        '<button type="button" class="rule cond' + (live ? (work ? " armed" : " dim") : " off") +
+          '" data-cond="' + lab + '|' + C.k + '" title="' + C.law + '">' +
+          '<span class="code">' + C.lbl + '</span><span class="sch">' + C.k + "</span></button></span>";
+    });
+    h += '<span class="logicname">' + (lab === "" ? "" : "<i>" + lab + "</i> is ") +
+         "<b>" + logicOf(lab) + "</b></span>";
+    h += "</div></div>";
   });
-  h += "</div></div>";
-  h += '<div class="logicname">logic <b>' + logicName(S.on) + "</b></div>";
   $("#rules").innerHTML = h;
 }
 /* ═════════════════════════════════════════════ connective pad */
@@ -1305,12 +1956,16 @@ document.addEventListener("click", function(e){
   }
   if (t.hasAttribute("data-line")){ selectLine(+t.dataset.line); return; }
   if (t.hasAttribute("data-rule")){ clickRule(t.dataset.rule); return; }
-  if (t.hasAttribute("data-cond-toggle")){ toggleCond(t.dataset.condToggle); return; }
-  if (t.hasAttribute("data-cond")){ clickCond(t.dataset.cond); return; }
+  if (t.hasAttribute("data-cond-toggle")){
+    var ct = t.dataset.condToggle.split("|"); toggleCond(ct[0], ct[1]); return; }
+  if (t.hasAttribute("data-cond")){
+    var cc = t.dataset.cond.split("|"); clickCond(cc[0], cc[1]); return; }
   var a = t.dataset.act;
   if (a === "close") startClosing(t.dataset.seg);
   else if (a === "open") markOpen(t.dataset.seg);
   else if (a === "cancel"){ S.closing = null; say("", "Closure cancelled."); draw(); }
+  else if (a === "agadd") addAgent();
+  else if (a === "agdrop") dropAgent();
 });
 
 $("#entry").addEventListener("submit", function(e){ e.preventDefault(); build($("#formula").value); });
